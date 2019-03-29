@@ -13,7 +13,7 @@ default_proxy = 'http://u/'
 default_encoding = 'utf_8'
 read_encoding = default_encoding+'|utf_16_le|utf_16_be|cp1251'
 
-read_root = '|'.join([	# <- only flat string format available from command line; trail / for no subfolder recursion
+read_root = '|'.join([	# <- only flat string format available from command line; add trailing "/" for no subfolder recursion
 	u'd:/_bak/_www/_img/_graber/py/'
 ,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/MsgExport'
 ,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/ChatRooms'
@@ -152,7 +152,7 @@ url_to_skip = [					# <- various bad or useless stuff, won't fix now, or ever
 #,	'mega.co.nz/#', 'mega.nz/#'
 ,	'cgpeers.com'
 ,	'iqdb.org/?'
-,	'pixiv.net/member_illust', 'pixiv.net/img', '//i2.pixiv.net'	# <- could set up login + autoDL, etc, maybe later
+,	'pixiv.net/member_illust', 'pixiv.net/img', '//i2.pixiv.net'			# <- could set up login + autoDL, etc, maybe later
 #,	'share.yandex.net/go', 'wikipedia.'
 ,	'//a/', '//l/', '//localhost/'		# <- localhost and its aliases
 ]
@@ -160,11 +160,11 @@ url_to_skip = [					# <- various bad or useless stuff, won't fix now, or ever
 add_headers_to = [				# <- fake useragent, POST option, etc
 	[['.'], {				# <- won't bother listing all the sites who banned python naming like itself
 		'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'
-# }],	[['tumblr.com'], {
+# }],	[['www.example.com'], {
 #		'Cookie': '; '.join([
-#			'language=%2Cen_US'
-#		,	'logged_in=1'
-#		,	'...'
+#			'language=en_US'
+#		,	'key=value'
+#		,	'etc=...'
 #		])
 }],	[['file.qip.ru/file'], '']		# <- send request as POST
 ]
@@ -307,7 +307,7 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'&quot;', re.I), '"']
 ,	[re.compile(r'&#0*39;', re.I), "'"]
 ,	[re.compile(r'&amp;', re.I), '&']
-,	[re.compile(r'(\[/img]|[\'\\"\s]+)$', re.I), '']
+,	[re.compile(r'(\[/img]|[\|\'\\"\s]+)$', re.I), '']
 ,	[re.compile(r'\.prx2\.unblocksit\.es', re.I), '']					# <- remove web-proxy
 ,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
 ,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https
@@ -317,9 +317,10 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'^(\w+:/+([^/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
 ,	[re.compile(r'\b(twimg.com/media/[^:?&#]+)([:?&].*)?$', re.I), r'\1:orig']
-,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+).*$', re.I), r'\1rgho.st/\2']
+,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rgho.st/\2']
 ,	[re.compile(r'(file.qip.ru/(file|photo)/[^?#]+)(\?.*)?$', re.I), r'\1?action=downloads']
 ,	[re.compile(r'shot\.qip\.ru[^-#]*-(.)([^/?#]+)(/+.*)?$', re.I), r'f\1.s.qip.ru/\2.png']
+,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(skype\.com)/+login/+sso?go=(.*)$', re.I), r'\1web.\2/\3']	# <- get attachments via web version
 ,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?youtu\.be/+([^/?&#]+)$', re.I), r'\1www.youtube.com/watch?v=\2']
 ,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?youtu\.be/+([^/?&#]+)([?&/](.*))?$', re.I), r'\1www.youtube.com/watch?v=\2&\3']
 ]
@@ -422,8 +423,15 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 ,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?ezgif\.\w+)/\w+(/\w+)\.gif([/?#]|$)', re.I)
 	,	'grab': re.compile(r'<img\b[^>]*?\s+src="?/*([^">\s]+)"*\b[^>]*?\s+id="?target', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)(?P<Domain>gyazo\.com)(/[^?#]*?)?(?P<ImageID>/\w{32})(\W.*)?$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>gyazo\.com/)([^?#]*?)?(?P<ImageID>/\w{32})(\W.*)?$', re.I)
 	,	'link': [r'\g<Domain>\g<ImageID>']	# <- view page instead of direct link to image
+	}
+,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>skype\.com/)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)', re.I)
+	,	'link': [r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize']	# <- direct link to image instead of page, which contains no links and relies on JS
+# link samples:
+# https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
+# https://web.skype.com/xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
+# https://api.asm.skype.com/v1/objects/0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae/views/imgpsh_fullsize
 	}
 ,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?gyazo\.com/[^/]+)$', re.I)
 	,	'grab': re.compile(r'''
@@ -474,7 +482,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 	,	'grab': re.compile(r'\s+class="?embeddedObject"?\s+src="?([^">\s]+)', re.I)
 	}
 ,	{	'page': re.compile(r'(^|[/.])(?:rgho(?:st)?\.\w+|ad-l\.ink)/(private/)?(\d\w+)', re.I)
-	,	'grab': re.compile(r'\s+href="(\w+:/+(?:[^/?#.]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/download/(?:private/)?\d\w+/[^">\s]+)', re.I)
+	,	'grab': re.compile(r'\s+href="((?:\w+:|/+\w+)/+(?:[^/?#.]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/download/(?:private/)?\d\w+/[^">\s]+)', re.I)
 	,	'name': [
 			[0, r'rgh \3 - ']
 		,	[re.compile(r'<time\b[^>]*?\s+datetime="([^":\s]+)\s+([^":]+):([^":]+):([^":]+)', re.I), r'\1,\2-\3-\4 - ']
@@ -513,6 +521,9 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 				[^:/]+:\s*([^<]*)</			# <- upload date
 			''', re.I | re.X), r'\1 - \2 - ']
 		]
+	}
+,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?t.co/[^/]+)', re.I)
+	,	'grab': re.compile(r'URL="?([^"]+?)', re.I)
 	}
 ,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?twitter\.com/[^/]+/status/[^/]+)', re.I)
 	,	'grab': re.compile(r'data-url="?([^"]*?/status/\d+/photo/[^"?]*)|data-image-url="?([^">\s]+)|\s+src="?([^">\s]+):small', re.I)
@@ -584,7 +595,7 @@ pat2recheck_next_time = [
 
 pat2replace_before_saving_file = [
 	[re.compile(r'(file.qip.ru,file,\w+),.*?&action=d\w+', re.I), r'\1']
-,	[re.compile(r'((\w+;,+)?([^,&]+\.)?(joy)?reactor\.\w+,[^%]*)(-*(%)[a-z0-9]{2,4})+([^%]*)$', re.I), r'\1\6(...)\7']	# <- tested in TCMD
+,	[re.compile(r'((\w+;,+)?([^,&]+\.)?(joy)?reactor\.\w+,[^%]*)([^%]*?(%)[a-z0-9]{2,4})+([^%]*)$', re.I), r'\1\6(...)\7']	# <- tested in TCMD
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
 ,	[re.compile(r'((\.\w+)[;:]large)$', re.I), r'\1\2']					# <- fix twitter img extention
@@ -1266,12 +1277,15 @@ def process_url(dest_root, url, utf='', prfx=''):
 					pat_name = p.get('name', default_red2_name_prefix)
 
 					if pat_link and not pat_grab:
-						try:
-							url2 = r2.expand(pat_link)
-							url2 = get_prereplaced_url(url2, hostname, protocol)
-							finished += process_url(dest_root, url2)
-						except Exception:
-							print '<re: skipped unmatched group in source link>'
+						for x in pat_link:
+							try:
+								url2 = r2.expand(x)
+								if url2 and not url2 == x:
+									url2 = get_prereplaced_url(url2, hostname, protocol)
+									finished += process_url(dest_root, url2)
+									break
+							except Exception:
+								print '<re: skipped unmatched group in source link>'
 						break
 
 					try:

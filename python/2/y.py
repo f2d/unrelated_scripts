@@ -17,15 +17,17 @@ CYS = 'c' in sys.argv
 #	NINE TAIL-Trial Ver.C84- PV (HD).mp4
 #	ИСТОРИЯ ПОЯВЛЕНИЯ - ЗЕМЛИ-ТЯН И СОЛНЕЧНОЙ СИСТЕМЫ - ХУМАНИЗАЦИЯ - YouTube (HD).mp4
 
-src_list = os.listdir(u'.')
-#dest_dir = u'd:/_bak/v/_yt'
-dest_dir = u'd:/1_Video/other/_xz/_yt'
-separated_dir = '_audio-video_separated'
-
 page_prfx = 'Youtube'
 page_sufx = ' - watch'
 page_ext_arr = ['mht', 'mhtml']
 page_fnmatch_by_ext_arr = map(lambda x: page_prfx+'*.'+x, page_ext_arr)
+
+separated_subdir = '_audio-video_separated'
+
+dest_dirs = [
+	[u'd:/1_Video/games/GOG.com', page_prfx+' - GOG.com - *.*']
+,	[u'd:/1_Video/other/_xz/_yt']
+]
 
 len_p = len(page_prfx)
 len_s = len(page_sufx)
@@ -178,7 +180,7 @@ def check_src_page(src_page, page_fnmatch):
 					if r in res_list:
 						f += ','+v+','+res_list[r]+'.'+(ext or 'mp4')
 					else:
-						f = separated_dir+'/'+f+','+v+',1920x1080.'+(
+						f = separated_subdir+'/'+f+','+v+',1920x1080.'+(
 							'mp4' if r == 'v' else
 							''.join(video_filename.split(v)[1 : ]).strip('._')+'_audio.wav'
 						)
@@ -197,13 +199,30 @@ def check_src_page(src_page, page_fnmatch):
 
 				i += 1
 
-				if TEST:
-					print i, video_filename.encode('utf-8'), f.encode('utf-8')
-				else:
+				dest_filename = f.rsplit('/', 1)[-1:][0]
+
+				for dda in dest_dirs:
+					matched = False
+
+					if len(dda) > 1:
+						for df_mask in dda[1:]:
+							if fnmatch.fnmatch(dest_filename, df_mask):
+								matched = True
+								break
+					else:
+						matched = True
+
+					if matched and len(dda) > 0 and dda[0]:
+						dest = dda[0]+'/'+f
+						break
+
+				print i, video_filename.encode('utf-8')
+				print '->', dest.encode('utf-8')
+
+				if not TEST:
 					if os.path.exists(video_filename):
-						print i, video_filename.encode('utf-8')
-						dest = dest_dir+'/'+f
 						d = dest.rsplit('/', 1)[0]
+
 						if not os.path.exists(d):
 							print '- Path not found, make dirs: '+d.encode('utf-8')
 							os.makedirs(d)
@@ -211,8 +230,11 @@ def check_src_page(src_page, page_fnmatch):
 							move_to_unique_path(video_filename, dest)
 						else:
 							print '- Fail: could not make dirs.'
-			#		else:
-			#			print i, video_filename.encode('utf-8'), '- File not found'
+				#	else:
+				#		print i, video_filename.encode('utf-8'), '- File not found'
+
+				print
+
 #				break	# <- break for speed, no break to rename same-named files of different type
 #	if i > 15:
 #		break			# <- leftover shortcut for testing
@@ -220,6 +242,7 @@ def check_src_page(src_page, page_fnmatch):
 # CYS (Complete YouTube Saver) complete pages in subfolders:
 # from "title,v=ID/v=ID.ext" + other files inside
 # to "title,v=ID.ext" + "title,v=ID.other_files_archive_ext":
+
 	elif CYS and os.path.isdir(src_page):
 		v = src_page.rsplit('v=', 1)[-1 : ][0].encode('utf-8')
 		for sub_name in os.listdir(src_page):
@@ -235,17 +258,22 @@ def check_src_page(src_page, page_fnmatch):
 						print '- Moving up media file:', sub_name.rsplit('v=', 1)[-1 : ][0].encode('utf-8')
 						move_to_unique_path(path, dest)
 			#	elif TEST: print ext
+
 		if len(os.listdir(src_page)):
 			print '- Archiving leftover page files:', v
 			if not TEST:
 				subprocess.call(encode_cmd(['pynp.bat', 'a', '7re_d', src_page, '.']))
+
 		if os.path.isdir(src_page) and not len(os.listdir(src_page)):
 			print -' Deleting empty folder:', v
 			if not TEST:
 				os.remove(src_page)
+
 		print
 
 i = 0
+
+src_list = os.listdir(u'.')
 
 for src_page in src_list:
 	for page_fnmatch in page_fnmatch_by_ext_arr:

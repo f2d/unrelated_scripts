@@ -149,7 +149,7 @@ def append_cmd(paths, suffix, opt_args=None):
 		1 if rar else 0
 	,	dest
 	,	a + path_args
-	,	',' in suffix
+	,	(suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
 	])
 	return 1
 
@@ -280,6 +280,27 @@ cmd_7zip = (
 +	rest
 )
 
+pat_inex = re.compile(r'^(?P<InEx>-[ix])(?P<Recurse>r[0-]*)?(?P<Value>[!@].*)$', re.I)
+rest_winrar = []
+
+for arg in rest:
+	res = re.search(pat_inex, arg)
+	if res:
+		rest_winrar.append(res.group('InEx') + res.group('Value'))
+		r = res.group('Recurse')
+		if r:
+			rest_winrar.append('-' + r)
+	else:
+		rest_winrar.append(arg)
+
+if not (
+	foreach
+or	'-r' in rest_winrar
+or	'-r-' in rest_winrar
+or	'-r0' in rest_winrar
+):
+	rest_winrar.append('-r0')
+
 cmd_winrar = (
 	[exe_winrar, 'a', '-tl', '-dh']
 +	(
@@ -290,16 +311,7 @@ cmd_winrar = (
 		['-ibck'] if minimized else
 		[]
 	)
-+	(
-		[] if (
-			foreach
-			or '-r' in rest
-			or '-r-' in rest
-			or '-r0' in rest
-		) else
-		['-r0']
-	)
-+	map(lambda x: '-x'+x[3:] if x[0:3] == '-x!' else x, rest)
++	rest_winrar
 )
 
 cmd = []
@@ -403,8 +415,7 @@ for i in cmd:
 	if not 'c' in flag:
 		e = subprocess.call(i[2], startupinfo=minimized)
 		if os.path.exists(i[1]):
-			c = ',' if ('>' in flag and len(i) > 3 and i[3]) else '.'
-# TODO: remember [name][;_date][,any,suffixes][.ext] as parts, do not rely on split+join
+			c = i[3] if '>' in flag and len(i) > 3 and i[3] else '.'
 			d = i[1]
 			j = (
 				datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
