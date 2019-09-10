@@ -14,13 +14,13 @@ default_encoding = 'utf_8'
 read_encoding = default_encoding+'|utf_16_le|utf_16_be|cp1251'
 
 read_root = '|'.join([	# <- only flat string format available from command line; add trailing "/" for no subfolder recursion
-	u'd:/_bak/_www/_img/_graber/py/'
+	u'd:/_bak/_graber/py/'
 ,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/MsgExport'
 ,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/ChatRooms'
 ])
 
 dest_root = '|'.join([
-	u'd:/_bak/_www/_img/_graber/py/dl'
+	u'd:/_bak/_graber/py/dl'
 ,	u'd:/_bak/_www/_conf/_private'
 ,	u'd:/_bak/_www/_conf'
 ])
@@ -207,11 +207,11 @@ pat_grab = re.compile(r'''
 
 pat_conseq_slashes = re.compile(r'[\\/]+')
 pat_badp = re.compile(r'^(\w+):/*')
-pat_cdfn = re.compile(r'filename="?([^">\s]+)', re.I)
+pat_cdfn = re.compile(r'filename\*?=(?:UTF-8\'+)?"?([^"\s>]+)', re.I)
 pat_exno = re.compile(r'\W')
 pat_host = re.compile(r'^(?P<Protocol>[^:]*:/+)?(?P<Domain>[^/@]+)(?P<Path>/.*)?$')
 pat_href = re.compile(r'\shref=[\'"]?([^\'"\s>]+)', re.I)
-pat_imgs = re.compile(r'<img[^>]*?\ssrc=[\'"]?([^\'"\s>]+)', re.I)
+pat_imgs = re.compile(r'<img[^>]*?\s+src=[\'"]?([^"\s>]+)', re.I)
 pat_synt = re.compile(r'[\d/.,_-]+')
 pat_trim = re.compile(r'([.,]+|[*~]+|[_-]+|[()]+|/+)$')
 pat_uenc = re.compile(r'%([0-9a-f]{2})', re.I)
@@ -307,7 +307,8 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'&quot;', re.I), '"']
 ,	[re.compile(r'&#0*39;', re.I), "'"]
 ,	[re.compile(r'&amp;', re.I), '&']
-,	[re.compile(r'(\[/img]|[\|\'\\"\s]+)$', re.I), '']
+,	[re.compile(r'(\[/img\]|[\|\'\\"\s.,;:%|?*]|%2C|%3B|%3A|%25|%7C|%3F)+$', re.I), '']
+,	[re.compile(r'^(\w+:/+)?([^/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url=', re.I), '']# <- remove redirect
 ,	[re.compile(r'\.prx2\.unblocksit\.es', re.I), '']					# <- remove web-proxy
 ,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
 ,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https
@@ -316,13 +317,16 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 #,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']
 ,	[re.compile(r'^(\w+:/+([^/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
-,	[re.compile(r'\b(twimg.com/media/[^:?&#]+)([:?&].*)?$', re.I), r'\1:orig']
+,	[re.compile(r'^(\w+:/+)([^/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
+,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#]+)\?(?:[^&#]*&)*format=([^&#]+)', re.I), r'\1.\2']
+,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#]+\.[^.:?&#]+)([:?&#].*)?$', re.I), r'\1:orig']
 ,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rgho.st/\2']
 ,	[re.compile(r'(file.qip.ru/(file|photo)/[^?#]+)(\?.*)?$', re.I), r'\1?action=downloads']
 ,	[re.compile(r'shot\.qip\.ru[^-#]*-(.)([^/?#]+)(/+.*)?$', re.I), r'f\1.s.qip.ru/\2.png']
 ,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(skype\.com)/+login/+sso?go=(.*)$', re.I), r'\1web.\2/\3']	# <- get attachments via web version
 ,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?youtu\.be/+([^/?&#]+)$', re.I), r'\1www.youtube.com/watch?v=\2']
 ,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?youtu\.be/+([^/?&#]+)([?&/](.*))?$', re.I), r'\1www.youtube.com/watch?v=\2&\3']
+,	[re.compile(r'^(([^/?#]+/+)(?:[^/?#]+\.)?forum\.spaceengine\.org\/+download/+file\.php\?id=[^&#]+)&[^#]*', re.I), r'\1']
 ]
 
 pat2replace_before_dl = [	# <- strings after this are sent to web servers
@@ -382,15 +386,16 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 					"width"	:	"?(?P<imgurWidth>	\d+)"?
 				|	"height":	"?(?P<imgurHeight>	\d+)"?
 				|	"size"	:	"?(?P<imgurSize>	\d+)"?
-				|	"hash"	:	"?(?P<imgurID>		(?:[^"]|\\")*?)"?
-				|	"ext"	:	"?(?P<imgurExt>		(?:[^"]|\\")*?)"?
-				|	"datetime":	"?(?P<imgurDate>	(?:[^"]|\\")*?)"?	# <- fields in any order
-				|	"?[\w-]+"?:	"?			(?:[^"]|\\")*?"?	# <- other unneeded fields
+				|	"hash"	:	"?(?P<imgurID>		(?:\\"|[^"])*)"?
+				|	"ext"	:	"?(?P<imgurExt>		(?:\\"|[^"])*)"?
+				|	"datetime":	"?(?P<imgurDate>	(?:\\"|[^"])*)"?	# <- fields in any order
+				|	"?[\w-]+"?:	"?(?:			(?:\\"|[^"])*)"?	# <- other unneeded fields
 				)
 				\s*[,}]
-			)*
+			)+
 		''', re.I | re.X)
 # JSON sample from /a/zVhZg: {"hash":"JdFDePz","title":"","description":null,"has_sound":false,"width":863,"height":800,"size":136820,"ext":".jpg","animated":false,"prefer_video":false,"looping":false,"datetime":"2015-09-06 19:54:17"}
+# JSON sample from /a/xyN6u: {"hash":"wPpFLrE","title":"","description":null,"has_sound":false,"width":710,"height":1002,"size":392671,"ext":".png","animated":false,"prefer_video":false,"looping":false,"datetime":"2019-05-29 16:18:38","edited":"0"},
 	,	'link': [r'i.imgur.com/\g<imgurID>\g<imgurExt>', r'imgur.com/\g<imgurID>']
 	,	'name': [
 			[0, r'\1 - ']	# <- 0: expand from parent URL
@@ -422,6 +427,9 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 	}
 ,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?ezgif\.\w+)/\w+(/\w+)\.gif([/?#]|$)', re.I)
 	,	'grab': re.compile(r'<img\b[^>]*?\s+src="?/*([^">\s]+)"*\b[^>]*?\s+id="?target', re.I)
+	}
+,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?fastpic\.ru/+(big|view)/+[^?#]*)', re.I)
+	,	'grab': pat_imgs
 	}
 ,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>gyazo\.com/)([^?#]*?)?(?P<ImageID>/\w{32})(\W.*)?$', re.I)
 	,	'link': [r'\g<Domain>\g<ImageID>']	# <- view page instead of direct link to image
@@ -522,12 +530,28 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 			''', re.I | re.X), r'\1 - \2 - ']
 		]
 	}
+# twitter:
 ,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?t.co/[^/]+)', re.I)
 	,	'grab': re.compile(r'URL="?([^"]+?)', re.I)
 	}
 ,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?twitter\.com/[^/]+/status/[^/]+)', re.I)
-	,	'grab': re.compile(r'data-url="?([^"]*?/status/\d+/photo/[^"?]*)|data-image-url="?([^">\s]+)|\s+src="?([^">\s]+):small', re.I)
+	,	'grab': re.compile(r'''
+		\s+(?:
+			data-url="?([^"]*?/status/\d+/photo/[^"?]*)
+		|	data-image-url="?([^">\s]+)
+		|	src="?([^">\s]+):small
+		|	background-image:url\(["']([^"'>\s]+/tweet_video_thumb/[^"'>\s]+)
+		)
+		''', re.I | re.X)
 	}
+# twitter - grab video by thumb:
+# sample from https://twitter.com/tukudani01/status/1140647123873964032
+# https://pbs.twimg.com/tweet_video_thumb/D9RkbuHVUAA7Ch0.jpg
+# https://video.twimg.com/tweet_video/D9RkbuHVUAA7Ch0.mp4
+,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>twimg\.com/+tweet_video)_thumb(?P<ImageID>/+[^/.?#]+)([.?#]|$)', re.I)
+	,	'link': [r'https://video.\g<Domain>\g<ImageID>.mp4']
+	}
+# tumblr:
 ,	{	'page': re.compile(r'^(\w+:/+)([^/?#]+\.)?(tumblr\.com)/video(?:_file)?(?:/\w+:\w+)?/(\w+)/(\w+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'<source\b[^>]*?\s+src=[\'"]*([^">\s]+)', re.I)
 	,	'name': [
@@ -598,7 +622,8 @@ pat2replace_before_saving_file = [
 ,	[re.compile(r'((\w+;,+)?([^,&]+\.)?(joy)?reactor\.\w+,[^%]*)([^%]*?(%)[a-z0-9]{2,4})+([^%]*)$', re.I), r'\1\6(...)\7']	# <- tested in TCMD
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
-,	[re.compile(r'((\.\w+)[;:]large)$', re.I), r'\1\2']					# <- fix twitter img extention
+,	[re.compile(r'((\.[a-z0-9]+)[;:_]\2+)$', re.I), r'\1\2']				# <- fix twitter img extention
+# ,	[re.compile(r'((\.\w+)[;:]large)$', re.I), r'\1\2']					# <- fix twitter img extention
 ,	[re.compile(r'[.,]+$', re.I), '.htm']							# <- trailing garbage
 ,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ]
@@ -609,7 +634,9 @@ pat_blocked_url = [
 ]
 
 pat_blocked_content = [
-	re.compile(r'''
+	re.compile(r'(^|\]\s*=\>\s*)\w+:/+[^/?#]+/rkndeny', re.I)
+,	re.compile(r'(^|\]\s*=\>\s*)\w+:/+([^/?#]+\.)?blocked\.netbynet\.\w+/', re.I)
+,	re.compile(r'''
 		<title>\s*
 			Доступ\s+
 			к\s+
@@ -697,15 +724,37 @@ def sanitize_filename(input_text):
 
 	return result_text
 
+def get_attr_text_if_not_empty(obj, i):
+	if hasattr(obj, i):
+		v = getattr(obj, i)
+		if not callable(v):
+			s = str(v)
+			if len(s) > 0:
+				return 'obj.%s = %s\n' % (i, s)
+	return ''
+
 def dump(obj, check_list=[]):
+
 	result_text = ''
 
-	for i in (check_list or dir(obj)):
-		found = hasattr(obj, i) if check_list else True
-		if found:
-			v = getattr(obj, i)
-			if v and (check_list or not callable(v)):
-				result_text += 'obj.%s = %s\n' % (i, v)
+	if check_list and is_type_arr(check_list):
+		for i in check_list:
+			attr_text = ''
+
+			if is_type_arr(i):
+				for j in i:
+					attr_text = get_attr_text_if_not_empty(obj, j)
+					if attr_text:
+						break
+			else:
+				attr_text = get_attr_text_if_not_empty(obj, i)
+
+			if attr_text:
+				result_text += attr_text
+
+	else:
+		for i in dir(obj):
+			result_text += get_attr_text_if_not_empty(obj, i)
 
 	return result_text
 
@@ -746,7 +795,7 @@ def write_file(path, conts, mode='a+b'):
 			f.write(content)
 		except Exception:
 			try:
-				k = dump(content, ['__class__', '__doc__', 'args', 'message'])
+				k = dump(content, ['__class__', '__doc__', 'args', 'message', ['headers', 'hdrs']])
 				f.write(k or dump(content))
 			except Exception:
 				f.write('<Unwritable>')
@@ -1085,20 +1134,25 @@ def process_url(dest_root, url, utf='', prfx=''):
 			print response.info()
 			if req == udl:
 				req = redl(get_proxified_url(udl), pat_href, 'Expected redirect, got dummy. Trying proxy:')
+
 		if req.find('dropbox.com/s/') >= 0:
 			req = req.rsplit('?', 1)[0]+'?dl=1'
-		if req.find('fastpic.ru/view') >= 0:
-			req = redl(req, pat_imgs)
 
 		response = get_response(req)
 
 	except urllib2.HTTPError as e:
 		print 'Server could not fulfill the request. Error code:', e.code, '\n'
+
 		write_file(log_no_file, [log_stamp(), '%d	' % e.code]+udn)
+
+		if e.code > 300 and e.code < 400:
+			write_file(log_no_file, [e, '\n\n'])
+
 		udl_trim = re.sub(pat_trim, '', udl)
 		if udl != udl_trim:
 			print 'Retrying after trim:\n'
 			finished += process_url(dest_root, udl_trim)
+
 	except Exception as e:
 		print 'Unexpected error. See logs.\n'
 		write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])

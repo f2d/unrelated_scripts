@@ -83,16 +83,14 @@ part_domain = r'''
 pat_subdomain_inc_www = re.compile(part_protocol                   + part_domain, re.I | re.X)	# <- to treat "www" like a separate subdomain
 pat_subdomain_exc_www = re.compile(part_protocol + part_domain_www + part_domain, re.I | re.X)	# <- to discard "www", if any
 
-pat_tail_dup_name = re.compile(r'(-\d+|\s*\(\d+\)|;_[\d,_-]+)?(\.[^.]+$)', re.I)
-pat_tail_google = re.compile(r'( - [^-]*?Google)([\s,(;-].*?)?(\.[^.]+$)', re.I)
-
 subscrape = {'sub_threads': '_scrape'}
 unscrape = '!_unscrape,roots,etc'
 
 sub_a = [
-	[unscrape+'/_arch'	,re.compile(r'^[^/?#]+/arch/res/+([?#]|$)', re.I)]
-,	[unscrape+'/_catalog'	,re.compile(r'^[^/?#]+/catalog', re.I)]
-,	[unscrape+'/_rules'	,re.compile(r'^([^/?#]+/)?rules', re.I)]
+	[unscrape+'/_src'	,re.compile(r'^[^/?#]+(/+arch)?/+src/+[^/]+', re.I)]
+,	[unscrape+'/_arch'	,re.compile(r'^[^/?#]+/+arch/+res/+([?#]|$)', re.I)]
+,	[unscrape+'/_catalog'	,re.compile(r'^[^/?#]+/+catalog', re.I)]
+,	[unscrape+'/_rules'	,re.compile(r'^([^/?#]+/+)?rules', re.I)]
 ]
 
 sub_b = [
@@ -232,8 +230,8 @@ sites = [
 	,	'_img/_board//'
 	,	{
 			'sub_threads': [
-				['_e_ - Ecchi',['e','h','u']]
-			,	'_etc'
+				['_scrape/_e_ - Ecchi',['e','h','u']]
+			,	'_scrape/_etc'
 			]
 		,	'sub': sub_b
 		}
@@ -266,7 +264,7 @@ sites = [
 		['hiichan.org','hiichan.ru','hii.pm']
 	,	'_img/_board/iichan.ru'
 	,	{
-			'sub_threads': '_h_ - Hentai'
+			'sub_threads': '_scrape/_h_ - Hentai'
 		,	'sub': unscrape+'/_h'
 		}
 	]
@@ -283,14 +281,14 @@ sites = [
 			'sub_threads': [
 				[None				,re.compile(r'^/+(cgi-bin|d|err)/|^/+[^/?#]+/arch/res/+([?#]|$)', re.I)]
 			,	[re.compile(r'^[^#]*#(.*[^/.])[/.]*$'), r'!_tar,thread_archives/\1']
-			,	['_a_ - Anime'			,['a','aa','abe','azu','c','dn','fi','hau','ls','me','rm','sos']]
-			,	['_b_ - Bred'			,['b']]
-			,	['_h_ - Hentai'			,['g','h']]
-			,	['_hr_ - HiRes & requests'	,['hr','r']]
-			,	['_m_ - Macros & mascots'	,['m','misc','tan','tenma']]
-			,	['_to_ - Touhou'		,['to']]
-			,	['_n_prev'			,['n']]
-			,	'_etc'
+			,	['_scrape/_a_ - Anime'			,['a','aa','abe','azu','c','dn','fi','hau','ls','me','rm','sos']]
+			,	['_scrape/_b_ - Bred'			,['b']]
+			,	['_scrape/_h_ - Hentai'			,['g','h']]
+			,	['_scrape/_hr_ - HiRes & requests'	,['hr','r']]
+			,	['_scrape/_m_ - Macros & mascots'	,['m','misc','tan','tenma']]
+			,	['_scrape/_to_ - Touhou'		,['to']]
+			,	['_scrape/_n_prev'			,['n']]
+			,	'_scrape/_etc'
 			]
 		,	'sub': sub_a+[
 			#	[unscrape+'/_h'			,re.compile(r'(^|\w+\.)hii(chan)?\.\w+/', re.I)]
@@ -515,7 +513,13 @@ pat_ren = [
 			(\s+.*)?
 			(?P<Ext>\.[^.]+)
 		$''', re.I | re.X)
-	,	'child': re.compile(r'^([^_]\S*)?[0-9a-f]{32}\S*\.\w+$', re.I)
+	,	'child': re.compile(r'''^	# image/video files:
+			(?P<Prefix>\S+)?
+			(?P<ID>[0-9a-f]{32})
+			(?P<Suffix>\S+)?
+			(?P<Ext>\.[^.]+)
+		$''', re.I | re.X)
+#	,	'child': re.compile(r'^([^_]\S*)?[0-9a-f]{32}\S*\.\w+$', re.I)
 	}
 ,	{
 		'type': 'rghost'
@@ -958,12 +962,16 @@ def r(path, later=0):
 								):
 									prfx = page_match.group('Prefix')
 							elif site_type == 'booru':
-								f = len(child_ext)+1
-								f = re.sub(pat_ren_src_name, '', child_name[:-f])
+								f = ''
+								if pat_child_name:
+									f = child_match.group('ID')
+								if not f:
+									f = len(child_ext)+1
+									f = re.sub(pat_ren_src_name, '', child_name[:-f])
 								if f:
 									f = re.search(re.compile(r'''(?:^|[\r\n
 	])(?:Content-Location: |<meta name="twitter:image:src" content=")\w+:/+[^\r\n
-	]+[^w]/(preview|sample[_-]*)?'''+f+'|/'+f+'.'+child_ext+'">Save', re.I), page_content)	# <- [^w] to workaround /preview/ child post list
+	]+[^w]/(preview|sample[_-]*)?'''+f+'|/'+f+'.'+child_ext+'(\?[^">]*)?">Save', re.I), page_content)	# <- [^w] to workaround /preview/ child post list
 									if f:
 										prfx = page_match.group('Prefix')+(' full,' if f.group(1) else ',')
 							if prfx:

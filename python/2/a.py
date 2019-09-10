@@ -11,8 +11,9 @@ flags_all_solid_types = '7res'
 flags_all_types = 'anwz'
 must_quote = ' ,;>='
 
-def_name = '='
-def_suffix = '>'
+def_name_fallback = 'default'
+def_name_separator = '='
+def_suffix_separator = '>'
 def_subj = '.'
 def_dest = '..'
 
@@ -21,15 +22,18 @@ argc = len(sys.argv)
 # - help ----------------------------------------------------------------------
 
 if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
-	print 'This script makes a set of archives with same content,'
-	print 'to see results, compare and hand-pick best suitable ones.'
 	print
-	print 'Usage: a.py', ' '.join([
+	print 'Description:'
+	print '	This script makes a set of archives with same content, to see results,'
+	print '	compare and hand-pick best suitable ones.'
+	print
+	print 'Usage:'
+	print '	a.py', ' '.join([
 		'"['
 		+']['.join([
-			''.join(sorted(flags_all_solid_types+'1234_069.,;>fzwdatmnc'))
-		,	def_name+'<arc.filename>'
-		,	def_suffix+'<suffix>'
+			''.join(set(sorted(flags_all_solid_types+'1234_069.,;fzwdatmnc'+def_suffix_separator)))
+		,	def_name_separator+'<archive_filename>'
+		,	def_suffix_separator+'<archive_suffix>'
 		])
 		+']"'
 	,	'["<subj>"|'+def_subj+']'
@@ -37,67 +41,78 @@ if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
 	,	'[<optional args> ...]'
 	])
 	print
-	print 'Warning: add "quotes" around arguments, that contain any of the symbols:'
-	print '"'+must_quote+'"'
-	print 'Or quote/escape anything beyond latin letters and digits just in case.'
+	print 'Warning:'
+	print '	add "quotes" around arguments, that contain any of the symbols:'
+	print '	"'+must_quote+'"'
+	print '	Or quote/escape anything beyond latin letters and digits just in case.'
 	print
 	print 'Switch letters (concatenate in any order):'
-	print '	c: check resulting command lines without running them'
+	print '	c: check resulting command lines without running them.'
+	print '	k: don\'t wait for key press after errors.'
 	print
 	print '---- speed/size/priority:'
-	print '	_: start all subprocesses minimized'
-	print '	0: no compression settings (store file content as is)'
-	print '	6: big data compression settings (256 MB dictionary, 256 B word size)'
-#	print '	9: maximum compression settings (not always best result though)'
+	print '	_: start all subprocesses minimized.'
+	print '	0: no compression settings (store file content as is).'
+	print '	6: big data compression settings (256 MB dictionary, 256 B word size).'
+#	print '	9: maximum compression settings (not always best result though).'
 	print
 	print '---- group source files:'
 	print '	1: make separate archives for each group of files'
-	print '		by first found numeric ID in filename (name1part2 -> name1*)'
+	print '		by first found numeric ID in filename.'
+	print '		(name1part2 -> name1*)'
 	print '	2: same as 1 but create filelist files (in destination folder)'
 	print '		to separate ambiguous cases, like when "name1*" mask'
-	print '		would undesirably capture "name1a" and "name12" files'
-	print '	12: same as 2 but files without ID go to one list, not separate'
-	print '	. and/or ,: same as numbers but ID may also contain dots and/or commas'
+	print '		would undesirably capture "name1a" and "name12" files.'
+	print '	12: same as 2 but files without ID go to one list, not separate.'
+	print '	. and/or ,: same as numbers but ID may also contain dots and/or commas.'
 	print '		("1" is implied until any other is given)'
-	print '	3: equivalent to "'+d+'"'
-	print '	4 and/or f: make separate archives for each file/dir of subject mask'
-#	print 'TODO ->		4: only dirs'
-#	print 'TODO ->		f: only files'
-#	print 'TODO ->	5 and/or g: make separate archives for each group of subjects'
-#	print 'TODO ->		group by longest common filename parts'
-#	print 'TODO ->		5: name part break can include alphanumerics, etc'
-#	print 'TODO ->		g: name part break only by punctuation or spaces'
-#	print 'TODO ->		g5: start comparing from longest filenames'
-#	print 'TODO ->		5g: start comparing from shortest filenames'
-#	print 'TODO ->		if "4f" aren\'t set, skip singletons'
-#	print 'TODO ->		("45fg" are cross-compatible, but disabled with any ID-grouping)'
+	print '	3: equivalent to "'+d+'".'
+	print '	4 and/or f: make separate archives for each file/dir of subject mask.'
+	print '		(each name is appended with comma to "=filename" from arguments)'
+#	print 'TODO ->		4: only dirs.'
+#	print 'TODO ->		f: only files.'
+#	print 'TODO ->	5 and/or g: make separate archives for each group of subjects.'
+#	print 'TODO ->		group by longest common filename parts.'
+#	print 'TODO ->		5: name part break can include alphanumerics, etc.'
+#	print 'TODO ->		g: name part break only by punctuation or spaces.'
+#	print 'TODO ->		g5: start comparing from longest filenames.'
+#	print 'TODO ->		5g: start comparing from shortest filenames.'
+#	print 'TODO ->		if "4f" aren\'t set, skip singletons.'
+#	print 'TODO ->		("45fg" are cross-compatible, but disabled with any ID-grouping).'
 	print
 	print '---- archive types:'
-	print '	7: make a .7z file with 7-Zip'
-	print '	z: make a .zip file with 7-Zip'
-	print '	w: make a .zip file with WinRAR'
-	print '	r: make a .rar file with WinRAR'
-	print '	s: make solid archives'
-	print '	e: make solid by extension'
-	print '	n: make non-solid archives, also assumed when no "s" or "e"'
-	print '	a: make a set of solid variants, equivalent to "'+flags_all_solid_types+'"'
-	print '	8: make all types currently supported, equivalent to "'+flags_all_types+'"'
+	print '	7: make a .7z file with 7-Zip.'
+	print '	z: make a .zip file with 7-Zip.'
+	print '	w: make a .zip file with WinRAR.'
+	print '	r: make a .rar file with WinRAR.'
+	print '	s: make solid archives.'
+	print '	e: make solid by extension.'
+	print '	n: make non-solid archives, also assumed when no "s" or "e".'
+	print '	a: make a set of solid variants, equivalent to "'+flags_all_solid_types+'".'
+	print '	8: make all types currently supported, equivalent to "'+flags_all_types+'".'
 	print
 	print '---- archive filenames:'
-	print '	t: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames'
-	print '	m: add each archive\'s last-modified time to its filename'
-	print '	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS"'
-	print '	>: put timestamp before archive type suffix'
-	print '	=filename>suffix: add given suffix between timestamp and archive type'
+	print '	t: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
+	print '	m: add each archive\'s last-modified time to its filename.'
+	print '	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
+	print '	'+def_suffix_separator+': put timestamp before archive type suffix.'
+	print '	'+def_name_separator+'filename'+def_suffix_separator+'suffix: add given suffix between timestamp and archive type.'
 	print
 	print '---- change source files:'
-	print '	d: delete done source files (only by WinRAR, or 7-Zip since v17)'
+	print '	d: delete done source files.'
+	print '		(only by WinRAR, or 7-Zip since v17)'
 	print
-	print 'Example 1: a.py a  	(subj = current folder, destination = 1 folder up)'
-	print 'Example 2: a.py a "*some*thing*"    (destination = 1 up so wildcard won\'t see archives)'
-	print 'Example 3: a.py a "subfolder/file"  (destination = here, no wildcard, safe)'
+	print 'Example 1: a.py a'
+	print '	(default subj = current folder, destination = 1 folder up)'
+	print
+	print 'Example 2: a.py a "*some*thing*"'
+	print '	(default destination = 1 up, so wildcard won\'t grab result archives)'
+	print
+	print 'Example 3: a.py a "subfolder/file"'
+	print '	(default destination = here, safe because no wildcard)'
+	print
 	print 'Example 4: a.py ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
-	print 'Example 5: a.py "7r'+def_name+'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
+	print 'Example 5: a.py "7r_e'+def_name_separator+'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
 	sys.exit()
 
 # - functions -----------------------------------------------------------------
@@ -153,10 +168,12 @@ def append_cmd(paths, suffix, opt_args=None):
 	])
 	return 1
 
-def queue(subj):
+def queue(subj, foreach=False):
 	global cmd, dest, del_warn
-	name = def_name or subj
+
+	name = (def_name + ',' + subj) if (foreach and def_name and subj) else (def_name or subj)
 	mask = ('*' in subj) or ('?' in subj)
+
 	if len(name.replace('.', '')) > 0:
 		if '/' in name:
 			name = name.rsplit('/', 1)[1]
@@ -172,11 +189,12 @@ def queue(subj):
 			)
 		):
 			dest = '.'
-
-		for i in ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']:
-			name = name.replace(i[0], i[1] if len(i) > 1 else '_')
 	else:
-		name = 'default'
+		name = def_name_fallback
+
+	for i in ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']:
+		name = name.replace(i[0], i[1] if len(i) > 1 else '_')
+
 	print 'name:	', name
 
 	name = dest+'/'+name+(t0 if 't' in flag else '')
@@ -226,7 +244,7 @@ def queue(subj):
 
 # - calculate params ----------------------------------------------------------
 
-flag, def_name = pad_list((sys.argv[1].strip('"') or '').split(def_name, 1))
+flag, def_name = pad_list((sys.argv[1].strip('"') or '').split(def_name_separator, 1))
 
 flag = (
 	flag
@@ -236,10 +254,10 @@ flag = (
 #+'9'
 )
 
-if def_suffix in def_name and not def_suffix in flag:
-	flag += def_suffix
+if (def_suffix_separator in def_name) and not (def_suffix_separator in flag):
+	flag += def_suffix_separator
 
-def_name, def_suffix = pad_list((def_name or '').split(def_suffix, 1))
+def_name, def_suffix = pad_list((def_name or '').split(def_suffix_separator, 1))
 
 subj = sys.argv[2].replace('\\', '/') if argc > 2 and len(sys.argv[2]) > 0 else def_subj
 dest = sys.argv[3].replace('\\', '/') if argc > 3 and len(sys.argv[3]) > 0 else def_dest
@@ -337,7 +355,7 @@ if foreach or for_ID:
 		pat_ID = re.compile(r'^(\D*\d['+d+']*)([^'+d+']|$)' if dots else r'^(\D*\d+)(\D|$)')
 
 		if '2' in for_ID:
-			no_group = def_name or 'default'
+			no_group = def_name or def_name_fallback
 			other_to_1 = '1' in for_ID
 			d = {}
 			for subj in names:
@@ -366,7 +384,7 @@ if foreach or for_ID:
 					d.append(subj)
 			names = d
 	for subj in names:
-		queue(subj)
+		queue(subj, foreach=True)
 else:
 	queue(subj)
 
@@ -415,13 +433,14 @@ for i in cmd:
 	if not 'c' in flag:
 		e = subprocess.call(i[2], startupinfo=minimized)
 		if os.path.exists(i[1]):
-			c = i[3] if '>' in flag and len(i) > 3 and i[3] else '.'
+			c = i[3] if ((def_suffix_separator in flag) and (len(i) > 3) and i[3]) else '.'
 			d = i[1]
 			j = (
 				datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
 				if 'm' in flag
 				else ''
 			) + def_suffix + c
+
 			if j != c:
 				d = j.join(d.rsplit(c, 1))
 				while os.path.exists(d):
@@ -429,9 +448,16 @@ for i in cmd:
 				print i[1]
 				print d
 				os.rename(i[1], d)
+
 		print e, ':', codes[i[0]][e] if e in codes[i[0]] else 'Unknown code', '\n'
 		check += e
+
 if check:
-	raw_input('----	----	Done. See error messages above, press Enter to continue.')
+	if 'k' in flag:
+		print '----	----	Done. Some errors encountered, see error messages above.'
+	else:
+		raw_input('----	----	Done. See error messages above, press Enter to continue.')
+else:
+	print '----	----	Done.'
 
 # unexpected EOF my ass
