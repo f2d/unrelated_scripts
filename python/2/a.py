@@ -3,10 +3,8 @@
 
 import datetime, glob, os, re, subprocess, sys, time
 
-exe_7zip = 'd:/programs/7-Zip_x64/7zG.exe'
-exe_winrar = 'd:/programs/WinRAR_x64/WinRAR.exe'
-
-d = '12.'
+flags_group_by_num_any_sep = '12.,'
+flags_group_by_num_dot = '12.'
 flags_all_solid_types = '7res'
 flags_all_types = 'anwz'
 must_quote = ' ,;>='
@@ -17,23 +15,85 @@ def_suffix_separator = '>'
 def_subj = '.'
 def_dest = '..'
 
-argc = len(sys.argv)
+# - find executables ----------------------------------------------------------
 
-# - help ----------------------------------------------------------------------
+# https://stackoverflow.com/a/189664/8352410
+class GetOutOfLoop( Exception ):
+	pass
 
-if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
+def get_exe_paths():
+	exe_paths_found = {}
+	exe_try_root_dirs = ['%ProgramW6432%', '%ProgramFiles%', '%ProgramFiles(x86)%', '%CommonProgramFiles%', 'C:/Program Files', '']
+	exe_try_subdir_suffixes = ['_x64', 'x64', '(x64)', '_(x64)', ' (x64)', '']
+	exe_try_filename_suffixes = ['.exe', '']
+	exe_try_types = {
+		'7z': {
+			'subdirs': ['7-Zip', '7zip']
+		,	'filenames': ['7zG']
+		}
+	,	'rar': {
+			'subdirs': ['WinRAR']
+		,	'filenames': ['WinRAR']
+		}
+	}
+
+	for type_name, type_part in exe_try_types.items():
+		try:
+			for root_dir in exe_try_root_dirs:
+				env_dir = root_dir.strip('%')
+
+				if env_dir != root_dir:
+					env_dir = os.environ.get(env_dir)
+
+					if env_dir:
+						root_dir = env_dir
+
+				for subdir in type_part['subdirs']:
+					for filename in type_part['filenames']:
+						for subdir_suffix in exe_try_subdir_suffixes:
+							for filename_suffix in exe_try_filename_suffixes:
+								path = (
+									root_dir
+								+'/'+	subdir + subdir_suffix
+								+'/'+	filename + filename_suffix
+								).replace('\\', '/')
+
+								if os.path.isfile(path):
+									exe_paths_found[type_name] = path
+
+									raise GetOutOfLoop
+
+			exe_paths_found[type_name] = type_part['filenames'][0]
+
+		except GetOutOfLoop:
+			pass
+
+	return exe_paths_found
+
+exe_paths = get_exe_paths()
+
+# - display help --------------------------------------------------------------
+
+def print_help():
 	print
 	print 'Description:'
-	print '	This script makes a set of archives with same content, to see results,'
-	print '	compare and hand-pick best suitable ones.'
+	print
+	print '	This script calls several preinstalled programs in a batch'
+	print '	to make a set of archives with same content with intention'
+	print '	to compare and hand-pick the best or most suitable results.'
 	print
 	print 'Usage:'
+	print
 	print '	a.py', ' '.join([
 		'"['
 		+']['.join([
-			''.join(set(sorted(flags_all_solid_types+'1234_069.,;fzwdatmnc'+def_suffix_separator)))
-		,	def_name_separator+'<archive_filename>'
-		,	def_suffix_separator+'<archive_suffix>'
+			''.join(sorted(set(
+				'1234_069.,;fzwdatmnckl'
+			+	flags_all_solid_types
+			+	def_suffix_separator
+			)))
+		,	def_name_separator+'<name>'
+		,	def_suffix_separator+'<suffix>'
 		])
 		+']"'
 	,	'["<subj>"|'+def_subj+']'
@@ -42,65 +102,78 @@ if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
 	])
 	print
 	print 'Warning:'
-	print '	add "quotes" around arguments, that contain any of the symbols:'
-	print '	"'+must_quote+'"'
+	print
+	print '	In shell, add "quotes" around arguments, that contain any of the'
+	print '	following symbols: "'+must_quote+'"'
 	print '	Or quote/escape anything beyond latin letters and digits just in case.'
 	print
-	print 'Switch letters (concatenate in any order):'
+	print 'Current executable paths to be used (found or fallback):'
+	print
+
+	for k, v in exe_paths.items():
+		print k + ':	' + v
+
+	print
+	print 'Switch letters (concatenate in any order, any case):'
+	print
 	print '	c: check resulting command lines without running them.'
 	print '	k: don\'t wait for key press after errors.'
 	print
-	print '---- speed/size/priority:'
+	print '	---- speed/size/priority:'
 	print '	_: start all subprocesses minimized.'
-	print '	0: no compression settings (store file content as is).'
+	print '	L: store identical files as references to one copy of content.'
+	print '		(only by WinRAR since v5)'
+	print '		(limits storage redundancy and archive editing)'
+	print '	0: no compression (store file content as is, overrides "6").'
 	print '	6: big data compression settings (256 MB dictionary, 256 B word size).'
-#	print '	9: maximum compression settings (not always best result though).'
 	print
-	print '---- group source files:'
-	print '	1: make separate archives for each group of files'
-	print '		by first found numeric ID in filename.'
+	print '	---- group subjects into separate archives:'
+	print '	(each name is appended with comma to "=filename" from arguments)'
+	print '	1: make separate archives for each group of subjects'
+	print '		by first found numeric ID in subject name.'
 	print '		(name1part2 -> name1*)'
-	print '	2: same as 1 but create filelist files (in destination folder)'
+	print '	2: same as "1" but create filelist files (in destination folder)'
 	print '		to separate ambiguous cases, like when "name1*" mask'
 	print '		would undesirably capture "name1a" and "name12" files.'
-	print '	12: same as 2 but files without ID go to one list, not separate.'
-	print '	. and/or ,: same as numbers but ID may also contain dots and/or commas.'
-	print '		("1" is implied until any other is given)'
-	print '	3: equivalent to "'+d+'".'
-	print '	4 and/or f: make separate archives for each file/dir of subject mask.'
-	print '		(each name is appended with comma to "=filename" from arguments)'
-#	print 'TODO ->		4: only dirs.'
-#	print 'TODO ->		f: only files.'
-#	print 'TODO ->	5 and/or g: make separate archives for each group of subjects.'
-#	print 'TODO ->		group by longest common filename parts.'
+	print '	12: same as "2" but files without ID go to one list, not separate.'
+	print '	. and/or ,: same as "1" or "2" but ID may contain dots and/or commas.'
+	print '		("1" is implied unless "2" is given)'
+	print '	3: shortcut, equivalent to "'+flags_group_by_num_dot+'".'
+	print '	4: make separate archives for each dir of subject mask.'
+	print '	f: make separate archives for each file of subject mask.'
+	print '		(use one of "4" or "f" with any of "'+flags_group_by_num_any_sep+'" to add only dirs or'
+	print '		files to the groups)'
+#	print 'TODO ->	5 and/or g: make separate archives for each group of subjects'
+#	print 'TODO ->		by longest common subject name parts.'
 #	print 'TODO ->		5: name part break can include alphanumerics, etc.'
 #	print 'TODO ->		g: name part break only by punctuation or spaces.'
 #	print 'TODO ->		g5: start comparing from longest filenames.'
 #	print 'TODO ->		5g: start comparing from shortest filenames.'
-#	print 'TODO ->		if "4f" aren\'t set, skip singletons.'
-#	print 'TODO ->		("45fg" are cross-compatible, but disabled with any ID-grouping).'
+#	print 'TODO ->		if "4" or "f" is not set, skip singletons.'
+#	print 'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+flags_group_by_num_any_sep+'").'
 	print
-	print '---- archive types:'
-	print '	7: make a .7z file with 7-Zip.'
+	print '	---- archive types:'
+	print '	7: make a .7z  file with 7-Zip.'
 	print '	z: make a .zip file with 7-Zip.'
 	print '	w: make a .zip file with WinRAR.'
 	print '	r: make a .rar file with WinRAR.'
 	print '	s: make solid archives.'
-	print '	e: make solid by extension.'
-	print '	n: make non-solid archives, also assumed when no "s" or "e".'
+	print '	e: make archives with solid blocks grouped by filename extension.'
+	print '	n: make non-solid archives (implied unless "s" or "e" is given).'
 	print '	a: make a set of solid variants, equivalent to "'+flags_all_solid_types+'".'
 	print '	8: make all types currently supported, equivalent to "'+flags_all_types+'".'
 	print
-	print '---- archive filenames:'
+	print '	---- archive filenames:'
 	print '	t: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
 	print '	m: add each archive\'s last-modified time to its filename.'
 	print '	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
 	print '	'+def_suffix_separator+': put timestamp before archive type suffix.'
 	print '	'+def_name_separator+'filename'+def_suffix_separator+'suffix: add given suffix between timestamp and archive type.'
 	print
-	print '---- change source files:'
-	print '	d: delete done source files.'
+	print '	---- clean up:'
+	print '	d: delete subjects (source files) when done.'
 	print '		(only by WinRAR, or 7-Zip since v17)'
+	print '		(if by WinRAR, last archive is tested before deleting subjects)'
 	print
 	print 'Example 1: a.py a'
 	print '	(default subj = current folder, destination = 1 folder up)'
@@ -113,9 +186,14 @@ if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
 	print
 	print 'Example 4: a.py ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
 	print 'Example 5: a.py "7r_e'+def_name_separator+'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
+
+argc = len(sys.argv)
+
+if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
+	print_help()
 	sys.exit()
 
-# - functions -----------------------------------------------------------------
+# - aux functions -------------------------------------------------------------
 
 def uniq(n, e):
 	r = n+e
@@ -131,27 +209,30 @@ def is_any_char_of_a_in_b(a, b):
 			return True
 	return False
 
-def pad_list(a, minimum_len=2, pad_value=''):
-	diff = minimum_len - len(a)
-	return (a + [pad_value] * diff) if diff > 0 else a
-
 def quoted_list(a):
 	return map(lambda x: '"'+x+'"' if is_any_char_of_a_in_b(must_quote, x) else x, a)
 
+def pad_list(a, minimum_len=2, pad_value=''):
+	diff = minimum_len - len(a)
+
+	return (a + [pad_value] * diff) if diff > 0 else a
+
 def append_cmd(paths, suffix, opt_args=None):
-	global cmd
+	global cmd_queue
 
 	subj, dest = paths
 	rar = suffix.find('rar') > suffix.find('7z')
-	a = (cmd_winrar if rar else cmd_7zip) + (opt_args or [])
+	exe_type = 'rar' if rar else '7z'
+	cmd_args = cmd_template[exe_type] + (opt_args or [])
+
 	if suffix.find('.zip') >= 0:
-		a = filter(bool, map(
+		cmd_args = filter(bool, map(
 			lambda x: (
 				None if x[0:4] == '-mqs'
 			else	None if x[0:4] == '-md='
 			else	(None if '0' in flag else '-mfb=256') if x[0:5] == '-mfb='
 			else	x
-			), a
+			), cmd_args
 		))
 
 	dest = uniq(dest, suffix)
@@ -160,16 +241,17 @@ def append_cmd(paths, suffix, opt_args=None):
 		['--', dest, subj]
 	)
 
-	cmd.append([
-		1 if rar else 0
-	,	dest
-	,	a + path_args
-	,	(suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
-	])
+	cmd_queue.append({
+		'exe_type': exe_type
+	,	'dest': dest
+	,	'args': cmd_args + path_args
+	,	'suffix': (suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
+	})
+
 	return 1
 
 def queue(subj, foreach=False):
-	global cmd, dest, del_warn
+	global cmd_queue, dest, del_warn
 
 	name = (def_name + ',' + subj) if (foreach and def_name and subj) else (def_name or subj)
 	mask = ('*' in subj) or ('?' in subj)
@@ -199,6 +281,7 @@ def queue(subj, foreach=False):
 
 	name = dest+'/'+name+(t0 if 't' in flag else '')
 	mass = mask or ('@' in subj) or os.path.isdir(subj)
+	ddup = ',dedup' if 'l' in flag else ''
 	uncm = ',store' if '0' in flag else ''
 	dcsz = ',d=256m' if '6' in flag else ''
 	subj = subj.replace('/', os.sep)
@@ -219,7 +302,7 @@ def queue(subj, foreach=False):
 	if 'w' in flag: append_cmd(paths, ',winrar'+ext)
 
 	if 'r' in flag:
-		ext = uncm+'.rar'
+		ext = (uncm or dcsz)+ddup+'.rar'
 		solid = 0
 		if mass and not uncm:
 			if 'e' in flag: solid += append_cmd(paths, ',se'+ext, ['-se'])
@@ -229,16 +312,16 @@ def queue(subj, foreach=False):
 	# delete subj files, only for last queued cmd per subj:
 	if 'd' in flag:
 		da = (
-			['-df', '-y'] if ('w' in flag) or ('r' in flag) else
+			['-df', '-y', '-t'] if ('w' in flag) or ('r' in flag) else
 			['-sdel', '-y'] if ('7' in flag) or ('z' in flag) else
 			[]
 		)
 		if da:
-			j = len(cmd) - 1
-			a = cmd[j][2]
+			j = len(cmd_queue) - 1
+			a = cmd_queue[j]['args']
 			i = (a.index('--') - len(a)) if '--' in a else -2
 			a = a[:i] + da + a[i:]
-			cmd[j][2] = a
+			cmd_queue[j]['args'] = a
 		else:
 			del_warn = 1
 
@@ -248,9 +331,10 @@ flag, def_name = pad_list((sys.argv[1].strip('"') or '').split(def_name_separato
 
 flag = (
 	flag
+	.lower()
 	.replace('8', flags_all_types)
 	.replace('a', flags_all_solid_types)
-	.replace('3', d)
+	.replace('3', flags_group_by_num_dot)
 #+'9'
 )
 
@@ -263,12 +347,14 @@ subj = sys.argv[2].replace('\\', '/') if argc > 2 and len(sys.argv[2]) > 0 else 
 dest = sys.argv[3].replace('\\', '/') if argc > 3 and len(sys.argv[3]) > 0 else def_dest
 rest = sys.argv[4:] if argc > 4 else []
 
+print
 print 'argc:	', argc
 print 'flags:	', flag
 print 'suffix:	', def_suffix
 print 'subj:	', subj
 print 'dest:	', dest
 print 'etc:	', ' '.join(rest)
+print
 
 if '_' in flag:
 	SW_MINIMIZE = 6
@@ -278,22 +364,20 @@ if '_' in flag:
 else:
 	minimized = None
 
-foreach = (subj[0] != '@') and (('4' in flag) or ('f' in flag))
-for_ID = ''.join(map(lambda i: i if i in flag else '', d+','))
+foreach_dir  = '4' in flag
+foreach_file = 'f' in flag
+foreach = (subj[0] != '@') and (foreach_dir or foreach_file)
+foreach_ID = ''.join(map(lambda i: i if i in flag else '', flags_group_by_num_any_sep))
 
-cmd_7zip = (
-	[exe_7zip, 'a', '-stl', '-ssw', '-mqs']
+cmd_template = {}
+cmd_template['7z'] = (
+	[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
 +	(
 		['-mx0', '-mmt=off'] if '0' in flag else
-		['-mx9', '-mmt=2'] #if '9' in flag else []
-	)
-+	(
-		[] if '0' in flag else
-		['-md=256m', '-mfb=256'] if '6' in flag else
-		['-md=64m', '-mfb=273'] #if '9' in flag else []
-
-	#	['-m0=LZMA2:d=256m:fb=256'] if '6' in flag else
-	#	['-m0=LZMA:d=64m:fb=273']
+		['-mx9', '-mmt=2'] + (
+			['-md=256m', '-mfb=256'] if '6' in flag else
+			['-md=64m', '-mfb=273']
+		)
 	)
 +	rest
 )
@@ -319,11 +403,18 @@ or	'-r0' in rest_winrar
 ):
 	rest_winrar.append('-r0')
 
-cmd_winrar = (
-	[exe_winrar, 'a', '-tl', '-dh']
+cmd_template['rar'] = (
+	[exe_paths['rar'], 'a', '-tl', '-dh']
 +	(
 		['-m0', '-mt1'] if '0' in flag else
-		['-m5', '-mt4']
+		['-m5', '-mt4'] + (
+			['-ma5', '-md256m'] if '6' in flag else
+			[]
+		)
+	)
++	(
+		['-ma5', '-oi:0'] if 'l' in flag else
+		[]
 	)
 +	(
 		['-ibck'] if minimized else
@@ -332,31 +423,32 @@ cmd_winrar = (
 +	rest_winrar
 )
 
-cmd = []
+cmd_queue = []
 del_warn = 0
 time_format = ';_%Y-%m-%d,%H-%M-%S' if ';' in flag else '_%Y-%m-%d_%H-%M-%S'
 t0 = time.strftime(time_format)
 
 # - fill batch queue ----------------------------------------------------------
 
-if foreach or for_ID:
+if foreach or foreach_ID:
 	names = (
 		glob.glob(subj) if ('*' in subj or '?' in subj) else
 		os.listdir(subj) if os.path.isdir(subj) else
 		[subj]
 	)
-	if for_ID:
+
+	if foreach_ID:
 		dots = ''
 		d = '.,'
 		for i in d:
-			if i in for_ID:
+			if i in foreach_ID:
 				dots += i
 		d = '\d'+dots
 		pat_ID = re.compile(r'^(\D*\d['+d+']*)([^'+d+']|$)' if dots else r'^(\D*\d+)(\D|$)')
 
-		if '2' in for_ID:
+		if '2' in foreach_ID:
 			no_group = def_name or def_name_fallback
-			other_to_1 = '1' in for_ID
+			other_to_1 = '1' in foreach_ID
 			d = {}
 			for subj in names:
 				s = re.search(pat_ID, subj)
@@ -383,23 +475,28 @@ if foreach or for_ID:
 				else:
 					d.append(subj)
 			names = d
+
 	for subj in names:
+		if foreach_dir != foreach_file and foreach_dir != os.path.isdir(subj):
+			continue
+
 		queue(subj, foreach=True)
 else:
 	queue(subj)
 
-if not (len(cmd) > 0):
-	print '----	----	Nothing to run, command queue is empty.'
+if len(cmd_queue) > 0:
+	print
+else:
+	print '----	----	Nothing to do, command queue is empty.'
 	sys.exit()
 
 if del_warn:
 	print '----	----	WARNING, only WinRAR or 7-zip v17+ can delete files!'
+	print
 
-# - run batch queue -----------------------------------------------------------
-
-codes = [
-# 7-Zip exit codes: http://sevenzip.sourceforge.jp/chm/cmdline/exit_codes.htm
-	{
+exit_codes = {
+# http://sevenzip.sourceforge.jp/chm/cmdline/exit_codes.htm
+	'7z': {
 		0: 'No error'
 	,	1: 'Warning (Non fatal error(s)). For example, one or more files were locked by some other application, so they were not compressed.'
 	,	2: 'Fatal error'
@@ -407,8 +504,8 @@ codes = [
 	,	8: 'Not enough memory for operation'
 	,	255: 'User stopped the process'
 	}
-# WinRAR exit codes: http://en.helpdoc-online.com/winrar_4/source/html/helpexitcodes.htm
-,	{
+# http://en.helpdoc-online.com/winrar_4/source/html/helpexitcodes.htm
+,	'rar': {
 		0: 'Successful operation.'
 	,	1: 'Warning. Non fatal error(s) occurred.'
 	,	2: 'A fatal error occurred.'
@@ -422,19 +519,29 @@ codes = [
 	,	10: 'No files matching the specified mask and options were found.'
 	,	255: 'User break.'
 	}
-]
+}
+
+error_count = 0
 
 # - run batch queue -----------------------------------------------------------
 
-check = 0
+for cmd in cmd_queue:
+	cmd_args = cmd['args']
+	cmd_dest = cmd['dest']
+	cmd_type = cmd['exe_type']
+	cmd_suffix = cmd['suffix']
 
-for i in cmd:
-	print ' '.join(quoted_list(i[2]))
+	print ' '.join(quoted_list(cmd_args))
+
 	if not 'c' in flag:
-		e = subprocess.call(i[2], startupinfo=minimized)
-		if os.path.exists(i[1]):
-			c = i[3] if ((def_suffix_separator in flag) and (len(i) > 3) and i[3]) else '.'
-			d = i[1]
+		e = subprocess.call(cmd_args, startupinfo=minimized)
+
+		if e:
+			error_count += 1
+
+		if os.path.exists(cmd_dest):
+			c = cmd_suffix if ((def_suffix_separator in flag) and cmd_suffix) else '.'
+			d = cmd_dest
 			j = (
 				datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
 				if 'm' in flag
@@ -445,19 +552,28 @@ for i in cmd:
 				d = j.join(d.rsplit(c, 1))
 				while os.path.exists(d):
 					d = '(2).'.join(d.rsplit('.', 1))
-				print i[1]
+
+				print cmd_dest
 				print d
-				os.rename(i[1], d)
 
-		print e, ':', codes[i[0]][e] if e in codes[i[0]] else 'Unknown code', '\n'
-		check += e
+				os.rename(cmd_dest, d)
 
-if check:
+		c = exit_codes[cmd_type]
+
+		print e, ':', c[e] if e in c else 'Unknown code'
+		print
+
+# - finished ------------------------------------------------------------------
+
+if 'c' in flag:
+	print
+
+if error_count > 0:
 	if 'k' in flag:
-		print '----	----	Done. Some errors encountered, see error messages above.'
+		print '----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. See messages above.'
 	else:
-		raw_input('----	----	Done. See error messages above, press Enter to continue.')
+		raw_input('----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. Press Enter to continue.')
+elif 'c' in flag:
+	print '----	----	Total', len(cmd_queue), 'commands.'
 else:
-	print '----	----	Done.'
-
-# unexpected EOF my ass
+	print '----	----	Done', len(cmd_queue), 'archives.'
