@@ -6,50 +6,9 @@ import datetime, gzip, os, re, ssl, string, StringIO, subprocess, sys, time, url
 
 # configure -------------------------------------------------------------------
 
-TEST = wait = interval = recurse = 0
-timeout_request = 60
-# timeout_slow_dl = 0
-default_proxy = 'http://u/'
-default_encoding = 'utf_8'
-read_encoding = default_encoding+'|utf_16_le|utf_16_be|cp1251'
+from dl_config import *
 
-read_root = '|'.join([	# <- only flat string format available from command line; add trailing "/" for no subfolder recursion
-	u'd:/_bak/_graber/py/'
-,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/MsgExport'
-,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/ChatRooms'
-])
-
-dest_root = '|'.join([
-	u'd:/_bak/_graber/py/dl'
-,	u'd:/_bak/_www/_conf/_private'
-,	u'd:/_bak/_www/_conf'
-])
-
-ff_esr = [u'd:/programs/!_web/Mozilla Firefox x64 ESR/firefox.exe', '-P', 'ESR' , '-new-tab']
-ff_v56 = [u'd:/programs/!_web/Mozilla Firefox x64 v56/firefox.exe', '-P', 'ff56', '-new-tab']
-ff_v57 = [u'd:/programs/!_web/Mozilla Firefox x64/firefox.exe'    , '-P', 'ff57', '-new-tab']
-
-dest_app = {	# <- usage: "app_ID>http://url"
-	'5': ff_esr, 'e': ff_esr
-,	'6': ff_v56, 'f': ff_v56
-,	'7': ff_v57, 'q': ff_v57
-,	'1': [u'd:/programs/!_web/Opera_v11.10.2092/opera.exe']
-,	'2': [u'd:/programs/!_web/Opera_v12.18.1873_x64/opera.exe']
-,	'o': [u'd:/programs/!_web/Opera Next/launcher.exe']
-,	'v': [u'd:/programs/!_web/Vivaldi/Application/vivaldi.exe']
-}
-
-dest_app_sep = '>'
-dest_app_default = 'v'
-
-meta_root = u'.'
-
-format_epoch = '%Epoch'	# <- not from python library, but custom str-replaced
-format_ymd = '%Y-%m-%d'
-format_hms = '%H-%M-%S'
-format_print = '%Y-%m-%d %H:%M:%S'
-format_path_mtime = ';_%Y-%m-%d,%H-%M-%S.'
-add_time = None
+TEST = 0
 
 # command line arguments ------------------------------------------------------
 
@@ -73,7 +32,7 @@ if help:
 	print 'w: Wait between downloads, in seconds. Omit = 0'
 	print 'i: Interval between txt batch checks, in seconds. Check once if zero. Omit = 0'
 	print 't: Timeout for sending request, in seconds. Omit = 60'
-#	print 'l: Timeout for long downloads, in seconds. Omit = 0'
+#	print 'TODO ->	l: Timeout for long downloads, in seconds. Omit = 0'
 	print 'r: Recursively read up to N log folders under roots without trailing slash. Omit = 0'
 	print 'e: Log content encoding. Omit =', read_encoding
 	print 'm: Path to store meta logs. Omit =', meta_root
@@ -98,6 +57,7 @@ if help:
 	sys.exit(0)
 
 flags = ''
+add_time = None
 
 for a in sys.argv[1:]:
 	L = a[0].lower()
@@ -143,41 +103,6 @@ if not f:
 	sys.exit(1)
 
 # set up ----------------------------------------------------------------------
-
-url_to_skip = [					# <- various bad or useless stuff, won't fix now, or ever
-	re.compile(r'^(blob:|[\d+/]*$)', re.I)
-#,	re.compile(r'^\w+:/+([^/]+\.)?google\.\w+/+', re.I)
-,	re.compile(r'^\w+:/+([^/]+\.)?google(\.co)?\.\w+/+searchbyimage', re.I)
-,	re.compile(r'^(\w+:/+)?([^/]+\.)?captcha\d*\.\w+/+', re.I)
-#,	'mega.co.nz/#', 'mega.nz/#'
-,	'cgpeers.com'
-,	'iqdb.org/?'
-,	'pixiv.net/member_illust', 'pixiv.net/img', '//i2.pixiv.net'			# <- could set up login + autoDL, etc, maybe later
-#,	'share.yandex.net/go', 'wikipedia.'
-,	'//a/', '//l/', '//localhost/'		# <- localhost and its aliases
-]
-
-add_headers_to = [				# <- fake useragent, POST option, etc
-	[['.'], {				# <- won't bother listing all the sites who banned python naming like itself
-		'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'
-# }],	[['www.example.com'], {
-#		'Cookie': '; '.join([
-#			'language=en_US'
-#		,	'key=value'
-#		,	'etc=...'
-#		])
-}],	[['file.qip.ru/file'], '']		# <- send request as POST
-]
-
-d = [meta_root+'/dl.', '.log']
-log_completed = 'completed'.join(d)	# <- "src links -> dest path" logged per line + response headers dump
-log_last_pos = 'last_pos'.join(d)	# <- last known src log file sizes per line, rewritten every time
-log_no_response = 'no_response'.join(d)	# <- when server not found at all, or some weird exception, like SSL
-log_no_file = 'no_file'.join(d)		# <- when file not found, forbidden, or something, like "I'm Teapot"
-log_not_saved = 'not_saved'.join(d)	# <- failed saving for some reason
-log_blocked = 'blocked'.join(d)		# <- ISP firewall
-log_skipped = 'skipped'.join(d)		# <- skipped, according to the list above
-log_all_urls = 'url'.join(d)		# <- just all URLs, bad or OK, to skip repeated, not redownload every rime
 
 url2name = string.maketrans(r'":/|\?*<>', "';,,,&___")
 
@@ -311,7 +236,7 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'^(\w+:/+)?([^/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url=', re.I), '']# <- remove redirect
 ,	[re.compile(r'\.prx2\.unblocksit\.es', re.I), '']					# <- remove web-proxy
 ,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
-,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https
+,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https (mostly for deduplication)
 ,	[re.compile(r'^((\w+:/+)?([^/?#]+\.)?(i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\1.']	# <- skip downscaled copy
 ,	[re.compile(r'^(\w+:/+([^/?#]+\.)?discord[^/]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
 #,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']
@@ -331,7 +256,8 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 
 pat2replace_before_dl = [	# <- strings after this are sent to web servers
 	[re.compile(r'^([^#]+)#.*$'), r'\1']
-,	[re.compile(r'^https(:/+([^/?#]+\.)?(googleusercontent|h(abra)?stor(age)?|vk|youtu(be)?|danbooru)\.)', re.I), r'http\1']
+# ,	[re.compile(r'^https(:/+([^/?#]+\.)?(googleusercontent|h(abra)?stor(age)?|vk|youtu(be)?|danbooru)\.)', re.I), r'http\1']
+,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?.*$', re.I), r'\1?dl=1']
 ,	[re.compile(r'img\.5cm\.ru/view/i5', re.I), 'i5.5cm.ru/i']
 ,	[re.compile(r'//(www\.)?2-?ch\.(cm|ec|hk|pm|re|ru|so|tf|wf|yt)/', re.I), r'//2ch.pm/']
 ,	[re.compile(r'//(www\.)?dobrochan\.(ru|org|com)/', re.I), r'//dobrochan.com/']
@@ -621,11 +547,10 @@ pat2replace_before_saving_file = [
 	[re.compile(r'(file.qip.ru,file,\w+),.*?&action=d\w+', re.I), r'\1']
 ,	[re.compile(r'((\w+;,+)?([^,&]+\.)?(joy)?reactor\.\w+,[^%]*)([^%]*?(%)[a-z0-9]{2,4})+([^%]*)$', re.I), r'\1\6(...)\7']	# <- tested in TCMD
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
+,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
 ,	[re.compile(r'((\.[a-z0-9]+)[;:_]\2+)$', re.I), r'\1\2']				# <- fix twitter img extention
-# ,	[re.compile(r'((\.\w+)[;:]large)$', re.I), r'\1\2']					# <- fix twitter img extention
 ,	[re.compile(r'[.,]+$', re.I), '.htm']							# <- trailing garbage
-,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ]
 
 pat_blocked_url = [
@@ -647,7 +572,7 @@ pat_blocked_content = [
 	''',re.I | re.U)
 ]
 
-a_type = type(d)
+a_type = type([])
 r_type = type(pat_grab)
 s_type = type('')
 u_type = type(u'')
@@ -861,7 +786,7 @@ def get_prereplaced_url(url, hostname='', protocol='http://'):
 
 def get_proxified_url(url, prfx=False):
 	if not prfx:
-		prfx = default_proxy
+		prfx = default_web_proxy
 
 	#prfx = prfx.rstrip('/')+'/'
 
@@ -1132,11 +1057,9 @@ def process_url(dest_root, url, utf='', prfx=''):
 			response = get_response(req)
 			req = response.geturl()
 			print response.info()
+
 			if req == udl:
 				req = redl(get_proxified_url(udl), pat_href, 'Expected redirect, got dummy. Trying proxy:')
-
-		if req.find('dropbox.com/s/') >= 0:
-			req = req.rsplit('?', 1)[0]+'?dl=1'
 
 		response = get_response(req)
 
@@ -1159,7 +1082,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		if udl.find('http://') != 0:
 			print 'Retrying with plain http:\n'
 			finished += process_url(dest_root, re.sub(pat_badp, 'http://', udl))
-		elif udl.find(default_proxy) != 0:
+		elif udl.find(default_web_proxy) != 0:
 			print 'Retrying with proxy:\n'
 			finished += process_url(dest_root, get_proxified_url(udl))
 	else:
@@ -1205,10 +1128,17 @@ def process_url(dest_root, url, utf='', prfx=''):
 					write_file(log_no_file, [log_stamp()]+udn+[e, '\n\n'])
 				headers['Content-Length-Decoded'] = str(len(content))
 
+			urls_to_log = [url]
+
+			if utf and utf != url and utf.find('/') >= 0:
+				urls_to_log.append('Text URL: ' + utf)
+
+			if urldest and urldest != url:
+				urls_to_log.append('Dest URL: ' + urldest)
+
 			write_file(
 				log_completed
-			,	('%s%s\n%s\n%s\n'     % (log_stamp(), url     , urldest, headers)) if (url == utf or utf.find('/') < 0) else
-				('%s%s\n%s\n%s\n%s\n' % (log_stamp(), url, utf, urldest, headers))
+			,	('%s%s\n\n%s\n' % (log_stamp(), '\n'.join(urls_to_log), headers))
 			)
 
 			dest = url.rstrip('/')
@@ -1247,7 +1177,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 								d = re.sub(p[0], p[1], d)
 
 						if d and dest.find(d) < 0:
-							if udl.find(default_proxy) == 0:
+							if udl.find(default_web_proxy) == 0:
 								dest = d
 							else:
 								dest += ' - '+d
@@ -1260,23 +1190,38 @@ def process_url(dest_root, url, utf='', prfx=''):
 			t = get_by_caseless_key(headers, 'Content-Type').split(';', 1)[0].lower()
 			if t:
 				media, format = (t, '') if t.find('/') < 0 else t.split('/', 1)
-				t = (ext in format.split('+'))
-				amp = re.search(pat_exno, ext)
+				ext_in_format = (ext in format.split('+')) or (ext in format.split('-'))
+				amp_in_ext = re.search(pat_exno, ext)
 				subd = 'etc'
-				if (udl.find('.flac') > 0 and ext.find('flac') < 0):
-					dest += '.flac'
-				elif (media == 'text') and (amp or (ext != 'txt' and ext.find('htm') < 0)):
-					dest += '.htm'
-				elif (media == 'video' or media == 'audio') and (amp or ext != format):
-					if not t:
-						dest += '.'+format
-				elif (media == 'image'):
+				add_ext = ''
+
+				if udl.find('.flac') > 0:
+					add_ext = 'flac'
+
+				elif media == 'text':
+					if format == 'plain':
+						add_ext = 'txt'
+
+					elif ext != 'txt' and ext.find('htm') < 0:
+						add_ext = 'htm'
+
+				elif media == 'video' or media == 'audio':
+					if not ext_in_format:
+						add_ext = format
+
+				elif media == 'image':
 					subd = 'pix'
+
 					if format[0:2] == 'jp':
-						if (amp or ext[0:2] != 'jp'):
-							dest += '.jpg'
-					elif (amp or ext != format) and not t:
-						dest += '.'+format
+						if ext != 'jpg' and ext != 'jpeg':
+							add_ext = 'jpg'
+
+					elif not ext_in_format:
+						add_ext = format
+
+				if add_ext and (amp_in_ext or ext.find(add_ext) < 0):
+					dest += '.'+add_ext
+
 				if subd:
 					d += subd+'/'
 
