@@ -3,6 +3,8 @@
 
 import re
 
+default_name_cut_length = 123
+
 ext_web = ['htm', 'html', 'maff', 'mht', 'mhtml']
 
 dest_root = u'd:/_bak/_www/'

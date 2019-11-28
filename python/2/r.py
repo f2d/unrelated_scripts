@@ -3,7 +3,7 @@
 
 import datetime, os, re, sys, zipfile
 
-from r_config import dest_root, dest_root_by_ext, dest_root_yt, ext_web, sites
+from r_config import default_name_cut_length, dest_root, dest_root_by_ext, dest_root_yt, ext_web, sites
 
 argc = len(sys.argv)
 arg_name_cut = 'cut'
@@ -15,16 +15,19 @@ if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
 	print '	t: for test output only (don\'t apply changes)'
 	print '	f: full path length check'
 	print '	o: full path output'
-	print '	r: source working folder recursion'
+	print '	r: recurse into subfolders (default = stay in working folder)'
 	print
 	print '	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
 	print '	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
 	print '	b: move aib-grabbed files into subdir by thread ID in filename'
 	print '	p: move pixiv-grabbed files into subdir by work ID in filename'
+	print '	u: move files up from subdir by type (flash, gif, video, etc, may start from underscore)'
+	print '	x: move non-image files into subdir by type in ext (flash, gif, video, etc)'
 	print '	y: rename Complete YouTube Saver downloads in sub/same-folder by ID in URL and filenames'
 	print
 	print '* Other options (separate each with a space):'
-	print '	'+arg_name_cut+' or '+arg_name_cut+'<number>: first cut long names to specified length (default = 123)'
+	print '	'+arg_name_cut+': cut long names to '+default_name_cut_length
+	print '	'+arg_name_cut+'<number>: cut long names to specified length'
 	print
 	print '* Example 1: r.py rwb'
 	print '* Example 2: r.py tfo '+arg_name_cut+'234'
@@ -43,11 +46,13 @@ arg_web = 'w' in flags
 arg_dup = 'd' in flags
 arg_aib = 'b' in flags
 arg_pxv = 'p' in flags
+arg_eup = 'u' in flags
+arg_ext = 'x' in flags
 arg_ytb = 'y' in flags
 
 j = len(arg_name_cut)
 if arg_name_cut in sys.argv:
-	arg_len = 123		# <- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
+	arg_len = default_name_cut_length			# <- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
 else:
 	arg_len = 0
 	for a in sys.argv:
@@ -193,8 +198,8 @@ pat_sub = [
 ,	{
 		'match': re.compile(r'''^
 			(?:(?P<Site>\S+)\s-\s)
-			(?:(?P<NumID>\S+)\s-\s)
-			(?P<ID>\S+)
+			(?:(?P<ID>\S+)\s-\s)
+			(?P<Hash>\S+)
 			(?:\s-\s
 				(?P<TimeStamp>\d{4}(?:\D\d\d){2,5})
 			)?
@@ -203,11 +208,21 @@ pat_sub = [
 			)?
 			(?P<Ext>\.[^.]+)
 		$''', re.I | re.X)
-	,	'ID': r'\g<ID>'
+	,	'group_by': r'\g<Hash>'
 	,	'date': r'\g<TimeStamp>'
 	,	'subdir': '1'
 	} if arg_dup else None
-]
+,	{
+		'match_dir': re.compile(r'(^|[\\/])(_not|_animation|_frames|_gif|_flash|_video|_img)+([\\/]|$)', re.I)
+	,	'subdir': r'..'
+	} if arg_eup else None
+] + ([
+	{'subdir': r'_animation_frames','match': re.compile(r'\.zip$', re.I)}
+,	{'subdir': r'_gif',		'match': re.compile(r'\.gif$', re.I)}
+,	{'subdir': r'_flash',		'match': re.compile(r'\.(swf|fws)$', re.I)}
+,	{'subdir': r'_video',		'match': re.compile(r'\.(mp4|mkv|webm)$', re.I)}
+,	{'subdir': r'_not_img',		'match': re.compile(r'\.(?!(bmp|png|jp[eg]+|webp|gif|swf|fws|mp4|mkv|webm|zip)$)\w+$', re.I)}
+] if arg_ext else [])
 
 pat_idx = re.compile(r'<MAF:indexfilename\s+[^=>\s]+="([^">]+)', re.I)
 pat_ren_mht_linebreak = re.compile(r'=\s+')
@@ -629,75 +644,101 @@ def r(path, later=0):
 
 		else:
 			for p in pat_sub:
-				if not p: continue
+				if not p:
+					continue
 
-				pat_match  = p.get('match')
-				pat_next   = p.get('next')
-				pat_ID     = p.get('ID')
-				pat_date   = p.get('date')
+				pat_match     = p.get('match')
+				pat_match_dir = p.get('match_dir')
+
+				s = sd = subdir = None
+
+				if pat_match_dir:
+					sd = re.search(pat_match_dir, path)
+
+					if not sd:
+						continue
+
+				if pat_match:
+					s = re.search(pat_match, name)
+
+					if not s:
+						continue
+
 				pat_subdir = p.get('subdir')
+				pat_dup_ID = p.get('group_by')
+				pat_date   = p.get('date')
+				pat_next   = p.get('next')
 
-				if not pat_match: continue
-
-				s = re.search(pat_match, name)
-				if not s: continue
-
-				if pat_next and not (s.expand(pat_next) in names): continue
-
-				if pat_ID:
-					dup_ID = s.expand(pat_ID)
-
-					try:
-						dup_stamp = s.expand(pat_date)
-					except:
-						dup_stamp = 'last'
-
-					d = dup_lists_by_ID[dup_ID] if dup_ID in dup_lists_by_ID else None
-					if later:
-						n_later += 1
-						if dup_stamp:
-							if d:
-								if isinstance(d, a_type) and not dup_stamp in d:
-									d.append(dup_stamp)
-							else:
-								d = dup_lists_by_ID[dup_ID] = {}
-							if isinstance(d, d_type):
-								d[name] = dup_stamp or name
-						else:
-							if d:
-								d += '1'	# <- to simply check len() the same way
-							else:
-								d = dup_lists_by_ID[dup_ID] = '1'
-						if TEST:
-							lend = len(d.keys() if isinstance(d, d_type) else d)
-							print dup_ID.encode('utf-8'), '- dup #', lend, dup_stamp.encode('utf-8')
-						continue
-					elif not (
-						d
-					and	len(d.keys() if isinstance(d, d_type) else d)
-					and	(
-							(isinstance(d, a_type) and dup_stamp in d)
-						or	(isinstance(d, d_type) and name in d)
-						)
-					):
+				if s:
+					if pat_next and not (s.expand(pat_next) in names):
 						continue
 
-				s = '/' + (s.expand(pat_subdir) if pat_subdir else s.group(1)).strip('/')
-				i = len(s)
+					if pat_dup_ID:
+						dup_ID = s.expand(pat_dup_ID)
+
+						try:
+							dup_stamp = s.expand(pat_date)
+						except:
+							dup_stamp = 'last'
+
+						d = dup_lists_by_ID[dup_ID] if dup_ID in dup_lists_by_ID else None
+						if later:
+							n_later += 1
+							if dup_stamp:
+								if d:
+									if isinstance(d, a_type) and not dup_stamp in d:
+										d.append(dup_stamp)
+								else:
+									d = dup_lists_by_ID[dup_ID] = {}
+								if isinstance(d, d_type):
+									d[name] = dup_stamp or name
+							else:
+								if d:
+									d += '1'	# <- to simply check len() the same way
+								else:
+									d = dup_lists_by_ID[dup_ID] = '1'
+							if TEST:
+								lend = len(d.keys() if isinstance(d, d_type) else d)
+								print dup_ID.encode('utf-8'), '- dup #', lend, dup_stamp.encode('utf-8')
+							continue
+						elif not (
+							d
+						and	len(d.keys() if isinstance(d, d_type) else d)
+						and	(
+								(isinstance(d, a_type) and dup_stamp in d)
+							or	(isinstance(d, d_type) and name in d)
+							)
+						):
+							continue
+
+					subdir = '/' + (s.expand(pat_subdir) if pat_subdir else s.group(1)).strip('/')
+				elif sd:
+					subdir = '/' + (sd.expand(pat_subdir) if pat_subdir else sd.group(1)).strip('/')
+
+				if not subdir:
+					continue
+
+				i = len(subdir)
 				d = path.rstrip('/')
-				while d[-i:] == s: d = d[0:-i]
 
-				d += s
-				if d == path: continue
+				while d[-i:] == subdir:
+					d = d[0:-i]
+
+				d += subdir
+				if d == path:
+					continue
 
 				print d.encode('utf-8'), '<-', name.encode('utf-8')
+
 				if DO:
-					dest = d+'/'+name
+					dest = uniq(src, d+'/'+name)
+
 					try:
 						if not os.path.exists(d):
 							os.mkdir(d)
 						os.rename(src, dest)
 						n_moved += 1
+
 					except Exception as e:
 						n_fail += 1
 						print msg_prfx, 'Path length:', len(src), 'to', len(dest)

@@ -549,8 +549,12 @@ pat2replace_before_saving_file = [
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
 ,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
-,	[re.compile(r'((\.[a-z0-9]+)[;:_]\2+)$', re.I), r'\1\2']				# <- fix twitter img extention
-,	[re.compile(r'[.,]+$', re.I), '.htm']							# <- trailing garbage
+,	[re.compile(r'((\.[a-z0-9]+)[;:_][a-z0-9]+)$', re.I), r'\1\2']				# <- fix twitter img link extention
+,	[re.compile(r'((\.(bmp|gif|jp[eg]+|png|webp))\S+)$', re.I), r'\1\2']			# <- fix twitter img repost extention
+# ,	[re.compile(r'(\.jp[eg]+){2,}$', re.I), r'\1']						# <- remove duplicate extention
+,	[re.compile(r'(\.mp3)\.mpeg$', re.I), r'\1']						# <- remove duplicate extention
+,	[re.compile(r'(\.\w+)\1+$', re.I), r'\1']						# <- remove duplicate extention
+,	[re.compile(r'[.,&#]+$', re.I), '.htm']							# <- trailing garbage
 ]
 
 pat_blocked_url = [
