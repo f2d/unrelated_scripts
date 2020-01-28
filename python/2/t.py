@@ -31,8 +31,38 @@ arg_u = 'u' in flag	# <- set file by name (unix time = first 10 digits)
 arg_v = not 'q' in flag	# <- verbose
 
 pat_time = re.compile(r'(?:^|[^a-z\d])(\d{10})', re.I)
-pat_date = re.compile(r'(?:^|[^a-z\d])(\d{4})\D(\d\d)\D(\d\d)(?:\D(\d\d)\D(\d\d)(?:\D(\d\d))?)?(?:\D|$)', re.I)
-exp_date = [r'\1-\2-\3 \4:\5:\6', r'\1-\2-\3 \4:\5:00', r'\1-\2-\3 00:00:00']
+pat_date = re.compile(r'''
+	(?:^|[^a-z\d])
+	(\d{4})\D
+	(\d\d)\D
+	(\d\d)
+	(?:\D
+		(\d\d)\D
+		(\d\d)
+		(?:\D
+			(\d\d)
+		)?
+	)?
+	(?:\D|$)
+''', re.I | re.X)
+
+pat_date_full_compact = re.compile(r'''
+	(?:^|\D)
+	(\d{4})\D?
+	(\d{2})\D?
+	(\d{2})\D?
+	(\d{2})\D?
+	(\d{2})\D?
+	(\d{2})
+	(?:\D|$)
+''', re.I | re.X)
+
+exp_date = [
+	r'\1-\2-\3 \4:\5:\6'
+,	r'\1-\2-\3 \4:\5:00'
+,	r'\1-\2-\3 00:00:00'
+]
+
 fmt_date = r'%Y-%m-%d %H:%M:%S'
 count_changes = count_errors = count_found = count_read = 0
 
@@ -92,7 +122,8 @@ def r(path):
 			d = 0
 			t = ''
 			if arg_u: t = check_time_in(t, name, pat_time)
-			if arg_y: t = check_time_in(t, name)
+			if arg_y: t = check_time_in(t, name, pat_date)
+			if arg_y: t = check_time_in(t, name, pat_date_full_compact)
 			if arg_f: t = check_time_in(t, read_file(full_path))
 
 			if t:

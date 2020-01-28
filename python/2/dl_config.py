@@ -5,10 +5,16 @@ import re
 
 # config --------------------------------------------------------------------
 
+# versions as of 2019-12-25:
+user_agent_firefox = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0'
+user_agent_chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.94 Safari/537.36'
+
 wait = interval = recurse = 0
 timeout_request = 60
-# timeout_slow_dl = 0
-default_web_proxy = 'http://u/'
+
+# TODO: timeout_slow_dl = 0
+
+default_web_proxy = 'http://u/raw/'
 default_encoding = 'utf_8'
 read_encoding = default_encoding+'|utf_16_le|utf_16_be|cp1251'
 
@@ -71,7 +77,7 @@ url_to_skip = [				# <- various bad or useless stuff, won't fix now, or forever
 
 add_headers_to = [				# <- fake useragent, POST option, etc
 	[['.'], {				# <- won't bother listing all the sites who banned python naming like itself
-		'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'
+		'User-Agent': user_agent_firefox
 # }],	[['www.example.com'], {
 #		'Cookie': '; '.join([
 #			'language=en_US'

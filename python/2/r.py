@@ -141,7 +141,9 @@ pat_ren = [
 			(?P<Suffix>
 				RGhost(?:\s+\S\s+[^.]+)?
 			|	\S+\s+Mail\.Ru			# <- "cloud mail.ru"
-			|	\S{6}\.\S{4}			# <- "yandex.disk"
+		#	|	\S{6}\.\S{4}			# <- "yandex.disk"
+			|	Яндекс.Диск
+			|	Yandex.Dis[ck]
 			)
 			(?P<PageName>\s+-\s+\S+?)?		# <- added by UnMHT
 			(?P<SaveDate>\{\d{4}(?:\D\d\d){5}\})?	# <- added by SavePageWE

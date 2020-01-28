@@ -549,8 +549,8 @@ pat2replace_before_saving_file = [
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
 ,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
-,	[re.compile(r'((\.[a-z0-9]+)[;:_][a-z0-9]+)$', re.I), r'\1\2']				# <- fix twitter img link extention
-,	[re.compile(r'((\.(bmp|gif|jp[eg]+|png|webp))\S+)$', re.I), r'\1\2']			# <- fix twitter img repost extention
+,	[re.compile(r'(\.[a-z0-9]+)[;:_][a-z0-9]+$', re.I), r'\0\1']				# <- fix twitter img link extention
+,	[re.compile(r'(\.(bmp|gif|jp[eg]+|png|webp))[^.a-z]\S+$', re.I), r'\0\1']		# <- fix twitter img repost extention
 # ,	[re.compile(r'(\.jp[eg]+){2,}$', re.I), r'\1']						# <- remove duplicate extention
 ,	[re.compile(r'(\.mp3)\.mpeg$', re.I), r'\1']						# <- remove duplicate extention
 ,	[re.compile(r'(\.\w+)\1+$', re.I), r'\1']						# <- remove duplicate extention
@@ -652,6 +652,12 @@ def sanitize_filename(input_text):
 			result_text += '_'
 
 	return result_text
+
+def fix_filename_before_saving(filename):
+	for p in pat2replace_before_saving_file:
+		filename = re.sub(p[0], p[1], filename)
+
+	return filename
 
 def get_attr_text_if_not_empty(obj, i):
 	if hasattr(obj, i):
@@ -1159,8 +1165,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 				.split('#', 1)[0]
 				.translate(url2name)
 			)
-			for p in pat2replace_before_saving_file:
-				dest = re.sub(p[0], p[1], dest)	# <- fix urls to save
+
+			dest = fix_filename_before_saving(dest)
 
 			t = get_by_caseless_key(headers, 'Content-Disposition')
 			if t:
@@ -1177,8 +1183,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 							print '<filename decoding error>'
 					try:
 						if d:
-							for p in pat2replace_before_saving_file:
-								d = re.sub(p[0], p[1], d)
+							d = fix_filename_before_saving(d)
 
 						if d and dest.find(d) < 0:
 							if udl.find(default_web_proxy) == 0:
@@ -1216,7 +1221,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 				elif media == 'image':
 					subd = 'pix'
 
-					if format[0:2] == 'jp':
+					if format == 'jpg' or format == 'jpeg':
 						if ext != 'jpg' and ext != 'jpeg':
 							add_ext = 'jpg'
 
@@ -1228,6 +1233,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 				if subd:
 					d += subd+'/'
+
+			dest = fix_filename_before_saving(dest)
 
 			if add_time:
 				t = None
