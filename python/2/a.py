@@ -21,6 +21,18 @@ def_dest = '..'
 class GetOutOfLoop( Exception ):
 	pass
 
+def normalize_slashes(path):
+	return path.replace('\\', '/')
+
+def fix_slashes(path):
+	if os.sep != '/':
+		path = path.replace('/', os.sep)
+
+	if os.sep != '\\':
+		path = path.replace('\\', os.sep)
+
+	return path
+
 def get_exe_paths():
 	exe_paths_found = {}
 	exe_try_root_dirs = ['%ProgramW6432%', '%ProgramFiles%', '%ProgramFiles(x86)%', '%CommonProgramFiles%', 'C:/Program Files', '']
@@ -52,11 +64,11 @@ def get_exe_paths():
 					for filename in type_part['filenames']:
 						for subdir_suffix in exe_try_subdir_suffixes:
 							for filename_suffix in exe_try_filename_suffixes:
-								path = (
+								path = fix_slashes(
 									root_dir
 								+'/'+	subdir + subdir_suffix
 								+'/'+	filename + filename_suffix
-								).replace('\\', '/')
+								)
 
 								if os.path.isfile(path):
 									exe_paths_found[type_name] = path
@@ -151,6 +163,10 @@ def print_help():
 #	print 'TODO ->		5g: start comparing from shortest filenames.'
 #	print 'TODO ->		if "4" or "f" is not set, skip singletons.'
 #	print 'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+flags_group_by_num_any_sep+'").'
+#	print 'TODO ->	9, 99, 999, etc.: keep each group population below this number.'
+#	print 'TODO ->		(split first by mod.dates - years, then months, days, hours,'
+#	print 'TODO ->		minutes, seconds, at last batch subjects with same-second'
+#	print 'TODO ->		timestamps alphabetically in simple N+1 groups - 10, 100, etc.)'
 	print
 	print '	---- archive types:'
 	print '	7: make a .7z  file with 7-Zip.'
@@ -197,20 +213,27 @@ if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
 
 def uniq(n, e):
 	r = n+e
+
 	if os.path.exists(r):
 		r = n+t0+e
+
 	while os.path.exists(r):
 		r = '(2).'.join(r.rsplit('.', 1))
-	return r.replace('/', os.sep)
+
+	return fix_slashes(r)
 
 def is_any_char_of_a_in_b(a, b):
 	for c in a:
 		if b.find(c) >= 0:
 			return True
+
 	return False
 
+def quoted_if_must(text):
+	return '"'+text+'"' if is_any_char_of_a_in_b(must_quote, text) else text
+
 def quoted_list(a):
-	return map(lambda x: '"'+x+'"' if is_any_char_of_a_in_b(must_quote, x) else x, a)
+	return map(quoted_if_must, a)
 
 def pad_list(a, minimum_len=2, pad_value=''):
 	diff = minimum_len - len(a)
@@ -237,7 +260,7 @@ def append_cmd(paths, suffix, opt_args=None):
 
 	dest = uniq(dest, suffix)
 	path_args = (
-		[('-n' if rar else '-i')+subj, '--', dest] if ('@' in subj) else
+		[('-n' if rar else '-i')+subj, '--', dest] if is_subj_list else
 		['--', dest, subj]
 	)
 
@@ -254,7 +277,9 @@ def queue(subj, foreach=False):
 	global cmd_queue, dest, del_warn
 
 	name = (def_name + ',' + subj) if (foreach and def_name and subj) else (def_name or subj)
-	mask = ('*' in subj) or ('?' in subj)
+
+	is_subj_mask = ('*' in subj) or ('?' in subj)
+	is_subj_mass = is_subj_mask or is_subj_list or os.path.isdir(subj)
 
 	if len(name.replace('.', '')) > 0:
 		if '/' in name:
@@ -263,11 +288,11 @@ def queue(subj, foreach=False):
 		# re-guess dest arg when not given:
 		if (
 			(
-				argc < 4 or
-				not len(sys.argv[3])
+				argc < 4
+			or	not len(sys.argv[3])
 			) and not (
-				mask or
-				subj == def_subj
+				is_subj_mask
+			or	subj == def_subj
 			)
 		):
 			dest = '.'
@@ -280,18 +305,16 @@ def queue(subj, foreach=False):
 	print 'name:	', name
 
 	name = dest+'/'+name+(t0 if 't' in flag else '')
-	mass = mask or ('@' in subj) or os.path.isdir(subj)
+	paths = map(fix_slashes, [subj, name])
+
 	ddup = ',dedup' if 'l' in flag else ''
 	uncm = ',store' if '0' in flag else ''
 	dcsz = ',d=256m' if '6' in flag else ''
-	subj = subj.replace('/', os.sep)
-
-	paths = [subj, name]
 
 	if '7' in flag:
 		ext = (uncm or dcsz)+'.7z'
 		solid = 0
-		if mass and not uncm:
+		if is_subj_mass and not uncm:
 			if 'e' in flag: solid += append_cmd(paths, ',se'+ext, ['-ms=e'])
 			if 's' in flag: solid += append_cmd(paths, ',s'+ext, ['-ms'])
 		if not solid or 'n' in flag: append_cmd(paths, ext, ['-ms=off'])
@@ -304,7 +327,7 @@ def queue(subj, foreach=False):
 	if 'r' in flag:
 		ext = (uncm or dcsz)+ddup+'.rar'
 		solid = 0
-		if mass and not uncm:
+		if is_subj_mass and not uncm:
 			if 'e' in flag: solid += append_cmd(paths, ',se'+ext, ['-se'])
 			if 's' in flag: solid += append_cmd(paths, ',s'+ext, ['-s'])
 		if not solid or 'n' in flag: append_cmd(paths, ext, ['-s-'])
@@ -343,8 +366,8 @@ if (def_suffix_separator in def_name) and not (def_suffix_separator in flag):
 
 def_name, def_suffix = pad_list((def_name or '').split(def_suffix_separator, 1))
 
-subj = sys.argv[2].replace('\\', '/') if argc > 2 and len(sys.argv[2]) > 0 else def_subj
-dest = sys.argv[3].replace('\\', '/') if argc > 3 and len(sys.argv[3]) > 0 else def_dest
+subj = normalize_slashes(sys.argv[2] if argc > 2 and len(sys.argv[2]) > 0 else def_subj)
+dest = normalize_slashes(sys.argv[3] if argc > 3 and len(sys.argv[3]) > 0 else def_dest)
 rest = sys.argv[4:] if argc > 4 else []
 
 print
@@ -364,10 +387,12 @@ if '_' in flag:
 else:
 	minimized = None
 
+is_subj_list = (subj[0] == '@')
+foreach_date = flag.count('9')
 foreach_dir  = '4' in flag
 foreach_file = 'f' in flag
-foreach = (subj[0] != '@') and (foreach_dir or foreach_file)
-foreach_ID = ''.join(map(lambda i: i if i in flag else '', flags_group_by_num_any_sep))
+foreach = (foreach_dir or foreach_file) and not is_subj_list
+foreach_ID = ''.join(map(lambda x: x if x in flag else '', flags_group_by_num_any_sep))
 
 cmd_template = {}
 cmd_template['7z'] = (
@@ -431,8 +456,9 @@ t0 = time.strftime(time_format)
 # - fill batch queue ----------------------------------------------------------
 
 if foreach or foreach_ID:
-	names = (
-		glob.glob(subj) if ('*' in subj or '?' in subj) else
+	names = map(
+		normalize_slashes
+	,	glob.glob(subj) if ('*' in subj or '?' in subj) else
 		os.listdir(subj) if os.path.isdir(subj) else
 		[subj]
 	)

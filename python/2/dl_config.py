@@ -56,6 +56,9 @@ dest_app_default = 'v'
 meta_root = u'.'
 
 d = [meta_root+'/dl.', '.log']
+
+# log_traceback = 'traceback'.join(d)	# <- info about program exceptions
+log_traceback = None
 log_completed = 'completed'.join(d)	# <- "src links -> dest path" logged per line + response headers dump
 log_last_pos = 'last_pos'.join(d)	# <- last known src log file sizes per line, rewritten every time
 log_no_response = 'no_response'.join(d)	# <- when server not found at all, or some weird exception, like SSL

@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 from email.utils import parsedate
-import datetime, gzip, os, re, ssl, string, StringIO, subprocess, sys, time, urllib, urllib2
+import datetime, gzip, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, urllib, urllib2
 
 # configure -------------------------------------------------------------------
 
@@ -104,7 +104,20 @@ if not f:
 
 # set up ----------------------------------------------------------------------
 
-url2name = string.maketrans(r'":/|\?*<>', "';,,,&___")
+chars_from_url    = r'":/|\?*<>'
+chars_to_filename = r"';,,,&___"
+
+url2name = string.maketrans(
+	chars_from_url
+,	chars_to_filename
+)
+
+url2name_unicode = {}
+
+for i in zip(list(chars_from_url), list(chars_to_filename)):
+	t = unicode(i[1])
+	url2name_unicode[ord(i[0])] = t
+	url2name_unicode[ord(unicode(i[0]))] = t
 
 safe_chars_as_ord = [
 	[ord('A'), ord('Z')]
@@ -545,16 +558,17 @@ pat2recheck_next_time = [
 
 pat2replace_before_saving_file = [
 	[re.compile(r'(file.qip.ru,file,\w+),.*?&action=d\w+', re.I), r'\1']
+,	[re.compile(r'(\.cdninstagram\.com[,/]+[^;:&?#]+)[;:&?#].+$', re.I), r'\1']		# <- remove URL arguments
 ,	[re.compile(r'((\w+;,+)?([^,&]+\.)?(joy)?reactor\.\w+,[^%]*)([^%]*?(%)[a-z0-9]{2,4})+([^%]*)$', re.I), r'\1\6(...)\7']	# <- tested in TCMD
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
 ,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
-,	[re.compile(r'(\.[a-z0-9]+)[;:_][a-z0-9]+$', re.I), r'\0\1']				# <- fix twitter img link extention
-,	[re.compile(r'(\.(bmp|gif|jp[eg]+|png|webp))[^.a-z]\S+$', re.I), r'\0\1']		# <- fix twitter img repost extention
+,	[re.compile(r'((\.[a-z0-9]+)[;:_][a-z0-9]+)$', re.I), r'\1\2']				# <- fix twitter img link extention
+,	[re.compile(r'((\.(bmp|gif|jp[eg]+|png|webp))[^.a-z]\S+)$', re.I), r'\1\2']		# <- fix twitter img repost extention
 # ,	[re.compile(r'(\.jp[eg]+){2,}$', re.I), r'\1']						# <- remove duplicate extention
 ,	[re.compile(r'(\.mp3)\.mpeg$', re.I), r'\1']						# <- remove duplicate extention
 ,	[re.compile(r'(\.\w+)\1+$', re.I), r'\1']						# <- remove duplicate extention
-,	[re.compile(r'[.,&#]+$', re.I), '.htm']							# <- trailing garbage
+,	[re.compile(r'[.,&#]+$', re.I), '.htm']							# <- remove trailing garbage
 ]
 
 pat_blocked_url = [
@@ -621,43 +635,68 @@ def try_decode(text, enc_in=None, enc_out=None):
 	else:
 		try:
 			text = text.decode(enc_in)
-		except Exception:
-			text = ''
+
+		except Exception as e:
+			write_exception_traceback()
+
+			# return ''
 
 	if enc_out:
 		try:
 			return text.encode(enc_out)
-		except Exception:
-			return ''
+
+		except Exception as e:
+			write_exception_traceback()
+
+			# return ''
 
 	return text
+
+def translate_url_to_filename(text):
+	try:			return text.translate(url2name)
+	except TypeError:	pass
+	except Exception:	write_exception_traceback()
+
+	try:			return text.translate(url2name_unicode)
+	except TypeError:	pass
+	except Exception:	write_exception_traceback()
+
+	try:			return sanitize_filename(text)
+	except TypeError:	pass
+	except Exception:	write_exception_traceback()
+
+	return text
+
+def sanitize_char(input_char):
+	input_ord = ord(input_char)
+
+	for safe_ord in safe_chars_as_ord:
+		if (
+			(
+				input_ord >= safe_ord[0]
+			and	input_ord <= safe_ord[1]
+			)
+			if is_type_arr(safe_ord) else
+			input_ord == safe_ord
+		):
+			return input_char
+	return '_'
 
 def sanitize_filename(input_text):
 	result_text = ''
 
 	for i in range(len(input_text)):
-		safe = False
-		c_i = input_text[i]
-		o_i = ord(c_i)
-		for j in safe_chars_as_ord:
-			if (
-				(o_i >= j[0] and o_i <= j[1])
-				if is_type_arr(j) else
-				o_i == j
-			):
-				result_text += c_i
-				safe = True
-				break
-		if not safe:
-			result_text += '_'
+		result_text += sanitize_char(input_text[i])
 
 	return result_text
 
 def fix_filename_before_saving(filename):
-	for p in pat2replace_before_saving_file:
-		filename = re.sub(p[0], p[1], filename)
+	filename = try_decode(filename)
 
-	return filename
+	for p in pat2replace_before_saving_file:
+		filename = re.sub(p[0], p[1], translate_url_to_filename(filename))
+
+	return translate_url_to_filename(filename)
 
 def get_attr_text_if_not_empty(obj, i):
 	if hasattr(obj, i):
@@ -714,9 +753,11 @@ def timestamp_from_http_modtime(str_modtime, str_format=format_epoch):
 def read_file(path, mode='r'):
 	if not os.path.isfile(path):
 		return ''
+
 	f = open(path, mode)
 	r = f.read()
 	f.close()
+
 	return r
 
 def write_file(path, conts, mode='a+b'):
@@ -724,20 +765,52 @@ def write_file(path, conts, mode='a+b'):
 		if hasattr(conts, f):
 			conts = [conts]
 			break
+
 	f = open(path, mode)
+
 	for content in conts:
 		try:
 			f.write(content)
+
 		except Exception:
+			write_exception_traceback()
+
 			try:
 				k = dump(content, ['__class__', '__doc__', 'args', 'message', ['headers', 'hdrs']])
 				f.write(k or dump(content))
+
 			except Exception:
+				write_exception_traceback()
+
 				f.write('<Unwritable>')
+	f.close()
+
+def write_exception_traceback(text=''):
+	if not log_traceback:
+		return
+
+	f = open(log_traceback, 'a+b')
+	t = '\n' + log_stamp()
+
+	try:
+		if text:
+			text += '\n'
+		f.write(t + text)
+
+	except Exception:
+		f.write(t + '<Unwritable pretext>\n')
+
+	try:
+		traceback.print_exc(None, f)
+
+	except Exception:
+		f.write('<Unwritable traceback>')
+
 	f.close()
 
 def trim_path(path, delim='.', placeholder='(...)', max_len=250):
 	path = fix_slashes(path)
+
 	if len(path) > max_len:
 		path, name = path.rsplit('/', 1)
 		head, tail = name.rsplit(delim, 1)
@@ -753,20 +826,69 @@ def trim_path(path, delim='.', placeholder='(...)', max_len=250):
 
 def save_uniq_copy(path, content):
 	path = trim_path(path)
-	if os.path.exists(path):
-		if content == read_file(path, 'rb'):
-			return 'existing copy - no difference'
-		os.rename(path, uniq_path(trim_path(
-			datetime.datetime.fromtimestamp(os.path.getmtime(path))
+
+	try:
+		is_existing_path = os.path.exists(path)
+
+	except TypeError:
+		old_path = try_decode(path)
+
+		for enc in read_encoding:
+			try:
+				path = old_path.encode(enc)
+				is_existing_path = os.path.exists(path)
+
+			except Exception:
+				write_exception_traceback(enc)
+
+				path = None
+
+			if path:
+				break
+
+		# if not path:
+			# path = 'bad_file_path' + time.strftime(format_path_mtime) + '.ext'
+
+	if path:
+		if is_existing_path:
+			if content == read_file(path, 'rb'):
+				return 'existing copy - no difference'
+
+			path_with_old_file_modtime = (
+				datetime.datetime.fromtimestamp(os.path.getmtime(path))
 				.strftime(format_path_mtime)
 				.join(path.rsplit('.', 1))
-			, ';')))
-	write_file(path, content, 'wb')
+			)
+			new_path_for_old_file = uniq_path(trim_path(path_with_old_file_modtime, ';'))
+
+			try:
+				os.rename(path, new_path_for_old_file)
+
+			except Exception:
+				write_exception_traceback()
+
+				path = uniq_path(path)
+
+		write_file(path, content, 'wb')
+
 	return path
 
 def uniq_path(path):
-	while os.path.exists(path):
-		path = '(2).'.join(path.rsplit('.', 1))
+	if os.path.exists(path):
+		n = 1
+		i = int(time.time())
+		t = str(i)
+		base, ext = path.rsplit('.', 1)
+		base += '('
+		ext += ').'
+
+		while os.path.exists(path):
+			n += 1
+			if n >= i:
+				n = 1
+				base += t + '_'
+
+			path = base + n + ext
 	return path
 
 def read_log(path, start=0, size=0):
@@ -776,10 +898,15 @@ def read_log(path, start=0, size=0):
 	r = f.read(size) if size else f.read()
 	sz = f.tell()
 	f.close()
+
 	try:
 		print start, 'to', sz, 'bytes in', path.rsplit('/', 1)[1]
+
 	except Exception:
+		write_exception_traceback()
+
 		print start, 'to', sz, 'bytes in <Unwritable>'
+
 	return [r, '%d	%d	%s' % (start, sz, path)]
 
 def get_prereplaced_url(url, hostname='', protocol='http://'):
@@ -825,7 +952,10 @@ def get_dest_dir_from_log_name(name):
 							for pat in pat_dest_dir_replace:
 								g_clean = re.sub(pat[0], pat[1] or '', g_clean).strip()
 							return g_clean if len(g_clean) > 0 else g
+
 					except Exception:
+						write_exception_traceback()
+
 						continue
 			else:
 				for i in res.groups():
@@ -871,7 +1001,10 @@ def read_path(path, dest_root, lvl=0):
 			try:
 				r, meta = read_log(f, start if sz > start else 0)
 				changes += 1
+
 			except IOError as e:
+				write_exception_traceback()
+
 				print 'Error reading log:', log_stamp(), e
 				r = meta = ''
 				# continue
@@ -917,15 +1050,24 @@ def read_path(path, dest_root, lvl=0):
 						try:
 							ude = url.decode(enc)
 							utf = ude.encode(default_encoding)
-						except Exception:
+
+						except Exception as e:
+							write_exception_traceback()
+
 							try:
 								ude = url.decode(default_encoding)
 								utf = url
-							except Exception:
+
+							except Exception as e:
+								write_exception_traceback()
+
 								ude = utf = url
 						try:
 							print ude
-						except Exception:
+
+						except Exception as e:
+							write_exception_traceback()
+
 							print '<Unprintable>', url.split('//', 1)[-1].split('/', 1)[0]
 
 						urls.append([d, url, utf, prfx])
@@ -980,13 +1122,17 @@ def get_by_caseless_key(dic, k):
 def redl(url, regex, msg=''):
 	if msg:
 		print msg, url
+
 	response = get_response(url)
 	content = response.read()
+
 	print '\n', response.info()
+
 	r = re.search(regex, content)
 	if r:
 		return r.group(1)
-	raise urllib2.URLError(content)
+	else:
+		raise urllib2.URLError(content)
 
 def pass_url(app, url):
 	global urls_passed
@@ -1006,9 +1152,13 @@ def pass_url(app, url):
 		)
 		if p:
 			print 'Process ID:', p.pid
+
 	except Exception as e:
+		write_exception_traceback()
+
 		print 'Unexpected error. See logs.\n'
 		write_file(log_no_response, [log_stamp(), e, '\n\n'])
+
 	return 1
 
 def process_url(dest_root, url, utf='', prfx=''):
@@ -1087,6 +1237,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 			finished += process_url(dest_root, udl_trim)
 
 	except Exception as e:
+		write_exception_traceback()
+
 		print 'Unexpected error. See logs.\n'
 		write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
 		if udl.find('http://') != 0:
@@ -1100,7 +1252,10 @@ def process_url(dest_root, url, utf='', prfx=''):
 			urldest = response.geturl()
 			headers = response.info()
 			content = response.read()
+
 		except Exception as e:
+			write_exception_traceback()
+
 			print 'Unexpected error. See logs.\n'
 			write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
 		else:
@@ -1134,8 +1289,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 					i = StringIO.StringIO(content)
 					o = gzip.GzipFile(fileobj=i)
 					content = o.read()
+
 				except IOError as e:
+					write_exception_traceback()
+
 					write_file(log_no_file, [log_stamp()]+udn+[e, '\n\n'])
+
 				headers['Content-Length-Decoded'] = str(len(content))
 
 			urls_to_log = [url]
@@ -1152,20 +1311,15 @@ def process_url(dest_root, url, utf='', prfx=''):
 			)
 
 			dest = url.rstrip('/')
-			dest = try_decode(
-				(
-					(
-						prfx+(
-							dest.rsplit('/', 1)[1] if prfx[-3:] == ' - ' else
-							' - '+dest
-						)
-					) if prfx else
-					dest
-				)
-				.split('#', 1)[0]
-				.translate(url2name)
-			)
 
+			if prfx:
+				dest = prfx + (
+					dest.rsplit('/', 1)[1]
+					if prfx[-3:] == ' - ' else
+					' - ' + dest
+				)
+
+			dest = dest.split('#', 1)[0]
 			dest = fix_filename_before_saving(dest)
 
 			t = get_by_caseless_key(headers, 'Content-Disposition')
@@ -1173,24 +1327,18 @@ def process_url(dest_root, url, utf='', prfx=''):
 				t = re.search(pat_cdfn, t)
 				if t:
 					t = t.group(1)
-					d = ''
-					try:
-						d = t.translate(url2name)	# <- for things like "?"
-					except Exception:
-						try:
-							d = 'filename.'+t.rsplit('.', 1).translate(url2name)
-						except Exception:
-							print '<filename decoding error>'
-					try:
-						if d:
-							d = fix_filename_before_saving(d)
+					d = fix_filename_before_saving(t)
 
+					try:
 						if d and dest.find(d) < 0:
 							if udl.find(default_web_proxy) == 0:
 								dest = d
 							else:
 								dest += ' - '+d
+
 					except Exception:
+						write_exception_traceback()
+
 						print '<filename appending error>'
 
 			ext = '' if dest.find('.') < 0 else dest.rsplit('.', 1)[1].lower()
@@ -1262,20 +1410,45 @@ def process_url(dest_root, url, utf='', prfx=''):
 				os.makedirs(d)
 
 			f = d
+
 			try:
-				f += try_decode(dest).translate(url2name)
-			except Exception:
+				f += fix_filename_before_saving(dest)
+
+			except Exception as e:
+				write_exception_traceback()
+
 				try:
 					f += dest.replace('/', ',')
+
 				except Exception:
+					write_exception_traceback()
+
 					f += sanitize_filename(dest)
+
 			try:
 				saved = save_uniq_copy(f, content)
+
 				print 'To', saved
+
+				if not saved:
+					try:
+						print 'Tried to', f
+					except Exception as e:
+						print 'Tried to <Unprintable>'
+
+					write_file(log_not_saved, [log_stamp()]+udn+[
+						'Tried path: ', f, '\n'
+					,	'Saved path: ', saved, '\n\n'
+					])
+
 			except Exception as e:
+				write_exception_traceback()
+
 				print 'Save to', f
 				print 'failed with error:', e
+
 				write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
+
 			print
 			print headers
 
@@ -1294,7 +1467,10 @@ def process_url(dest_root, url, utf='', prfx=''):
 									url2 = get_prereplaced_url(url2, hostname, protocol)
 									finished += process_url(dest_root, url2)
 									break
+
 							except Exception:
+								write_exception_traceback()
+
 								print '<re: skipped unmatched group in source link>'
 						break
 
@@ -1305,9 +1481,13 @@ def process_url(dest_root, url, utf='', prfx=''):
 							re.compile(r2.expand(pat_grab[0]), pat_grab[1])	if is_type_arr(pat_grab) else
 							pat_href
 						)
+
 					except Exception:
+						write_exception_traceback()
+
 						print '<re: skipped unmatched group in source link>'
 						p2 = pat_href
+
 					print 'Recurse target pattern:', type(pat_grab), p2.pattern
 
 					for d2 in re.finditer(p2, content):
@@ -1321,15 +1501,22 @@ def process_url(dest_root, url, utf='', prfx=''):
 										d2 if z == 1 else
 										re.search(z, content)
 									).expand(x[1])
+
 								except Exception:
+									write_exception_traceback()
+
 									if TEST: print '<re: skipped unmatched group in dest.link>'
 						url2 = ''
 						if pat_link:
 							for x in pat_link:
 								try:
 									url2 = d2.expand(x)
+
 								except Exception:
+									write_exception_traceback()
+
 									if TEST: print '<re: skipped unfulfilled link pattern>'
+
 								if url2:
 									break
 						if not url2:
@@ -1411,10 +1598,15 @@ while 1:
 
 	if interval:
 		print timestamp(), 'Sleeping for', interval, 'sec. Press Ctrl+C to break.'
+
 		try:
 			time.sleep(interval)
+
 		except KeyboardInterrupt:
 			sys.exit(0)
+
+		except Exception:
+			write_exception_traceback()
 	else:
 		print 'Done.'
 		break
