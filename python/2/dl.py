@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 from email.utils import parsedate
-import datetime, gzip, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, urllib, urllib2
+import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, urllib, urllib2, zlib
 
 # configure -------------------------------------------------------------------
 
@@ -732,6 +732,17 @@ def dump(obj, check_list=[]):
 
 	return result_text
 
+# https://stackoverflow.com/a/3314411
+def get_obj_pretty_print(obj):
+	try:
+		d = obj.__dict__ if '__dict__' in obj else obj
+		return json.dumps(d, sort_keys=True, indent=4, default=repr)
+
+	except Exception, e:
+		write_exception_traceback(e)
+
+		return str(obj)
+
 def timestamp():
 	return time.strftime('- '+format_print+' -')
 
@@ -1134,6 +1145,17 @@ def redl(url, regex, msg=''):
 	else:
 		raise urllib2.URLError(content)
 
+def is_url_blocked(url=None, content=None):
+	if url:
+		for p in pat_blocked_url:
+			if p.search(url):
+				return True
+	if content:
+		for p in pat_blocked_content:
+			if p.search(content):
+				return True
+	return False
+
 def pass_url(app, url):
 	global urls_passed
 	if url in urls_passed:
@@ -1259,29 +1281,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			print 'Unexpected error. See logs.\n'
 			write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
 		else:
-			if urldest != url:
-				print 'From', urldest
-
-				is_url_blocked = False
-
-				if not is_url_blocked:
-					for p in pat_blocked_url:
-						if p.search(urldest):
-							is_url_blocked = True
-							break
-				if not is_url_blocked:
-					for p in pat_blocked_content:
-						if p.search(content):
-							is_url_blocked = True
-							break
-
-				if is_url_blocked:
-					write_file(log_blocked, [log_stamp(), 'blocked	']+udn)
-
-					print 'Blocked page, retrying with proxy:\n'
-					finished += process_url(dest_root, get_proxified_url(udl))
-			else:
-				urldest = ''
+			# uncompress file content:
 
 			t = get_by_caseless_key(headers, 'Content-Encoding').lower()
 			if t == 'gzip':
@@ -1296,6 +1296,19 @@ def process_url(dest_root, url, utf='', prfx=''):
 					write_file(log_no_file, [log_stamp()]+udn+[e, '\n\n'])
 
 				headers['Content-Length-Decoded'] = str(len(content))
+
+			# check result:
+
+			if urldest != url:
+				print 'From', urldest
+
+				if is_url_blocked(urldest, content):
+					write_file(log_blocked, [log_stamp(), 'blocked	']+udn)
+
+					print 'Blocked page, retrying with proxy:\n'
+					finished += process_url(dest_root, get_proxified_url(udl))
+			else:
+				urldest = ''
 
 			urls_to_log = [url]
 
@@ -1425,38 +1438,99 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 					f += sanitize_filename(dest)
 
-			try:
-				saved = save_uniq_copy(f, content)
+			# got destination path and content.
+			# check if result is needed to save:
 
-				print 'To', saved
+			filename = f.split('/', 1)[-1:][0]
+			filesize = len(content)
+			file_url = urldest or udl
+			etag = get_by_caseless_key(headers, 'ETag')
 
-				if not saved:
+			if filesize <= 0:
+				why_not_save = 'filesize = ' + filesize
+			else:
+				why_not_save = None
+
+				for rule_set in file_not_to_save:
 					try:
-						print 'Tried to', f
+						t = rule_set.get('content_size')
+						if t and t != filesize:
+							continue
+
+						t = rule_set.get('header_etag')
+						if t and t != etag:
+							continue
+
+						t = rule_set.get('url_part')
+						if t and file_url.find(t) < 0:
+							continue
+
+						t = rule_set.get('name_part')
+						if t and filename.find(t) < 0:
+							continue
+
+						# Note: To generate the same numeric value across all Python versions and platforms, use crc32(data) & 0xffffffff.
+						# https://docs.python.org/3/library/zlib.html#zlib.crc32
+
+						t = rule_set.get('content_crc32')
+						if t and t != (zlib.crc32(content) & 0xffffffff):
+							continue
+
+						t = rule_set.get('content_md5')
+						if t and t != hashlib.md5(content).hexdigest():
+							continue
+
+						t = rule_set.get('content_sha1')
+						if t and t != hashlib.sha1(content).hexdigest():
+							continue
+
+						why_not_save = get_obj_pretty_print(rule_set)
+						break
+
 					except Exception as e:
-						print 'Tried to <Unprintable>'
+						write_exception_traceback()
 
-					write_file(log_not_saved, [log_stamp()]+udn+[
-						'Tried path: ', f, '\n'
-					,	'Saved path: ', saved, '\n\n'
-					])
+			# save this file:
 
-			except Exception as e:
-				write_exception_traceback()
+			if why_not_save:
+				print 'Not saved, reason:', why_not_save
 
-				print 'Save to', f
-				print 'failed with error:', e
+				write_file(log_not_saved, [log_stamp()]+udn+[why_not_save, '\n\n'])
+			else:
+				try:
+					saved = save_uniq_copy(f, content)
 
-				write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
+					print 'To', saved
+
+					if not saved:
+						try:
+							print 'Tried to', f
+						except Exception as e:
+							print 'Tried to <Unprintable>'
+
+						write_file(log_not_saved, [log_stamp()]+udn+[
+							'Tried path: ', f, '\n'
+						,	'Saved path: ', saved, '\n\n'
+						])
+
+				except Exception as e:
+					write_exception_traceback()
+
+					print 'Save to', f
+					print 'failed with error:', e
+
+					write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
 
 			print
 			print headers
 
+			# check new links found on the way:
+
 			for p in pat2recursive_dl:
-				r2 = re.search(p['page'], urldest or udl)
+				r2 = re.search(p['page'], file_url)
 				if r2:
-					pat_grab = p.get('grab', None)
-					pat_link = p.get('link', None)
+					pat_grab = p.get('grab')
+					pat_link = p.get('link')
 					pat_name = p.get('name', default_red2_name_prefix)
 
 					if pat_link and not pat_grab:
@@ -1526,7 +1600,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 					break
 
 			for p in pat2open_in_browser:
-				url2 = urldest or udl
+				url2 = file_url
 				p2 = None
 				if len(p) > 1:
 					p2 = p[1]

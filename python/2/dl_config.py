@@ -78,6 +78,26 @@ url_to_skip = [				# <- various bad or useless stuff, won't fix now, or forever
 # ,	re.compile(r'^\w+:/+([^/]+\.)?google(\.co)?\.\w+/+searchbyimage', re.I)
 ]
 
+file_not_to_save = [
+
+# Notes from https://docs.python.org/3/library/hashlib.html
+# Algorithms that are always present:
+# sha1(), sha224(), sha256(), sha384(), sha512(), blake2b(), blake2s().
+# md5() may be missing in a rare "FIPS compliant" build of Python.
+
+	{
+		'url_part': 'imgur'
+	# ,	'url_part': 'i.imgur.com/removed.png'
+	# ,	'name_part': 'imgur'
+	# ,	'header_etag': 'd835884373f4d6c8f24742ceabe74946'
+	,	'content_size': 503
+	# ,	'content_crc32': 0xada61663
+	# ,	'content_md5': 'd835884373f4d6c8f24742ceabe74946'
+	,	'content_sha1': '20002faf28adfd94ca98cf6ced46f14334b53684'
+	,	'comment': 'same dummy file, when any image is not found.'
+	}
+]
+
 add_headers_to = [				# <- fake useragent, POST option, etc
 	[['.'], {				# <- won't bother listing all the sites who banned python naming like itself
 		'User-Agent': user_agent_firefox
