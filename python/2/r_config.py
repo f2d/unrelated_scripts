@@ -9,10 +9,6 @@ ext_web = ['htm', 'html', 'maff', 'mht', 'mhtml']
 
 dest_root = u'd:/_bak/_www/'
 dest_root_yt = u'd:/1_Video/other/_xz/YouTube/'
-dest_root_by_ext = {
-	'hathdl':	dest_root+'_img/_manga/e-hentai.org/_dl/_hath/' # 'd:/programs/!_net/HatH/hathdl'
-,	'torrent':	'd:/_bak/4torrent/_tfiles/'
-}
 
 #--[ reusable rule parts ]-----------------------------------------------------
 
@@ -41,6 +37,11 @@ part_domain = r'''
 pat_subdomain_inc_www = re.compile(part_protocol                   + part_domain, re.I | re.X)	# <- to treat "www" like a separate subdomain
 pat_subdomain_exc_www = re.compile(part_protocol + part_domain_www + part_domain, re.I | re.X)	# <- to discard "www", if any
 
+pat_title_tail_dup = re.compile(r'(-\d+|\s*\(\d+\)|;_[\d,_-]+)?(\.[^.]+$)', re.I)
+pat_title_tail_g = re.compile(r'( - [^-]*?Google)([\s,(;-].*?)?(\.[^.]+$)', re.I)
+
+part_g_search = r'(^/*|search)\?([^&]*&)*?'
+
 subscrape = {'sub_threads': '_scrape'}
 unscrape = '!_unscrape,roots,etc'
 
@@ -68,10 +69,42 @@ sub_nyaa = [
 ,	'_browse'
 ]
 
-#--[ table of rule cases selected by site ]------------------------------------
-# To match exact full name and not subparts (like "*.name") set domain string as "name."
+pat_by_ext_twMediaDownloader = re.compile(r'^\w+-\d+-\d+_\d+-(img|gif\d+)\.\w+$', re.I)
+pat_by_ext_coub_DL_button = re.compile(r'^\d+_(ifunny|looped)_\d+\.\w+$', re.I)
 
-# Note:
+
+
+
+#--[ table of rule cases selected by filename ]--------------------------------
+
+dest_root_by_ext = {
+	'hathdl':	dest_root + '_img/_manga/e-hentai.org/_dl/_hath/' # 'd:/programs/!_net/HatH/hathdl'
+,	'torrent':	'd:/_bak/4torrent/_torrent_files,not_active/'
+,	'zip':	[
+		{
+			'dest_path': dest_root + '_soc/twitter.com/twimg.com/_unsorted_zip/'
+		,	'match_name': pat_by_ext_twMediaDownloader
+		}
+	]
+,	'mp4':	[
+		{
+			'dest_path': dest_root + '_soc/twitter.com/twimg.com/_video/'
+		,	'match_name': pat_by_ext_twMediaDownloader
+		}
+	,	{
+			'dest_path': dest_root + '_video/coub.com/_video/'
+		,	'match_name': pat_by_ext_coub_DL_button
+		}
+	]
+}
+
+
+
+
+#--[ table of rule cases selected by site ]------------------------------------
+
+# Notes:
+# To match exact full name and not subparts (like "*.name") set domain string as "name."
 # Some parts of this table were cut out in public version.
 # Others were left mostly as example.
 # Feel free to use them as such and throw away everything unneeded.

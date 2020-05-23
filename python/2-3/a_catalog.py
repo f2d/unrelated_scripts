@@ -1,5 +1,7 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: UTF-8 -*-
+
+# Python 2 or 3 should work.
 
 import datetime, os, re, subprocess, sys, time
 
@@ -42,7 +44,7 @@ def get_dest_name(src):
 		i += 1
 		d = add_before_ext(t, '('+i+')')
 	if i > 1:
-		print '+', i, 'duplicate(s)'
+		print('+', i, 'duplicate(s)')
 	return d
 
 # - run names colection: ------------------------------------------------------
@@ -60,8 +62,8 @@ for name in src_list:
 			names.append(n)
 		n = get_dest_name(root_path+'/'+n)
 		if n and n != path:
-			print path
-			print n
+			print(path)
+			print(n)
 			os.rename(path, n)
 
 if len(names) > 0:
@@ -72,13 +74,6 @@ else:
 
 # - run batch archiving: ------------------------------------------------------
 
-param = ['pynp.bat', 'a', '"7r_sdm;=_catalog_htm>'+suffix+'"', '.', '..']
-cmd = encode_cmd(param)
+import a
 
-if len(sys.argv) > 1:
-	print 'names:', names
-	print 'suffix:', suffix
-	print 'param:', param
-	print 'encoded:', cmd
-else:
-	subprocess.call(cmd)
+a.run_batch_archiving(['7r_sdm;=_catalog_htm>'+suffix, '.', '..'])

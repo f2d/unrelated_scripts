@@ -222,8 +222,8 @@ pat_sub = [
 	{'subdir': r'_animation_frames','match': re.compile(r'\.zip$', re.I)}
 ,	{'subdir': r'_gif',		'match': re.compile(r'\.gif$', re.I)}
 ,	{'subdir': r'_flash',		'match': re.compile(r'\.(swf|fws)$', re.I)}
-,	{'subdir': r'_video',		'match': re.compile(r'\.(mp4|mkv|webm)$', re.I)}
-,	{'subdir': r'_not_img',		'match': re.compile(r'\.(?!(bmp|png|jp[eg]+|webp|gif|swf|fws|mp4|mkv|webm|zip)$)\w+$', re.I)}
+,	{'subdir': r'_video',		'match': re.compile(r'\.(mov|mp4|mkv|webm)$', re.I)}
+,	{'subdir': r'_not_img',		'match': re.compile(r'\.(?!(bmp|png|jp[eg]+|webp|gif|swf|fws|mov|mp4|mkv|webm|zip)$)\w+$', re.I)}
 ] if arg_ext else [])
 
 pat_idx = re.compile(r'<MAF:indexfilename\s+[^=>\s]+="([^">]+)', re.I)
@@ -430,7 +430,25 @@ def r(path, later=0):
 				n_later += 1
 			else:
 				d = dest_root_by_ext[ext]
+
+				if isinstance(d, a_type):
+					for d_i in d:
+						if isinstance(d_i, d_type):
+							test = d_i.get('match_name')
+							if test and not meet(name, test):
+								continue
+
+							d = d_i.get('dest_path') or dest_root
+							break
+						else:
+							d = d_i
+							break
+
+				if not is_type_str(d):
+					continue
+
 				print d.encode('utf-8'), '<-', name.encode('utf-8')
+
 				if DO and os.path.exists(src) and os.path.isdir(d):
 					os.rename(src, uniq(src, d+'/'+name))
 					n_moved += 1
@@ -462,7 +480,9 @@ def r(path, later=0):
 
 				d = url.group('Protocol')
 				domain = ''
-				if meet(d, s[0]):
+				test = s[0]
+
+				if meet(d, test):
 					domain = d
 				else:
 					d = url.group('Domain')
@@ -470,14 +490,14 @@ def r(path, later=0):
 						continue
 
 					dp = url.group('DomainPort')
-					if meet(dp+'.', s[0]):	# <- "name." or "name:port." to match exact full name
+					if meet(dp+'.', test):	# <- "name." or "name:port." to match exact full name
 						domain = d
 					else:
 						words = reversed(dp.split('.'))
 						d = ''
 						for i in words:
 							d = (i+'.'+d) if d else i
-							if meet(d, s[0]):
+							if meet(d, test):
 								domain = d
 								break
 				if not domain:
@@ -485,8 +505,8 @@ def r(path, later=0):
 
 				dest = (s[1] if (len(s) > 1) else domain)		# <- site bak root
 				dest += (
-					s[0][0]
-					if (not isinstance(s[0], r_type) and dest[-2:] == '//')
+					test[0]
+					if (isinstance(test, a_type) and dest[-2:] == '//')
 					else
 					domain.strip(':.')
 					if (dest[-1:] == '/')

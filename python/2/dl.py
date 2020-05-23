@@ -145,7 +145,7 @@ pat_grab = re.compile(r'''
 
 pat_conseq_slashes = re.compile(r'[\\/]+')
 pat_badp = re.compile(r'^(\w+):/*')
-pat_cdfn = re.compile(r'filename\*?=(?:UTF-8\'+)?"?([^"\s>]+)', re.I)
+pat_cdfn = re.compile(r'filename\*?=(?:UTF-8\'+)?"?([^"\r\n>]+)', re.I)
 pat_exno = re.compile(r'\W')
 pat_host = re.compile(r'^(?P<Protocol>[^:]*:/+)?(?P<Domain>[^/@]+)(?P<Path>/.*)?$')
 pat_href = re.compile(r'\shref=[\'"]?([^\'"\s>]+)', re.I)
@@ -251,7 +251,13 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
 ,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https (mostly for deduplication)
 ,	[re.compile(r'^((\w+:/+)?([^/?#]+\.)?(i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\1.']	# <- skip downscaled copy
-,	[re.compile(r'^(\w+:/+([^/?#]+\.)?discord[^/]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
+,	[re.compile(r'^(\w+:/+([^/?#]+\.)?discord[^?#]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
+# remove discord web-proxy, sample without arguments:
+# https://images-ext-2.discordapp.net/external/rmIMR9GZN6eCefZC334Tb_7kNZEi-dHkQzREd7WhcPI/https/media.discordapp.net/attachments/(...).png
+,	[re.compile(r'^\w+:/+(?:[^/?#]+\.)?images-ext-[^/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(\w+)/+', re.I), r'\1://']
+# sample with arguments (easier to let it be and fix destination filename later, than URL-decode arguments here):
+#  https://images-ext-1.discordapp.net/external/NxJFQeVaGg00THG8RwFU4wQrXJheMYCUV8ntL8KzUDk/%3F_nc_ht%3Dscontent-lga3-1.cdninstagram.com/https/scontent-lga3-1.cdninstagram.com/(...).jpg
+# ,	[re.compile(r'^\w+:/+(?:[^/?#]+\.)?images-ext-[^/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?:\W[^/?#]+/+)*(\w+)/+', re.I), r'\1://']
 #,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']
 ,	[re.compile(r'^(\w+:/+([^/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
@@ -274,7 +280,8 @@ pat2replace_before_dl = [	# <- strings after this are sent to web servers
 ,	[re.compile(r'img\.5cm\.ru/view/i5', re.I), 'i5.5cm.ru/i']
 ,	[re.compile(r'//(www\.)?2-?ch\.(cm|ec|hk|pm|re|ru|so|tf|wf|yt)/', re.I), r'//2ch.pm/']
 ,	[re.compile(r'//(www\.)?dobrochan\.(ru|org|com)/', re.I), r'//dobrochan.com/']
-,	[re.compile(r'(vocaroo\.com)/i/s', re.I), r'\1/media_command.php?command=download_flac&media=s']
+# ,	[re.compile(r'(vocaroo\.com)/i/s', re.I), r'\1/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
+,	[re.compile(r'^(\w+:/+(?:[^/?#]+\.)?(vocaroo\.com|voca\.ro)/+)([^/?&#]+)$', re.I), r'https://media.vocaroo.com/mp3/\3']
 ]
 
 default_red2_name_prefix = [[0, r'\1 - ']]	# <- prepend only first captured sub-group - "(...)"
@@ -558,14 +565,41 @@ pat2recheck_next_time = [
 
 pat2replace_before_saving_file = [
 	[re.compile(r'(file.qip.ru,file,\w+),.*?&action=d\w+', re.I), r'\1']
-,	[re.compile(r'(\.cdninstagram\.com[,/]+[^;:&?#]+)[;:&?#].+$', re.I), r'\1']		# <- remove URL arguments
+,	[re.compile(r'''^
+		(?P<Protocol>
+			\w+[;,:/]+
+		)
+		(?P<Domain>
+			([^,&/?#]+\.)?
+			images-ext-[^,&/?#]+\.
+			discord[^,&/?#]+
+		)
+		(?P<PathPrefix>
+			[,/]+
+			external
+			[,/]+
+			[^,&/?#]+
+			[,/]+
+		)
+		(?P<Target>
+			(?P<TargetArguments>[^\w,&/?#][^,&/?#]+)
+			[,/]+
+			(?P<TargetProtocol>\w+)
+			[,/]+
+			(?P<TargetPath>.*)
+		)
+	$''', re.I | re.X), r'\g<TargetProtocol>;,,\g<TargetPath>\g<TargetArguments>']
+# ,	[re.compile(r'\w+[;,:/]+([^,&/?#]+\.)?images-ext-[^,&/?#]+\.discord[^,&/?#]+[,/]+external[,/]+[^,&/?#]+[,/]+(\W[^,&/?#]+[,/]+)*(\w+)[,/]+', re.I), r'\3;,,']	# <- tested in TCMD
+,	[re.compile(r'(\.(cdninstagram\.com|fbcdn\.net)[,/]+[^;:&?#]+)[;:&?#].+$', re.I), r'\1']	# <- remove URL arguments
 ,	[re.compile(r'((\w+;,+)?([^,&]+\.)?(joy)?reactor\.\w+,[^%]*)([^%]*?(%)[a-z0-9]{2,4})+([^%]*)$', re.I), r'\1\6(...)\7']	# <- tested in TCMD
 ,	[re.compile(r'([;,][^;,]{32})[^;,]+(_drawn_by_[^;,]+)$', re.I), r'\1(...)\2']		# <- overly long booru names, too many tags
 ,	[re.compile(r'(\s+-\s+)(https?;,+)?(\S+?[,.]\S*)(\1(https?;,+)?\3\S+)', re.I), r'\4']	# <- child URL: duplicate parts
 ,	[re.compile(r'\s*-\s+of\s+(\d+)\s+-\s*', re.I), r' of \1 - ']				# <- fix imgur album count
 ,	[re.compile(r'((\.[a-z0-9]+)[;:_][a-z0-9]+)$', re.I), r'\1\2']				# <- fix twitter img link extention
 ,	[re.compile(r'((\.(bmp|gif|jp[eg]+|png|webp))[^.a-z]\S+)$', re.I), r'\1\2']		# <- fix twitter img repost extention
+,	[re.compile(r'(,(\w+),\S+(\.[^\s.]+))\s+-\s+tumblr_\2\S+?\3$', re.I), r'\1']		# <- remove redundant tumblr filename part
 # ,	[re.compile(r'(\.jp[eg]+){2,}$', re.I), r'\1']						# <- remove duplicate extention
+,	[re.compile(r'(\.mov)\.quicktime$', re.I), r'\1']					# <- remove duplicate extention
 ,	[re.compile(r'(\.mp3)\.mpeg$', re.I), r'\1']						# <- remove duplicate extention
 ,	[re.compile(r'(\.\w+)\1+$', re.I), r'\1']						# <- remove duplicate extention
 ,	[re.compile(r'[.,&#]+$', re.I), '.htm']							# <- remove trailing garbage
@@ -587,7 +621,7 @@ pat_blocked_content = [
 			ресурсу\s+
 			ограничен\s*
 		</title>
-	''',re.I | re.U)
+	''', re.I | re.U | re.X)
 ]
 
 a_type = type([])
