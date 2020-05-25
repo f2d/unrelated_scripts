@@ -280,14 +280,14 @@ def run_batch_archiving(argv):
 			cmd_args = cmd_template[exe_type] + (opt_args or [])
 
 			if suffix.find('.zip') >= 0:
-				cmd_args = list(filter(bool, map(
+				cmd_args = list(map(
 					lambda x: (
 						None if x[0:4] == '-mqs'
 					else	None if x[0:4] == '-md='
 					else	(None if '0' in flag else '-mfb=256') if x[0:5] == '-mfb='
 					else	x
 					), cmd_args
-				)))
+				))
 
 			dest = uniq(dest, suffix)
 			path_args = (
@@ -579,7 +579,7 @@ def run_batch_archiving(argv):
 # - run batch queue -----------------------------------------------------------
 
 	for cmd in cmd_queue:
-		cmd_args = cmd['args']
+		cmd_args = list(filter(bool, cmd['args']))
 		cmd_dest = cmd['dest']
 		cmd_type = cmd['exe_type']
 		cmd_suffix = cmd['suffix']
@@ -625,7 +625,12 @@ def run_batch_archiving(argv):
 		if 'k' in flag:
 			print('----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. See messages above.')
 		else:
-			raw_input('----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. Press Enter to continue.')
+			print('----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. Press Enter to continue.')
+
+			if sys.version_info.major == 3:
+				input()
+			else:
+				raw_input()
 	elif 'c' in flag:
 		print('----	----	Total', len(cmd_queue), 'commands.')
 	else:

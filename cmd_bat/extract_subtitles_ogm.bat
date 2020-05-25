@@ -1,0 +1,1 @@
+FOR %%I IN (*.ogm) DO "D:\programs\_media\ogm_tools\OgmDemuxer\OGMDemuxer.exe" -p "%~1" "%~2" "%~3" "%%I"
