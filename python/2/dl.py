@@ -247,6 +247,7 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'&amp;', re.I), '&']
 ,	[re.compile(r'(\[/img\]|[\|\'\\"\s.,;:%|?*]|%2C|%3B|%3A|%25|%7C|%3F)+$', re.I), '']
 ,	[re.compile(r'^(\w+:/+)?([^/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url=', re.I), '']# <- remove redirect
+,	[re.compile(r'^(\w+:/+)?([^/?#]+\.)?deviantart\.com/+users/+outgoing\?', re.I), '']	# <- remove redirect
 ,	[re.compile(r'\.prx2\.unblocksit\.es', re.I), '']					# <- remove web-proxy
 ,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
 ,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https (mostly for deduplication)

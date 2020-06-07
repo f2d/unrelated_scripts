@@ -8,7 +8,13 @@ if not "%~1" == "" set find_text=%~1
 set read_file=*.log
 if not "%~2" == "" set read_file=%~2
 
+if not "%~3" == "" set extra_args=%3 %4 %5 %6 %7 %8 %9
+
+call 1_subj.bat "%find_text%"
 call 1_time.bat
 @echo on
 
-@FOR %%I IN (%read_file%) DO findstr "/C:%find_text%" "%%I" >> "%find_text%_%t%.txt"
+@FOR %%I IN ("%read_file%") DO findstr %extra_args% "/C:%find_text%" "%%I" >> "%subj%_%t%.txt"
+
+call 1_time.bat
+@echo on

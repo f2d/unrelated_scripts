@@ -240,7 +240,7 @@ def print_help():
 
 	print('\n'.join(help_text_lines))
 
-def uniq(n, e):
+def uniq(n, e, t0):
 	r = n+e
 
 	if os.path.exists(r):
@@ -289,7 +289,7 @@ def run_batch_archiving(argv):
 					), cmd_args
 				))
 
-			dest = uniq(dest, suffix)
+			dest = uniq(dest, suffix, t0)
 			path_args = (
 				[('-n' if rar else '-i')+subj, '--', dest] if is_subj_list else
 				['--', dest, subj]
