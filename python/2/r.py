@@ -117,39 +117,39 @@ pat_ren = [
 			)
 			(\s+.*)?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.X)
+		$''', re.I | re.U | re.X)
 	,	'child': re.compile(r'''^	# image/video files:
 			(?P<Prefix>\S+)?
 			(?P<ID>[0-9a-f]{32})
 			(?P<Suffix>\S+)?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.X)
+		$''', re.I | re.U | re.X)
 #	,	'child': re.compile(r'^([^_]\S*)?[0-9a-f]{32}\S*\.\w+$', re.I)
 	}
 ,	{
-		'type': 'rghost'
-	,	'page': re.compile(r'''^
+		'type': 'filehosting'
+	,	'page': re.compile(ur'''^
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
-				(?P<SiteName>[-\w.]+)\s+
-				(?P<FileID>[-\w]+)\s+-\s+
+				(?P<SiteName>[^{}\s]+)\s+
+				(?P<FileID>\S+)
+				\s+-\s+
 				(?P<Date>\d{4}(?:\D\d\d){5})
 				(?P<TimeZone>\s+[+-]\d+)?
 				\s+-\s+
 			)
-			(?P<FileName>\S.*?)\s+\S\s+
+			(?P<FileName>\S.*?)\s+[-\u2014\S]+\s+
 			(?P<Suffix>
 				RGhost(?:\s+\S\s+[^.]+)?
+			|	Yandex[.\S]Dis[ck]
+			|	Яндекс[.\S]Диск			# <- "yandex.disk"
 			|	\S+\s+Mail\.Ru			# <- "cloud mail.ru"
-		#	|	\S{6}\.\S{4}			# <- "yandex.disk"
-			|	Яндекс.Диск
-			|	Yandex.Dis[ck]
 			)
 			(?P<PageName>\s+-\s+\S+?)?		# <- added by UnMHT
 			(?P<SaveDate>\{\d{4}(?:\D\d\d){5}\})?	# <- added by SavePageWE
-			(?P<OpenDate>;?_\d{4}(?:\D\d\d){5})?
+			(?P<OpenDate>;?_\d{4}(?:\D\d\d){5})?	# <- added by UserJS
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.X)
+		$''', re.I | re.U | re.X)
 	}
 ,	{
 		'type': 'youtube'
@@ -165,7 +165,7 @@ pat_ren = [
 			(?P<SaveDate>\{\d{4}(?:\D\d\d){5}\})?	# <- added by SavePageWE
 			(?P<OpenDate>;?_\d{4}(?:\D\d\d){5})?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.X)
+		$''', re.I | re.U | re.X)
 	,	'child': re.compile(r'''^	# video files/folders:
 			(?:Youtube(?:,|\s+-\s+))?
 			(?P<ID>v=[\w-]+)(?:,|\s+-\s+)
@@ -173,7 +173,7 @@ pat_ren = [
 			(?P<FPS>\d+fps)?
 			(?P<TimeStamp>;?_\d{4}(?:\D\d\d){5})?
 			(?P<Ext>\.[^.]+)?
-		$''', re.I | re.X)
+		$''', re.I | re.U | re.X)
 	,	'dest': dest_root_yt
 	} if arg_ytb else None
 #,	['pixiv', re.compile(r',illust_id=(\d+).*\.\w+$', re.I)]
@@ -398,6 +398,15 @@ def r(path, later=0):
 	global n_i, n_fail, n_matched, n_moved, n_back, n_later, not_existed, dup_lists_by_ID
 	names = os.listdir(path)
 	for name in names:
+		if TEST:
+			print
+
+			print 'file name in utf-8:'
+			print name.encode('utf-8')
+
+			print 'file name in unicode-escape:'
+			print name.encode('unicode-escape')
+
 		n_i += 1
 		src = path+'/'+name
 		if os.path.isdir(src):
@@ -547,83 +556,96 @@ def r(path, later=0):
 						continue
 
 					page_match = re.search(pat_page_name, name)
-					if page_match:
-						site_type = p.get('type')
-						site_dest = p.get('dest', '').rstrip('/')
-						pat_child_name = p.get('child')
+					if not page_match:
+						continue
 
-						if site_type == 'booru':
-							page_content = re.sub(pat_ren_mht_linebreak, '', rf(src))
+					site_type = p.get('type')
+					site_dest = p.get('dest', '').rstrip('/')
+					pat_child_name = p.get('child')
+
+					if site_type == 'booru':
+						page_content = re.sub(pat_ren_mht_linebreak, '', rf(src))
+
+					if site_type == 'youtube':
+						page_ID = re.search(pat_ren_yt_URL_ID, url.group('Query'))
+						if page_ID:
+							page_ID = page_ID.group('ID')
+
+					for child_name in names:
+						if pat_child_name:
+							child_match = re.search(pat_child_name, child_name)
+							if not child_match:
+								continue
+
+						child_path = path+'/'+child_name
+						child_ext = get_ext(child_name)
+						if (child_ext in ext_path_inside) or (not os.path.exists(child_path)):
+							continue
+
+						prfx = ''
 						if site_type == 'youtube':
-							page_ID = re.search(pat_ren_yt_URL_ID, url.group('Query'))
-							if page_ID:
-								page_ID = page_ID.group('ID')
-						for child_name in names:
 							if pat_child_name:
-								child_match = re.search(pat_child_name, child_name)
-								if not child_match:
+								if page_ID != child_match.group('ID'):
 									continue
 
-							child_path = path+'/'+child_name
-							child_ext = get_ext(child_name)
-							if (child_ext in ext_path_inside) or (not os.path.exists(child_path)):
-								continue
+							prfx = page_match.group('Prefix')+','
+							if os.path.isdir(child_path):
+								sub_names = os.listdir(child_path)
+								for sub_name in sub_names:
+									if pat_child_name:
+										sub_match = re.search(pat_child_name, sub_name)
+										if (not sub_match) or (page_ID != sub_match.group('ID')):
+											continue
 
-							prfx = ''
-							if site_type == 'youtube':
-								if pat_child_name:
-									if page_ID != child_match.group('ID'):
-										continue
+									sub_path = child_path+'/'+sub_name
+									sub_dest = (site_dest or path)+'/'+prfx+sub_name
 
-								prfx = page_match.group('Prefix')+','
-								if os.path.isdir(child_path):
-									sub_names = os.listdir(child_path)
-									for sub_name in sub_names:
-										if pat_child_name:
-											sub_match = re.search(pat_child_name, sub_name)
-											if (not sub_match) or (page_ID != sub_match.group('ID')):
-												continue
+									print info_prfx, sub_name.encode('utf-8')
 
-										sub_path = child_path+'/'+sub_name
-										sub_dest = (site_dest or path)+'/'+prfx+sub_name
-										print info_prfx, sub_name.encode('utf-8')
-										if DO:
-											os.rename(sub_path, uniq(sub_path, sub_dest))
-											n_moved += 1
-							elif os.path.isdir(child_path):
-								continue
+									if DO:
+										os.rename(sub_path, uniq(sub_path, sub_dest))
+										n_moved += 1
+						elif os.path.isdir(child_path):
+							continue
 
-							if site_type == 'rghost':
-								if (
-									child_name == page_match.group('FileName')
-								or	child_name.rsplit('.', 1)[0] == page_match.group('FileName')
-								):
-									prfx = page_match.group('Prefix')
-							elif site_type == 'booru':
-								f = ''
-								if pat_child_name:
-									f = child_match.group('ID')
-								if not f:
-									f = len(child_ext)+1
-									f = re.sub(pat_ren_src_name, '', child_name[:-f])
+						if site_type == 'filehosting':
+							page_child_name = page_match.group('FileName')
+
+							if (
+								page_child_name == child_name
+							# or	page_child_name == child_name.rsplit('.', 1)[0]
+							# or	page_child_name+'.'+child_ext == child_name
+							):
+								prfx = page_match.group('Prefix')
+
+						if site_type == 'booru':
+							f = ''
+							if pat_child_name:
+								f = child_match.group('ID')
+							if not f:
+								f = len(child_ext)+1
+								f = re.sub(pat_ren_src_name, '', child_name[:-f])
+							if f:
+								f = re.search(re.compile(r'''(?:^|[\r\n\t
+])(?:Content-Location: |<meta name="twitter:image:src" content=")\w+:/+[^\r\n\t
+]+[^w]/(preview|sample[_-]*)?'''+f+'|/'+f+'.'+child_ext+'(\?[^">]*)?">Save', re.I), page_content)	# <- [^w] to workaround /preview/ child post list
 								if f:
-									f = re.search(re.compile(r'''(?:^|[\r\n
-	])(?:Content-Location: |<meta name="twitter:image:src" content=")\w+:/+[^\r\n
-	]+[^w]/(preview|sample[_-]*)?'''+f+'|/'+f+'.'+child_ext+'(\?[^">]*)?">Save', re.I), page_content)	# <- [^w] to workaround /preview/ child post list
-									if f:
-										prfx = page_match.group('Prefix')+(' full,' if f.group(1) else ',')
-							if prfx:
-								child_dest = (
-									path
-									if site_type == 'youtube' and os.path.isdir(child_path)
-									else
-									(site_dest or path)
-								)+'/'+prfx+child_name
-								print info_prfx, child_dest.encode('utf-8')
-								if DO:
-									os.rename(child_path, uniq(child_path, child_dest))
-									n_moved += 1
-						break
+									prfx = page_match.group('Prefix')+(' full,' if f.group(1) else ',')
+
+						if prfx:
+							child_dest = (
+								path
+								if site_type == 'youtube' and os.path.isdir(child_path)
+								else
+								(site_dest or path)
+							)+'/'+prfx+child_name
+
+							print info_prfx, child_dest.encode('utf-8')
+
+							if DO:
+								os.rename(child_path, uniq(child_path, child_dest))
+								n_moved += 1
+					break
 
 				d = ''
 				try:

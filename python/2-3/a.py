@@ -483,17 +483,17 @@ def run_batch_archiving(argv):
 		rest_winrar.append('-r0')
 
 	cmd_template['rar'] = (
-		[exe_paths['rar'], 'a', '-tl', '-dh']
+		[exe_paths['rar'], 'a', '-tl', '-dh', '-ma5', '-qo+']
 	+	(
 			['-m0', '-mt1'] if '0' in flag else
 			['-m5', '-mt4'] + (
-				['-ma5', '-md256m'] if '6' in flag else
+				['-md256m'] if '6' in flag else
 				[]
 			)
 		)
 	+	(
-			['-ma5', '-oi:0'] if 'l' in flag else
-			[]
+			['-oi:0'] if 'l' in flag else
+			['-oi-']
 		)
 	+	(
 			['-ibck'] if minimized else

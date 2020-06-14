@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+п»ї#!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
 from email.utils import parsedate
@@ -125,22 +125,25 @@ safe_chars_as_ord = [
 ,	[ord('0'), ord('9')]
 ] + map(ord, list('\';,.-_=+~` !@#$%^&()[]{}'))
 
-pat_grab = re.compile(r'''
-	(?<![@<])\b
-	(?P<App>\w'''+dest_app_sep+''')?
-	(?P<URL>
-		[a-z0-9][a-z0-9-]*
-		(\.[.a-z0-9-]+|:/)/
-		(,?[^\s<>",]*[^\s<>",\'`])+
+pat_grab = re.compile(
+	r'''
+		(?<![@<])\b
+		(?P<App>\w'''+dest_app_sep+''')?
+		(?P<URL>
+			[a-z0-9][a-z0-9-]*
+			(\.[.a-z0-9-]+|:/)/
+			(,?[^\s<>",]*[^\s<>",\'`])+
+		)
+	'''
+	+ (
+	r'''
+	|	<
+			(?P<DiscordType>[^:<>\s\r\n/]*)
+		:	(?P<DiscordName>[^:<>\s\r\n/]+)
+		:	(?P<DiscordID>\d+)
+		>	# in text: <(Type or empty):Name:ID> -> URL: https://cdn.discordapp.com/emojis/ID.png
+	''' if 'd' in flags else ''
 	)
-'''
-+ ('''
-|	<
-		(?P<DiscordType>[^:<>\s\r\n/]*)
-	:	(?P<DiscordName>[^:<>\s\r\n/]+)
-	:	(?P<DiscordID>\d+)
-	>	# in text: <(Type or empty):Name:ID> -> URL: https://cdn.discordapp.com/emojis/ID.png
-''' if 'd' in flags else '')
 , re.I | re.U | re.X)
 
 pat_conseq_slashes = re.compile(r'[\\/]+')
@@ -156,9 +159,12 @@ pat_uenc = re.compile(r'%([0-9a-f]{2})', re.I)
 pat_ymdt = re.compile(r'[_-]+\d{4}[_-]+\d{2}[_-]+\d{2}(\.\w+)?$')
 pat_dest_dir_replace = [
 	[re.compile(r'\s', re.U), ' ']
-,	[re.compile(r'''
+,	[re.compile(ur'''
 # any non-safe characters:
-		[^A-Za-z0-9а-яА-Я\s\/\\\\,.\[\]{}();:'`\-=~!@#$%^&*()_+]
+		[^A-Za-z0-9Р°-СЏРђ-РЇ\s\/\\\\,.\[\]{}();:'`\-=~!@#$%^&*()_+]
+	'''
+	# or
+	# r'''
 # emoji (not working):
 	# |	[\u2702-\u27B0]
 	# |	[\u24C2\u00A9\u00AE\u203C\u2049\u20E3\u2122\u2139\u2194\u2195\u2196\u2197\u2198\u2199\u21A9\u21AA]
@@ -170,7 +176,8 @@ pat_dest_dir_replace = [
 	# |	[\u2934\u2935\u2B05\u2B06\u2B07\u2B1B\u2B1C\u2B50\u2B55\u3030\u303D\u3297\u3299]
 	# |	\u0001[\u0000-\uFFFF]
 	# |	[\U00010000-\UFFFFFFFF]
-	''', re.I | re.U | re.X), '']
+	# '''
+	, re.I | re.U | re.X), '']
 ]
 
 # -----------------------------------------------------------------------------
@@ -189,12 +196,12 @@ pat_ln2d = [
 # - Skype: (chat_name),(chat_ID)==@p2p.thread.skype_y-m-d.log -------------------
 ,	[
 		re.compile(r'''^
-(?P<ChatName>.+?),
-(?P<ChatID>[A-Za-z0-9+=_-]+)@
-(?P<ChatType>(p2p\.)?(thread\.)?skype)
-(?P<Date>[_-]+\d{4}[_-]+\d{2}[_-]+\d{2})?
-(?P<Ext>\.\w+)?
-$''', re.I | re.U | re.X)
+			(?P<ChatName>.+?),
+			(?P<ChatID>[A-Za-z0-9+=_-]+)@
+			(?P<ChatType>(p2p\.)?(thread\.)?skype)
+			(?P<Date>[_-]+\d{4}[_-]+\d{2}[_-]+\d{2})?
+			(?P<Ext>\.\w+)?
+		$''', re.I | re.U | re.X)
 	,	'ChatName'
 	,	'ChatID'
 	]
@@ -202,17 +209,17 @@ $''', re.I | re.U | re.X)
 # - Jabber: c.s.n_(given_name),(ID_name)@conf.server.name_y-m-d.log -----------
 ,	[
 		re.compile(r'''^
-(?P<Client>
-	(?P<ServerAbbr>[^@,_]+_)?
-	(?P<GivenName>[^@,]+),
-)?
-(?P<Server>
-	(?P<RoomID>[^@,]+)@
-	(?P<ServerName>[\w.-]*?)
-	(?P<Date>[_-]+\d{4}[_-]+\d{2}[_-]+\d{2})?
-)
-(?P<Ext>\.\w+)?
-$''', re.U | re.X)
+			(?P<Client>
+				(?P<ServerAbbr>[^@,_]+_)?
+				(?P<GivenName>[^@,]+),
+			)?
+			(?P<Server>
+				(?P<RoomID>[^@,]+)@
+				(?P<ServerName>[\w.-]*?)
+				(?P<Date>[_-]+\d{4}[_-]+\d{2}[_-]+\d{2})?
+			)
+			(?P<Ext>\.\w+)?
+		$''', re.U | re.X)
 	,	'GivenName'
 	,	'RoomID'
 	]
@@ -220,18 +227,18 @@ $''', re.U | re.X)
 # - Discord: (guild_name)#(room_name),(ID_number)_y-m-d.log -------------------
 ,	[
 		re.compile(r'''^
-(
-	(?P<GuildName>[^#]+)[#]+
-	(?P<RoomName>.+?)[;,]
-)?
-(
-	(?P<RoomID>\d+)
-	(?P<Date>[_-]+\d{4}[_-]+\d{2}[_-]+\d{2})?
-|	(?P<DateTime>(\D\d+){6})
-	(?P<Comment>,.*?)?
-)
-(?P<Ext>\.\w+)?
-$''', re.U | re.X)
+			(
+				(?P<GuildName>[^#]+)[#]+
+				(?P<RoomName>.+?)[;,]
+			)?
+			(
+				(?P<RoomID>\d+)
+				(?P<Date>[_-]+\d{4}[_-]+\d{2}[_-]+\d{2})?
+			|	(?P<DateTime>(\D\d+){6})
+				(?P<Comment>,.*?)?
+			)
+			(?P<Ext>\.\w+)?
+		$''', re.U | re.X)
 	,	r'\g<GuildName>/\g<RoomName>'
 	]
 ]
@@ -614,13 +621,13 @@ pat_blocked_url = [
 pat_blocked_content = [
 	re.compile(r'(^|\]\s*=\>\s*)\w+:/+[^/?#]+/rkndeny', re.I)
 ,	re.compile(r'(^|\]\s*=\>\s*)\w+:/+([^/?#]+\.)?blocked\.netbynet\.\w+/', re.I)
-,	re.compile(r'''
+,	re.compile(ur'''
 		<title>\s*
-			Доступ\s+
-			к\s+
-			запрашиваемому\s+
-			ресурсу\s+
-			ограничен\s*
+			Р”РѕСЃС‚СѓРї\s+
+			Рє\s+
+			Р·Р°РїСЂР°С€РёРІР°РµРјРѕРјСѓ\s+
+			СЂРµСЃСѓСЂСЃСѓ\s+
+			РѕРіСЂР°РЅРёС‡РµРЅ\s*
 		</title>
 	''', re.I | re.U | re.X)
 ]

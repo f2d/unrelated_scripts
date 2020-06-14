@@ -26,7 +26,7 @@ separated_subdir = '_audio-video_separated'
 
 dest_dirs = [
 	[u'd:/1_Video/games/GOG.com', page_prfx+' - GOG.com - *.*']
-,	[u'd:/1_Video/other/_xz/_yt']
+,	[u'd:/1_Video/other/_xz/YouTube']
 ]
 
 len_p = len(page_prfx)
@@ -71,8 +71,8 @@ titles_to_compare = ['NameDateTitle', 'Title', None]
 space_placeholder = '_'
 
 pat_normalize_title = [
-	[re.compile(r'(\S)&+', re.U), r'\1']
-,	[re.compile(r'[\s`~!@#$%^?*;\'"«—»,._=+-]+', re.U), space_placeholder]
+	[re.compile(ur'(\S)&+', re.U), r'\1']
+,	[re.compile(ur'[\s`~!@#$%^?*;\'"«—»,._=+-]+', re.U), space_placeholder]
 ]
 
 pat_fix = [
