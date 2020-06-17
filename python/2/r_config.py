@@ -3,6 +3,9 @@
 
 import re
 
+# default_print_encoding = 'utf-8'
+default_print_encoding = 'unicode-escape'
+
 default_name_cut_length = 123
 
 ext_web = ['htm', 'html', 'maff', 'mht', 'mhtml']

@@ -3,18 +3,23 @@
 
 import datetime, os, re, sys, zipfile
 
-from r_config import default_name_cut_length, dest_root, dest_root_by_ext, dest_root_yt, ext_web, sites
+from r_config import default_print_encoding, default_name_cut_length, dest_root, dest_root_by_ext, dest_root_yt, ext_web, sites
 
-argc = len(sys.argv)
 arg_name_cut = 'cut'
 
-if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
+args = sys.argv
+argc = len(args)
+
+arg_flags = args[1] if argc > 1 else ''
+other_args = args[2:] if argc > 2 else []
+
+if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	print '* Usage: r.py [flags] [other] [options] [etc] ...'
 	print
 	print '* Flags (add in any order without spaces as first argument):'
 	print '	t: for test output only (don\'t apply changes)'
-	print '	f: full path length check'
-	print '	o: full path output'
+	print '	f: when cutting, check length of full path instead of only name'
+	print '	o: print full path instead of only name'
 	print '	r: recurse into subfolders (default = stay in working folder)'
 	print
 	print '	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
@@ -29,33 +34,44 @@ if argc < 2 or sys.argv[1][0] == '-' or sys.argv[1][0] == '/':
 	print '	'+arg_name_cut+': cut long names to '+default_name_cut_length
 	print '	'+arg_name_cut+'<number>: cut long names to specified length'
 	print
+	print '	y:   move any leftover files into subdir named by mod-time year'
+	print '	ym:  subdir by year-month'
+	print '	ymd: subdir by year-month-day'
+	print '		Notes: may be combined,'
+	print '		interpreted as switches (on/off),'
+	print '		resulting always in this order: y/ym/ymd'
+	print
 	print '* Example 1: r.py rwb'
 	print '* Example 2: r.py tfo '+arg_name_cut+'234'
+	print '* Example 2: r.py o y ym ymd'
 	sys.exit()
 
-flags = sys.argv[1]
-
-TEST = 't' in flags
+TEST = 't' in arg_flags
 DO = not TEST
 
-arg_f = 'f' in flags
-arg_o = 'o' in flags
-arg_r = 'r' in flags
+arg_cut_full_path        = 'f' in arg_flags
+arg_print_full_path      = 'o' in arg_flags
+arg_recurse_into_subdirs = 'r' in arg_flags
 
-arg_web = 'w' in flags
-arg_dup = 'd' in flags
-arg_aib = 'b' in flags
-arg_pxv = 'p' in flags
-arg_eup = 'u' in flags
-arg_ext = 'x' in flags
-arg_ytb = 'y' in flags
+arg_move_aib_by_threads = 'b' in arg_flags
+arg_move_cys_by_id      = 'y' in arg_flags
+arg_move_dups_by_md5    = 'd' in arg_flags
+arg_move_pxv_by_id      = 'p' in arg_flags
+arg_move_subtypes       = 'x' in arg_flags
+arg_move_subtypes_up    = 'u' in arg_flags
+arg_move_web_pages      = 'w' in arg_flags
+
+arg_subdir_modtime_format = ''
+if 'y'   in other_args: arg_subdir_modtime_format += '/%Y'
+if 'ym'  in other_args: arg_subdir_modtime_format += '/%Y-%m'
+if 'ymd' in other_args: arg_subdir_modtime_format += '/%Y-%m-%d'
 
 j = len(arg_name_cut)
-if arg_name_cut in sys.argv:
+if arg_name_cut in other_args:
 	arg_len = default_name_cut_length			# <- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
 else:
 	arg_len = 0
-	for a in sys.argv:
+	for a in other_args:
 		if a[0:j] == arg_name_cut:
 			arg_len = int(a[j:])
 			break
@@ -175,7 +191,7 @@ pat_ren = [
 			(?P<Ext>\.[^.]+)?
 		$''', re.I | re.U | re.X)
 	,	'dest': dest_root_yt
-	} if arg_ytb else None
+	} if arg_move_cys_by_id else None
 #,	['pixiv', re.compile(r',illust_id=(\d+).*\.\w+$', re.I)]
 ]
 
@@ -191,12 +207,12 @@ pat_sub = [
 	{
 		'match': re.compile(r'^.*?\b(\w+#\d+),\d+(, \d+ *\w+, \d+x\d+([.,].*)?)?\.\w+$', re.I)
 	,	'subdir': r'\1'
-	} if arg_aib else None
+	} if arg_move_aib_by_threads else None
 ,	{
 		'match': re.compile(r'^(pxv\D+(\d+)\D*?_)p\d+(\D.*)$', re.I)
 	,	'next': r'\1p1\3'
 	,	'subdir': r'\2'
-	} if arg_pxv else None
+	} if arg_move_pxv_by_id else None
 ,	{
 		'match': re.compile(r'''^
 			(?:(?P<Site>\S+)\s-\s)
@@ -213,18 +229,18 @@ pat_sub = [
 	,	'group_by': r'\g<Hash>'
 	,	'date': r'\g<TimeStamp>'
 	,	'subdir': '1'
-	} if arg_dup else None
+	} if arg_move_dups_by_md5 else None
 ,	{
 		'match_dir': re.compile(r'(^|[\\/])(_not|_animation|_frames|_gif|_flash|_video|_img)+([\\/]|$)', re.I)
 	,	'subdir': r'..'
-	} if arg_eup else None
+	} if arg_move_subtypes_up else None
 ] + ([
 	{'subdir': r'_animation_frames','match': re.compile(r'\.zip$', re.I)}
 ,	{'subdir': r'_gif',		'match': re.compile(r'\.gif$', re.I)}
 ,	{'subdir': r'_flash',		'match': re.compile(r'\.(swf|fws)$', re.I)}
 ,	{'subdir': r'_video',		'match': re.compile(r'\.(mov|mp4|mkv|webm)$', re.I)}
 ,	{'subdir': r'_not_img',		'match': re.compile(r'\.(?!(bmp|png|jp[eg]+|webp|gif|swf|fws|mov|mp4|mkv|webm|zip)$)\w+$', re.I)}
-] if arg_ext else [])
+] if arg_move_subtypes else [])
 
 pat_idx = re.compile(r'<MAF:indexfilename\s+[^=>\s]+="([^">]+)', re.I)
 pat_ren_mht_linebreak = re.compile(r'=\s+')
@@ -233,8 +249,8 @@ pat_ren_yt_URL_ID = re.compile(r'[?&](?P<ID>v=[\w-]+)(?:[?&#]|$)', re.I)
 
 dup_lists_by_ID = {}
 not_existed = []
-n_i = n_matched = n_moved = n_fail = n_back = n_later = 0		# <- count iterations, etc
-ext_path_inside = ext_web if arg_web else []				# <- understandable file format extensions
+n_i = n_matched = n_moved = n_fail = n_back = n_later = n_max_len = 0	# <- count iterations, etc
+ext_path_inside = ext_web if arg_move_web_pages else []				# <- understandable file format extensions
 
 a_type = type(pat_ren)
 d_type = type(dup_lists_by_ID)
@@ -262,14 +278,18 @@ def dumpclean(obj):
 			else: print v
 	else: print obj
 
-def get_ext(path):
+def get_file_name(path):
+	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
+	return path
+
+def get_file_ext(path):
 	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
 	if path.find('.') >= 0: path = path.rsplit('.', 1)[1]
 	return path.lower()
 
 def rf(name, size=0):
 	global n_fail
-	ext = get_ext(name)
+	ext = get_file_ext(name)
 	r = ''
 	try:
 		if ext == 'maff':
@@ -298,10 +318,13 @@ def rf(name, size=0):
 		print e
 	return r
 
+def get_formatted_modtime(src_path, format):
+	return datetime.datetime.fromtimestamp(os.path.getmtime(src_path)).strftime(format)
+
 def uniq(src, d):
 	i = 0
 	if os.path.exists(d) and os.path.exists(src):
-		d = datetime.datetime.fromtimestamp(os.path.getmtime(src)).strftime(';_%Y-%m-%d,%H-%M-%S.').join(d.rsplit('.', 1))
+		d = get_formatted_modtime(src, ';_%Y-%m-%d,%H-%M-%S.').join(d.rsplit('.', 1))
 		i += 1
 	while os.path.exists(d):
 		d = '(2).'.join(d.rsplit('.', 1))
@@ -394,44 +417,63 @@ def get_sub(subj, rules):
 
 	return None
 
+def print_name(name, prefix='', extra_line=True):
+	if extra_line:
+		print
+
+	print prefix, 'name in utf-8:'
+	print name.encode('utf-8')
+
+	print prefix, 'name in unicode-escape:'
+	print name.encode('unicode-escape')
+
 def r(path, later=0):
-	global n_i, n_fail, n_matched, n_moved, n_back, n_later, not_existed, dup_lists_by_ID
+	global n_i, n_fail, n_matched, n_moved, n_back, n_later, n_max_len, not_existed, dup_lists_by_ID
+
 	names = os.listdir(path)
+
 	for name in names:
-		if TEST:
-			print
-
-			print 'file name in utf-8:'
-			print name.encode('utf-8')
-
-			print 'file name in unicode-escape:'
-			print name.encode('unicode-escape')
-
 		n_i += 1
 		src = path+'/'+name
 		if os.path.isdir(src):
-			if arg_r:
+			if arg_recurse_into_subdirs:
+				if TEST and arg_print_full_path:
+					print_name(name, 'dir')
 				r(src, later)
 			continue
+
+		if TEST and arg_print_full_path:
+			print_name(name, 'file')
 
 		# optionally cut long names before anything else:
 
 		if arg_len:
-			ln = len(src if arg_f else name)
-			if ln > arg_len:
+			src_path = os.path.abspath(src) if arg_cut_full_path else name
+			src_len = len(src_path)
+
+			if src_len > arg_len:
 				n_matched += 1
-				if n_back < ln:
-					n_back = ln
-				print ln, (src if arg_o else name).encode('utf-8')
+				if n_max_len < src_len:
+					n_max_len = src_len
+
+				ext = '(...).' + get_file_ext(name)
+				dest_path = src_path[:arg_len - len(ext)].rstrip() + ext
+				dest_path = uniq(src_path, dest_path)
+				dest_show = (dest_path if arg_print_full_path else get_file_name(dest_path))
+
+				print
+				print 'cut from', src_len, (src_path if arg_print_full_path else name).encode(default_print_encoding)
+				print 'cut to', len(dest_show), dest_show.encode(default_print_encoding)
+
 				if DO:
-					ext = '.'+get_ext(name)
-					d = uniq(src, src[:arg_len-len(ext)].rstrip()+ext)
-					os.rename(src, d)
-					src = d
-					name = d[len(path):].lstrip('/')
+					os.rename(src, dest_path)
+
+					name = get_file_name(dest_path)
+					src = path+'/'+name
+
 					n_moved += 1
 
-		ext = get_ext(name)
+		ext = get_file_ext(name)
 		d = ''
 
 		if ext in dest_root_by_ext:
@@ -456,7 +498,7 @@ def r(path, later=0):
 				if not is_type_str(d):
 					continue
 
-				print d.encode('utf-8'), '<-', name.encode('utf-8')
+				print d.encode(default_print_encoding), '<-', name.encode(default_print_encoding)
 
 				if DO and os.path.exists(src) and os.path.isdir(d):
 					os.rename(src, uniq(src, d+'/'+name))
@@ -542,8 +584,8 @@ def r(path, later=0):
 						name = rename
 
 				if TEST:
-					if arg_o:
-						print info_prfx, src.encode('utf-8')
+					if arg_print_full_path:
+						print info_prfx, src.encode(default_print_encoding)
 					print dest, ufull
 
 				# rename target files downloaded from RGHost/booru/yt/etc:
@@ -578,7 +620,7 @@ def r(path, later=0):
 								continue
 
 						child_path = path+'/'+child_name
-						child_ext = get_ext(child_name)
+						child_ext = get_file_ext(child_name)
 						if (child_ext in ext_path_inside) or (not os.path.exists(child_path)):
 							continue
 
@@ -600,7 +642,7 @@ def r(path, later=0):
 									sub_path = child_path+'/'+sub_name
 									sub_dest = (site_dest or path)+'/'+prfx+sub_name
 
-									print info_prfx, sub_name.encode('utf-8')
+									print info_prfx, sub_name.encode(default_print_encoding)
 
 									if DO:
 										os.rename(sub_path, uniq(sub_path, sub_dest))
@@ -640,7 +682,7 @@ def r(path, later=0):
 								(site_dest or path)
 							)+'/'+prfx+child_name
 
-							print info_prfx, child_dest.encode('utf-8')
+							print info_prfx, child_dest.encode(default_print_encoding)
 
 							if DO:
 								os.rename(child_path, uniq(child_path, child_dest))
@@ -659,15 +701,15 @@ def r(path, later=0):
 				if DO:
 					try:
 						if not os.path.exists(d):
-							print msg_prfx, 'Path not found, make dirs:', d.encode('utf-8')
+							print msg_prfx, 'Path not found, make dirs:', d.encode(default_print_encoding)
 							os.makedirs(d)
 						d += '/'+(name[:-2] if ext == 'mhtml' else name)
 						dq = uniq(src, d)
 						os.rename(src, dq)
 						if os.path.exists(d):		# <- check that new-moved and possible duplicate both exist
 							n_moved += 1
-							if arg_o:
-								print info_prfx, src.encode('utf-8')
+							if arg_print_full_path:
+								print info_prfx, src.encode(default_print_encoding)
 							print dest, ufull
 						else:
 							n_back += 1		# <- if renamed "path/name" to the same "path/name(2)", revert
@@ -680,13 +722,15 @@ def r(path, later=0):
 							print msg_prfx, 'Renamed unique length:', dq
 						print e
 				elif not d in not_existed and not os.path.exists(d):
-					print msg_prfx, 'Path not found:', d.encode('utf-8')
+					print msg_prfx, 'Path not found:', d.encode(default_print_encoding)
 					not_existed.append(d)
 				break
 
 		# unknown filetypes, group into subfolders by ID, for pixiv multipages and such:
 
 		else:
+			d = None
+
 			for p in pat_sub:
 				if not p:
 					continue
@@ -743,7 +787,7 @@ def r(path, later=0):
 									d = dup_lists_by_ID[dup_ID] = '1'
 							if TEST:
 								lend = len(d.keys() if isinstance(d, d_type) else d)
-								print dup_ID.encode('utf-8'), '- dup #', lend, dup_stamp.encode('utf-8')
+								print dup_ID.encode(default_print_encoding), '- dup #', lend, dup_stamp.encode(default_print_encoding)
 							continue
 						elif not (
 							d
@@ -770,16 +814,25 @@ def r(path, later=0):
 
 				d += subdir
 				if d == path:
+					d = None
+
 					continue
 
-				print d.encode('utf-8'), '<-', name.encode('utf-8')
+				break
+
+			if not d and arg_subdir_modtime_format:
+				d = path.rstrip('/') + '/' + get_formatted_modtime(src, arg_subdir_modtime_format).strip('/')
+
+			if d:
+				print d.encode(default_print_encoding), '<-', name.encode(default_print_encoding)
 
 				if DO:
 					dest = uniq(src, d+'/'+name)
 
 					try:
 						if not os.path.exists(d):
-							os.mkdir(d)
+							print msg_prfx, 'Path not found, make dirs:', d.encode(default_print_encoding)
+							os.makedirs(d)
 						os.rename(src, dest)
 						n_moved += 1
 
@@ -790,7 +843,9 @@ def r(path, later=0):
 
 def run(later=0):
 	global n_later, dup_lists_by_ID
+
 	r(u'.', later)
+
 	if later:
 		for i in dup_lists_by_ID:
 			d = dup_lists_by_ID[i]
@@ -838,6 +893,7 @@ def run(later=0):
 
 			elif TEST:
 				print len(d), ':', d
+
 	a = []
 	n = [
 		[n_i	,	'checks']
@@ -845,12 +901,15 @@ def run(later=0):
 	,	[n_moved,	'moved']
 	,	[n_later,	'later']
 	,	[n_fail,	'failed']
-	,	[n_back,	'max name length' if arg_len else 'back']
+	,	[n_back,	'back']
+	,	[n_max_len,	'max name length']
 	]
 	for i in n:
 		if i[0] > 0:
 			a.append(str(i[0])+' '+i[1])
+
 	print msg_prfx, 'Result:', ', '.join(a) if len(a) > 0 else 'no files matched.'
+
 	return n_later if DO else 0
 
 if run(1):
