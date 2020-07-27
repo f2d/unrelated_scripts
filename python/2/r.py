@@ -14,36 +14,50 @@ arg_flags = args[1] if argc > 1 else ''
 other_args = args[2:] if argc > 2 else []
 
 if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
-	print '* Usage: r.py [flags] [other] [options] [etc] ...'
-	print
-	print '* Flags (add in any order without spaces as first argument):'
-	print '	t: for test output only (don\'t apply changes)'
-	print '	f: when cutting, check length of full path instead of only name'
-	print '	o: print full path instead of only name'
-	print '	r: recurse into subfolders (default = stay in working folder)'
-	print
-	print '	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
-	print '	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
-	print '	b: move aib-grabbed files into subdir by thread ID in filename'
-	print '	p: move pixiv-grabbed files into subdir by work ID in filename'
-	print '	u: move files up from subdir by type (flash, gif, video, etc, may start from underscore)'
-	print '	x: move non-image files into subdir by type in ext (flash, gif, video, etc)'
-	print '	y: rename Complete YouTube Saver downloads in sub/same-folder by ID in URL and filenames'
-	print
-	print '* Other options (separate each with a space):'
-	print '	'+arg_name_cut+': cut long names to '+default_name_cut_length
-	print '	'+arg_name_cut+'<number>: cut long names to specified length'
-	print
-	print '	y:   move any leftover files into subdir named by mod-time year'
-	print '	ym:  subdir by year-month'
-	print '	ymd: subdir by year-month-day'
-	print '		Notes: may be combined,'
-	print '		interpreted as switches (on/off),'
-	print '		resulting always in this order: y/ym/ymd'
-	print
-	print '* Example 1: r.py rwb'
-	print '* Example 2: r.py tfo '+arg_name_cut+'234'
-	print '* Example 2: r.py o y ym ymd'
+	self_name = os.path.basename(__file__)
+
+	help_text_lines = [
+		''
+	,	'* Description:'
+	,	'	Move files from unsorted pile, e.g. download folder,'
+	,	'	into predesignated places depending on file names and/or contents.'
+	,	''
+	,	'* Usage:'
+	,	'	%s <flags> [<other options>] ...'
+	,	''
+	,	'<flags>: string of letters in any order as first argument.'
+	,	'	t: for test output only (don\'t apply changes)'
+	,	'	f: when cutting, check length of full path instead of only name'
+	,	'	o: ,	full path instead of only name'
+	,	'	r: recurse into subfolders (default = stay in working folder)'
+	,	''
+	,	'	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
+	,	'	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
+	,	'	b: move aib-grabbed files into subdir by thread ID in filename'
+	,	'	p: move pixiv-grabbed files into subdir by work ID in filename'
+	,	'	u: move files up from subdir by type (flash, gif, video, etc, may start from underscore)'
+	,	'	x: move non-image files into subdir by type in ext (flash, gif, video, etc)'
+	,	'	y: rename Complete YouTube Saver downloads in sub/same-folder by ID in URL and filenames'
+	,	''
+	,	'<other options>: separate each with a space.'
+	,	'	'+arg_name_cut+': cut long names to '+str(default_name_cut_length)
+	,	'	'+arg_name_cut+'<number>: cut long names to specified length'
+	,	''
+	,	'	y:   move any leftover files into subdir named by mod-time year'
+	,	'	ym:  subdir by year-month'
+	,	'	ymd: subdir by year-month-day'
+	,	'		Notes: may be combined,'
+	,	'		interpreted as switches (on/off),'
+	,	'		resulting always in this order: y/ym/ymd'
+	,	''
+	,	'* Examples:'
+	,	'	%s rwb'
+	,	'	%s tfo '+arg_name_cut+'234'
+	,	'	%s o y ym ymd'
+	]
+
+	print('\n'.join(help_text_lines).replace('%s', self_name))
+
 	sys.exit()
 
 TEST = 't' in arg_flags
@@ -732,6 +746,8 @@ def r(path, later=0):
 			d = None
 
 			for p in pat_sub:
+				d = None
+
 				if not p:
 					continue
 
@@ -814,8 +830,6 @@ def r(path, later=0):
 
 				d += subdir
 				if d == path:
-					d = None
-
 					continue
 
 				break

@@ -136,11 +136,17 @@ else:
 
 # Display help ----------------------------------------------------------------
 
-	print 'This script will write copies of wav files with start/end silence removed, into given folder.'
+	self_name = os.path.basename(__file__)
+
+	print '* Description:'
+	print '	Write copies of wav files with start/end silence removed, into given folder.'
 	print
-	print 'Usage: trim_wav.py [flags] [<src_folder/file>|.] [<put_folder>|.] [<silence_threshold(Db)>|-50.0] [<chunk_size(ms)>|10]'
+	print '* Usage:'
+	print '	%s [<flags>]' % self_name
+	print '		[<src_folder/file>|.] [<put_folder>|.]'
+	print '		[<silence_threshold(Db)>|-50.0] [<chunk_size(ms)>|10]'
 	print
-	print 'Flags (combine letters):'
+	print '<flags>: string of letters in any order.'
 	print '	c to use timestamp format ;_YYYY-MM-DD,HH-MM-SS, default is _YYYY-MM-DD_HH-MM-SS'
 	print '	r to recurse'
 	print '	i to recurse including put_folder'

@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+
 import Image
 import sys
 
@@ -7,7 +8,10 @@ padding_y = 8
 width = 800
 
 if len(sys.argv) < 3:
-	print 'Usage: {0} <images> <output>'.format(sys.argv[0])
+	self_name = os.path.basename(__file__)
+
+	print '* Usage: %s <images> <output>' % self_name
+
 	sys.exit(-1)
 
 if len(sys.argv) == 3:

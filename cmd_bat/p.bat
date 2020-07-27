@@ -179,8 +179,9 @@ REM	--------	--------	Run target script:	--------	--------
 
 :use_all_args
 
-set script_args=%all_args:* =%
-set script_args_unquoted=%script_args:"=%
+set "script_args=%all_args:* =%"
+set "script_args_unquoted=%script_args:"=%"
+set "all_args_unquoted=%all_args:"=%"
 
 if "%all_args_unquoted%" == "%script_args_unquoted%" set script_args=
 

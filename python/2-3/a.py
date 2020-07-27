@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
-
 # Python 2 or 3 should work.
 
 import datetime, glob, os, re, subprocess, sys, time
@@ -118,19 +117,20 @@ def get_exe_paths():
 	return exe_paths_found
 
 def print_help():
+	self_name = os.path.basename(__file__)
 	exe_paths = get_exe_paths()
 
 	help_text_lines = [
 		''
-	,	'Description:'
+	,	'* Description:'
 	,	''
 	,	'	This script calls several preinstalled programs in a batch'
 	,	'	to make a set of archives with same content with intention'
 	,	'	to compare and hand-pick the best or most suitable results.'
 	,	''
-	,	'Usage:'
+	,	'* Usage:'
 	,	''
-	,	'	a.py'
+	,	'	%s'
 		+' '.join([
 			'"['
 			+']['.join([
@@ -148,19 +148,19 @@ def print_help():
 		,	'[<optional args> ...]'
 		])
 	,	''
-	,	'Warning:'
+	,	'* Warning:'
 	,	''
 	,	'	In shell, add "quotes" around arguments, that contain any of the'
 	,	'	following symbols: "'+must_quote+'"'
 	,	'	Or quote/escape anything beyond latin letters and digits just in case.'
 	,	''
-	,	'Current executable paths to be used (found or fallback):'
+	,	'* Current executable paths to be used (found or fallback):'
 	,	''
 	] + [
-		(k + ':	' + v) for k, v in exe_paths.items()
+		'	%s:	%s' % (k, v) for k, v in exe_paths.items()
 	] + [
 		''
-	,	'Switch letters (concatenate in any order, any case):'
+	,	'* Switch letters (concatenate in any order, any case):'
 	,	''
 	,	'	c: check resulting command lines without running them.'
 	,	'	k: don\'t wait for key press after errors.'
@@ -225,20 +225,22 @@ def print_help():
 	,	'		(only by WinRAR, or 7-Zip since v17)'
 	,	'		(if by WinRAR, last archive is tested before deleting subjects)'
 	,	''
-	,	'Example 1: a.py a'
+	,	'* Examples:'
+	,	'	%s a'
 	,	'	(default subj = current folder, destination = 1 folder up)'
 	,	''
-	,	'Example 2: a.py a "*some*thing*"'
+	,	'	%s a "*some*thing*"'
 	,	'	(default destination = 1 up, so wildcard won\'t grab result archives)'
 	,	''
-	,	'Example 3: a.py a "subfolder/file"'
+	,	'	%s a "subfolder/file"'
 	,	'	(default destination = here, safe because no wildcard)'
 	,	''
-	,	'Example 4: a.py ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
-	,	'Example 5: a.py "7r_e'+def_name_separator+'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
+	,	'	%s ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
+	,	''
+	,	'	%s "7r_e'+def_name_separator+'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
 	]
 
-	print('\n'.join(help_text_lines))
+	print('\n'.join(help_text_lines).replace('%s', self_name))
 
 def uniq(n, e, t0):
 	r = n+e

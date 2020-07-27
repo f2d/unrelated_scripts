@@ -24,11 +24,24 @@ else:
 	help = 1
 
 if help:
-	print '\nUsage: dl [-<flags-letters>] [e<cp|'+default_encoding+'>]'
-	print '	[w<num|1>] [i<num|60>] [t<num|99>] [r<num|999>]'
-	print '	[m<dir|..>] [g<dir|.>[|<dir>|...]] [d<dir|..>[|<dir>|...]]'
-	print 'Example 1: dl.py -mu i600 dt3600 r g d e'
-	print 'Example 2: dl.py w10 gD:/_logs|E:/_grab dD:/_dl|E:/_dl'
+	self_name = os.path.basename(__file__)
+
+	print ''
+	print '* Description:'
+	print '	Read text files from disk, get list of links,'
+	print '	try to download the links and save results to disk.'
+	print ''
+	print '	It is possible to run in cycle, e.g. on log files,'
+	print '	without rereading same places in text files and'
+	print '	without redownloading same links again (with exceptions).'
+	print ''
+	print '* Usage:'
+	print '	%s [-<flags-letters>]' % self_name
+	print '		[e<cp|' + default_encoding + '>]'
+	print '		[w<num|1>] [i<num|60>] [t<num|99>] [r<num|999>]'
+	print '		[m<dir|..>] [g<dir|.>[|<dir>|...]] [d<dir|..>[|<dir>|...]]'
+	print '		[<help>]'
+	print ''
 	print 'w: Wait between downloads, in seconds. Omit = 0'
 	print 'i: Interval between txt batch checks, in seconds. Check once if zero. Omit = 0'
 	print 't: Timeout for sending request, in seconds. Omit = 60'
@@ -36,9 +49,12 @@ if help:
 	print 'r: Recursively read up to N log folders under roots without trailing slash. Omit = 0'
 	print 'e: Log content encoding. Omit =', read_encoding
 	print 'm: Path to store meta logs. Omit =', meta_root
-	print '\ng: Paths to get files (where to read links to DL). Omit =', read_root
-	print '\nd: Paths to put files (DL\'d from links), + subfolder per log. Omit =', dest_root
-	print '\n-flag-letters, concatenate in any order:'
+	print ''
+	print 'g: Paths to get files (where to read links to DL). Omit =', read_root
+	print ''
+	print 'd: Paths to put files (DL\'d from links), + subfolder per log. Omit =', dest_root
+	print ''
+	print '-<flag-letters>: string of letters in any order after a dash.'
 	print '	m: http modtime header -> add timestamp to filename (default = current time)'
 	print '	u: add time in format:', format_epoch, '(default = all u+y+h)'
 	print '	y: add time in format:', format_ymd
@@ -48,12 +64,15 @@ if help:
 	print '	s: append time before ext'
 	print '	a: append time after ext'
 	print '	d: grab Discord emoji by ID'
-	print 'help:'
-	print '	or </|->? (like ?, /?, -?, --?, etc)'
-	print '	or </|->h'
-	print '	or </|->help'
-	print '	or nothing: Show this text.'
-	print 'Add anything except help to run with all defaults.'
+	print ''
+	print '<help>: show this text.'
+	print '	Also </|-><|h|help>, e.g. ?, /?, -?, --?, -h, --help, etc.'
+	print '	Add anything else except help to run with all defaults.'
+	print ''
+	print '* Examples:'
+	print '	%s -mu i600 dt3600 r g d e' % self_name
+	print '	%s w10 gD:/_logs|E:/_grab dD:/_dl|E:/_dl' % self_name
+
 	sys.exit(0)
 
 flags = ''
@@ -253,52 +272,63 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'&#0*39;', re.I), "'"]
 ,	[re.compile(r'&amp;', re.I), '&']
 ,	[re.compile(r'(\[/img\]|[\|\'\\"\s.,;:%|?*]|%2C|%3B|%3A|%25|%7C|%3F)+$', re.I), '']
-,	[re.compile(r'^(\w+:/+)?([^/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url=', re.I), '']# <- remove redirect
-,	[re.compile(r'^(\w+:/+)?([^/?#]+\.)?deviantart\.com/+users/+outgoing\?', re.I), '']	# <- remove redirect
+,	[re.compile(r'^(\w+:/+)?([^:/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url=', re.I), '']# <- remove redirect
+,	[re.compile(r'^(\w+:/+)?([^:/?#]+\.)?deviantart\.com/+users/+outgoing\?', re.I), '']	# <- remove redirect
 ,	[re.compile(r'\.prx2\.unblocksit\.es', re.I), '']					# <- remove web-proxy
 ,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
-,	[re.compile(r'^https(:/+([^/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https (mostly for deduplication)
-,	[re.compile(r'^((\w+:/+)?([^/?#]+\.)?(i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\1.']	# <- skip downscaled copy
-,	[re.compile(r'^(\w+:/+([^/?#]+\.)?discord[^?#]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
+,	[re.compile(r'^https(:/+([^:/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https (mostly for deduplication)
+,	[re.compile(r'^((\w+:/+)?([^:/?#]+\.)?(i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\1.']	# <- skip downscaled copy
+,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?discord[^?#]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
+
 # remove discord web-proxy, sample without arguments:
-# https://images-ext-2.discordapp.net/external/rmIMR9GZN6eCefZC334Tb_7kNZEi-dHkQzREd7WhcPI/https/media.discordapp.net/attachments/(...).png
-,	[re.compile(r'^\w+:/+(?:[^/?#]+\.)?images-ext-[^/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(\w+)/+', re.I), r'\1://']
-# sample with arguments (easier to let it be and fix destination filename later, than URL-decode arguments here):
-#  https://images-ext-1.discordapp.net/external/NxJFQeVaGg00THG8RwFU4wQrXJheMYCUV8ntL8KzUDk/%3F_nc_ht%3Dscontent-lga3-1.cdninstagram.com/https/scontent-lga3-1.cdninstagram.com/(...).jpg
-# ,	[re.compile(r'^\w+:/+(?:[^/?#]+\.)?images-ext-[^/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?:\W[^/?#]+/+)*(\w+)/+', re.I), r'\1://']
-#,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']
-,	[re.compile(r'^(\w+:/+([^/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
+# https://images-ext-2.discordapp.net/external/rmIM(...)_7kNZEi-(...)/https/media.discordapp.net/attachments/(...).png
+
+# sample with arguments (easier to let it be and fix destination filename later, than URL-decode arguments here?):
+# https://images-ext-1.discordapp.net/external/NxJF(...)/%3F_nc_ht%3Dscontent-lga3-1.cdninstagram.com/https/scontent-lga3-1.cdninstagram.com/(...).jpg
+
+,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(\w+)/+', re.I), r'\1://']
+# ,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?:\W[^/?#]+/+)*(\w+)/+', re.I), r'\1://']
+
+,	[re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(discordapp\.\w+/+)(attachments/.*?)(#\?.*)?$', re.I), r'https://cdn.discordapp.com/\4']
+#,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']	# <- better to use proxy than change domains
+,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
-,	[re.compile(r'^(\w+:/+)([^/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
-,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#]+)\?(?:[^&#]*&)*format=([^&#]+)', re.I), r'\1.\2']
-,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#]+\.[^.:?&#]+)([:?&#].*)?$', re.I), r'\1:orig']
-,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rgho.st/\2']
+,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
+,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)([^&#%]+).*?$', re.I), r'\1.\2']
+,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1:orig']
+,	[re.compile(r'\b(twimg\.com/+profile_images?/+[^:?&#%]+)(_[^/:?&#%]+)(\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1\3']
+,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rgho.st/\2']
 ,	[re.compile(r'(file.qip.ru/(file|photo)/[^?#]+)(\?.*)?$', re.I), r'\1?action=downloads']
 ,	[re.compile(r'shot\.qip\.ru[^-#]*-(.)([^/?#]+)(/+.*)?$', re.I), r'f\1.s.qip.ru/\2.png']
-,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?(skype\.com)/+login/+sso?go=(.*)$', re.I), r'\1web.\2/\3']	# <- get attachments via web version
-,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?youtu\.be/+([^/?&#]+)$', re.I), r'\1www.youtube.com/watch?v=\2']
-,	[re.compile(r'^([^/?#]+/+)(?:[^/?#]+\.)?youtu\.be/+([^/?&#]+)([?&/](.*))?$', re.I), r'\1www.youtube.com/watch?v=\2&\3']
-,	[re.compile(r'^(([^/?#]+/+)(?:[^/?#]+\.)?forum\.spaceengine\.org\/+download/+file\.php\?id=[^&#]+)&[^#]*', re.I), r'\1']
+,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(skype\.com)/+login/+sso?go=(.*)$', re.I), r'\1web.\2/\3']	# <- get attachments via web version
+,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?youtu\.be/+([^/?&#]+)$', re.I), r'\1www.youtube.com/watch?v=\2']
+,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?youtu\.be/+([^/?&#]+)([?&/](.*))?$', re.I), r'\1www.youtube.com/watch?v=\2&\3']
+,	[re.compile(r'^((\w+:/+)(?:[^:/?#]+\.)?forum\.spaceengine\.org\/+download/+file\.php\?id=[^&#]+)&[^#]*', re.I), r'\1']
 ]
 
 pat2replace_before_dl = [	# <- strings after this are sent to web servers
 	[re.compile(r'^([^#]+)#.*$'), r'\1']
-# ,	[re.compile(r'^https(:/+([^/?#]+\.)?(googleusercontent|h(abra)?stor(age)?|vk|youtu(be)?|danbooru)\.)', re.I), r'http\1']
+# ,	[re.compile(r'^https(:/+([^:/?#]+\.)?(googleusercontent|h(abra)?stor(age)?|vk|youtu(be)?|danbooru)\.)', re.I), r'http\1']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?.*$', re.I), r'\1?dl=1']
 ,	[re.compile(r'img\.5cm\.ru/view/i5', re.I), 'i5.5cm.ru/i']
 ,	[re.compile(r'//(www\.)?2-?ch\.(cm|ec|hk|pm|re|ru|so|tf|wf|yt)/', re.I), r'//2ch.pm/']
 ,	[re.compile(r'//(www\.)?dobrochan\.(ru|org|com)/', re.I), r'//dobrochan.com/']
 # ,	[re.compile(r'(vocaroo\.com)/i/s', re.I), r'\1/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
-,	[re.compile(r'^(\w+:/+(?:[^/?#]+\.)?(vocaroo\.com|voca\.ro)/+)([^/?&#]+)$', re.I), r'https://media.vocaroo.com/mp3/\3']
+,	[re.compile(r'^(\w+:/+(?:[^:/?#]+\.)?(vocaroo\.com|voca\.ro)/+)([^/?&#]+)$', re.I), r'https://media.vocaroo.com/mp3/\3']
 ]
 
 default_red2_name_prefix = [[0, r'\1 - ']]	# <- prepend only first captured sub-group - "(...)"
 
 pat2recursive_dl = [		# <- additional sub-steps to grab
-	{
-		'page':		# <- parent: where to look, URL partial match
+
+# imgur:
+
+# JSON sample from /a/zVhZg: {"hash":"JdFDePz","title":"","description":null,"has_sound":false,"width":863,"height":800,"size":136820,"ext":".jpg","animated":false,"prefer_video":false,"looping":false,"datetime":"2015-09-06 19:54:17"}
+# JSON sample from /a/xyN6u: {"hash":"wPpFLrE","title":"","description":null,"has_sound":false,"width":710,"height":1002,"size":392671,"ext":".png","animated":false,"prefer_video":false,"looping":false,"datetime":"2019-05-29 16:18:38","edited":"0"},
+
+	{	'page':		# <- parent: where to look, URL partial match
 		re.compile(r'''
-			^(\w+:/+([^/?#]+\.)?
+			^(\w+:/+([^:/?#]+\.)?
 			imgur\.com/(a/|ga[lery]+/|t/[^/]+/)?
 			\w+(\.gifv|/embed)?)
 			([,&?#]|$)
@@ -306,10 +336,10 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 	,	'grab':		# <- child: what to grab, concat all subpatterns if none can be expanded from optional 'link' array
 		re.compile(r'''
 			<(?:
-				source\b[^>]*?\s+src
+				source(?:\s+[^>]*?)?\s+src
 			|	link\s+rel="(?:canonical|image_src)"[^>]*?\s+href
 			|	meta\s+property="og:image"\s+content
-		#	|	img\b[^>]*?\s+data-src		# <- thumbs, not needed
+		#	|	img(?:\s+[^>]*?)?\s+data-src		# <- thumbs, not needed
 			)
 			="?/*
 			((?:\w+:/+)?[^"/]+/)	# <- 1
@@ -327,7 +357,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 			|	target="_blank">\s*View\s+full
 			)
 
-		|	<img\b[^>]*?\s+src=[\'"]*
+		|	<img(?:\s+[^>]*?)?\s+src=[\'"]*
 			(?:((?:\w+:/+|//)[^"/]+/+)|/*)?	# <- 6
 			([^\s\'">]+/)			# <- 7
 			([^\s\'">/]+)			# <- 8
@@ -335,21 +365,19 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 		|	\{
 			(?:
-				\s*
+				\s*"?
 				(?:
-					"width"	:	"?(?P<imgurWidth>	\d+)"?
-				|	"height":	"?(?P<imgurHeight>	\d+)"?
-				|	"size"	:	"?(?P<imgurSize>	\d+)"?
-				|	"hash"	:	"?(?P<imgurID>		(?:\\"|[^"])*)"?
-				|	"ext"	:	"?(?P<imgurExt>		(?:\\"|[^"])*)"?
-				|	"datetime":	"?(?P<imgurDate>	(?:\\"|[^"])*)"?	# <- fields in any order
-				|	"?[\w-]+"?:	"?(?:			(?:\\"|[^"])*)"?	# <- other unneeded fields
+					width	"?:"?(?P<imgurWidth>	\d+)
+				|	height	"?:"?(?P<imgurHeight>	\d+)
+				|	size	"?:"?(?P<imgurSize>	\d+)
+				|	hash	"?:"?(?P<imgurID>	(?:\\"|[^"])*)
+				|	ext	"?:"?(?P<imgurExt>	(?:\\"|[^"])*)
+				|	datetime"?:"?(?P<imgurDate>	(?:\\"|[^"])*)	# <- fields in any order
+				|	[\w-]+	"?:"?(?:		(?:\\"|[^"])*)	# <- other unneeded fields
 				)
-				\s*[,}]
+				"?\s*[,}]
 			)+
 		''', re.I | re.X)
-# JSON sample from /a/zVhZg: {"hash":"JdFDePz","title":"","description":null,"has_sound":false,"width":863,"height":800,"size":136820,"ext":".jpg","animated":false,"prefer_video":false,"looping":false,"datetime":"2015-09-06 19:54:17"}
-# JSON sample from /a/xyN6u: {"hash":"wPpFLrE","title":"","description":null,"has_sound":false,"width":710,"height":1002,"size":392671,"ext":".png","animated":false,"prefer_video":false,"looping":false,"datetime":"2019-05-29 16:18:38","edited":"0"},
 	,	'link': [r'i.imgur.com/\g<imgurID>\g<imgurExt>', r'imgur.com/\g<imgurID>']
 	,	'name': [
 			[0, r'\1 - ']	# <- 0: expand from parent URL
@@ -366,42 +394,103 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		,	[1, r'\g<imgurDate> - ']
 		]
 	}
+
+# gfycat:
+
+# HTML sample from https://gfycat.com/boguscoldchuckwalla (newlines added for clarity):
+# <meta data-react-helmet="true" property="og:video" content="https://thumbs.gfycat.com/BogusColdChuckwalla-mobile.mp4"/>
+# <meta data-react-helmet="true" property="og:video:secure_url" content="https://thumbs.gfycat.com/BogusColdChuckwalla-mobile.mp4"/>
+# <meta data-react-helmet="true" property="og:video:type" content="video/mp4"/>
+# <meta data-react-helmet="true" property="og:video:width" content="640"/>
+# <meta data-react-helmet="true" property="og:video:height" content="800"/>
+# <meta data-react-helmet="true" property="og:video:duration" content="7.63"/>
+# ...
+# <video class="video media" id="video-boguscoldchuckwalla" alt="wildcatcentre-20200621-0001 GIF" height="900" width="720" muted="" playsinline="" preload="auto" poster="https://thumbs.gfycat.com/BogusColdChuckwalla-mobile.jpg" style="max-width:640px;margin:0 auto;display:block" tabindex="-1">
+# <source src="https://thumbs.gfycat.com/BogusColdChuckwalla-mobile.mp4" type="video/mp4"/>
+# <source src="https://giant.gfycat.com/BogusColdChuckwalla.webm" type="video/webm"/>
+# <source src="https://giant.gfycat.com/BogusColdChuckwalla.mp4" type="video/mp4"/>
+# <source src="https://thumbs.gfycat.com/BogusColdChuckwalla-mobile.mp4" type="video/mp4"/>
+# </video>
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?gfycat\.com/+(?:\w{2}/+)?[^/]+)([,&?#]|$)', re.I)
+	,	'grab':
+		re.compile(r'''
+			(?:
+				<meta(?:\s+[^>]*?)?\s+property="?og:video:
+				(
+					secure_url	"?(?:\s+[^>]*?)?\s+content="?(?P<gfycatURL>	[^"]+)	# <- fields in any order
+				|	width		"?(?:\s+[^>]*?)?\s+content="?(?P<gfycatWidth>	\d+)
+				|	height		"?(?:\s+[^>]*?)?\s+content="?(?P<gfycatHeight>	\d+)
+				|	duration	"?(?:\s+[^>]*?)?\s+content="?(?P<gfycatDur>	[^"]+)
+				|	[\w-]+		"?(?:\s+[^>]*?)?\s+content="?(?:		[^"]+)	# <- other unneeded fields
+				)
+				"?(?:\s+[^>]*?)?>\s*
+			)+
+		|	<source(?:\s+[^>]*?)?\s+src="?([^">]+)	# <- 1
+		''', re.I | re.X)
+	,	'link': [r'\g<gfycatURL>']
+	,	'name': [
+			[0, r'\1 - ']	# <- 0: expand from parent URL
+		# ,	[1, r'\1']	# <- 1: expand from child URL
+		,	[1, r'\g<gfycatWidth>x\g<gfycatHeight> - ']
+		,	[1, r'\g<gfycatDur>s - ']
+		]
+	}
+
+# twitpic, vk shared files, etc - indiscriminately grab any links:
+
 ,	{	'page': re.compile(r'''^
 			(\w+:/+(
 				twitpic\.com
-			|	[^/?#]+\.jpg\.to
-			|	([^/?#]+\.)?vk\.(com|ru)/doc[\w-]+
+			|	[^:/?#]+\.jpg\.to
+			|	([^:/?#]+\.)?vk\.(com|ru)/doc[\w-]+
 			))
 			([/?#]|$)
 		''', re.I | re.X)
 	,	'grab': re.compile(r'\s+(?:src|href)="?([^">\s]+)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)e[x-]*hentai\.org/g(/\d+)+)', re.I)
+
+# exhentai:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)e[x-]*hentai\.org/g(/\d+)+)', re.I)
 	,	'grab': re.compile(r'\s+href=[\'"]*([^\s\'">]+?hathdler[^\s\'">]+)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?ezgif\.\w+)/\w+(/\w+)\.gif([/?#]|$)', re.I)
-	,	'grab': re.compile(r'<img\b[^>]*?\s+src="?/*([^">\s]+)"*\b[^>]*?\s+id="?target', re.I)
+
+# ezgif:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?ezgif\.\w+)/\w+(/\w+)\.gif([/?#]|$)', re.I)
+	,	'grab': re.compile(r'<img(?:\s+[^>]*?)?\s+src="?/*([^">\s]+)"*(?:\s+[^>]*?)?\s+id="?target', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?fastpic\.ru/+(big|view)/+[^?#]*)', re.I)
+
+# fastpic:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?fastpic\.ru/+(big|view)/+[^?#]*)', re.I)
 	,	'grab': pat_imgs
 	}
-,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>gyazo\.com/)([^?#]*?)?(?P<ImageID>/\w{32})(\W.*)?$', re.I)
-	,	'link': [r'\g<Domain>\g<ImageID>']	# <- view page instead of direct link to image
-	}
-,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>skype\.com/)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)', re.I)
-	,	'link': [r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize']	# <- direct link to image instead of page, which contains no links and relies on JS
+
+# skype:
+
 # link samples:
 # https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
 # https://web.skype.com/xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
 # https://api.asm.skype.com/v1/objects/0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae/views/imgpsh_fullsize
+
+,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>skype\.com/)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)', re.I)
+	,	'link': [r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize']	# <- direct link to image instead of page, which contains no links and relies on JS
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?gyazo\.com/[^/]+)$', re.I)
+
+# gyazo:
+
+,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>gyazo\.com/)([^?#]*?)?(?P<ImageID>/\w{32})(\W.*)?$', re.I)
+	,	'link': [r'\g<Domain>\g<ImageID>']	# <- view page instead of direct link to image
+	}
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?gyazo\.com/[^/]+)$', re.I)
 	,	'grab': re.compile(r'''
 			(?:
-				<img\b[^>]*?\s+src="?(?P<ImageSrc>[^">\s]+)
+				<img(?:\s+[^>]*?)?\s+src="?(?P<ImageSrc>[^">\s]+)
 			|	(?:<meta\s+content="?(?P<ImageWidth> \d+)"?\s+property="?og:image:width ["\s/>][^<]*?)?
 				(?:<meta\s+content="?(?P<ImageHeight>\d+)"?\s+property="?og:image:height["\s/>][^<]*?)?
-				<link\b[^>]*?\s+href="?(?P<ImageLink>[^">\s]+)"?\s+(?:[^>]*?\s+)?rel="?image[^a-z]?src["\s/>]
+				<link(?:\s+[^>]*?)?\s+href="?(?P<ImageLink>[^">\s]+)"?\s+(?:[^>]*?\s+)?rel="?image[^a-z]?src["\s/>]
 			)
 		''', re.I | re.X)
 	,	'link': [r'\g<ImageSrc>', r'\g<ImageLink>']
@@ -412,19 +501,34 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		#,	[1, r'\g<ImageLink>']
 		]
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?hqpix.\w+/image/[^/?#]+)([/?#]|$)', re.I)
+
+# hqpix:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?hqpix.\w+/image/[^/?#]+)([/?#]|$)', re.I)
 	,	'grab': re.compile(r'<a\b[^<]*?\s+href="?([^">\s]+)[">\s][^<]*?\s+download=', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?imgstun.\w+)(/\w+){3}(\.\w+){2}([/?#]|$)', re.I)
-	,	'grab': re.compile(r'</dd>[^<]*?<dt[^<]*?</dt><dd[^<]*?<input\b[^>]*?\s+value="?([^">\s]+)', re.I)
+
+# imgstun:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?imgstun.\w+)(/\w+){3}(\.\w+){2}([/?#]|$)', re.I)
+	,	'grab': re.compile(r'</dd>[^<]*?<dt[^<]*?</dt><dd[^<]*?<input(?:\s+[^>]*?)?\s+value="?([^">\s]+)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?awesomescreenshot\.com/[^/]+)$', re.I)
+
+# awesomescreenshot:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?awesomescreenshot\.com/[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+id="screenshotA"\s+href="?([^">\s]+)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?(c2n\.\w+|clip2net\.\w+/s)/[^/]+)$', re.I)
+
+# clip2net:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(c2n\.\w+|clip2net\.\w+/s)/[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+class="image-down-file"\s+href="?([^">\s]+?)(?:&fd=[^&]*)?[">\s]', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?(prnt.sc|prntscrn?\.com)/[^/]+)$', re.I)
+
+# prntscrn:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(prnt.sc|prntscrn?\.com)/[^/]+)$', re.I)
 	,	'grab': re.compile(r'''
 			<meta\s+property=[\'"]*og:image[\'"]*\s+content=[\'"]*
 			([^\s\'">]+)
@@ -437,22 +541,37 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 			([^\s\'">]+)
 		''', re.I | re.X)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?screencapture\.ru/file/[^/]+)$', re.I)
+
+# screencapture:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?screencapture\.ru/file/[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+href="?([^\s\'">]+?/file/download/[^\s\'">]+)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?screencast\.com/t/[^/]+)$', re.I)
+
+# screencast:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?screencast\.com/t/[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+class="?embeddedObject"?\s+src="?([^">\s]+)', re.I)
 	}
+
+# rghost:
+
 ,	{	'page': re.compile(r'(^|[/.])(?:rgho(?:st)?\.\w+|ad-l\.ink)/(private/)?(\d\w+)', re.I)
 	,	'grab': re.compile(r'\s+href="((?:\w+:|/+\w+)/+(?:[^/?#.]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/download/(?:private/)?\d\w+/[^">\s]+)', re.I)
 	,	'name': [
 			[0, r'rgh \3 - ']
-		,	[re.compile(r'<time\b[^>]*?\s+datetime="([^":\s]+)\s+([^":]+):([^":]+):([^":]+)', re.I), r'\1,\2-\3-\4 - ']
+		,	[re.compile(r'<time(?:\s+[^>]*?)?\s+datetime="([^":\s]+)\s+([^":]+):([^":]+):([^":]+)', re.I), r'\1,\2-\3-\4 - ']
 		]
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?nofile\.io/f/[^/].+)$', re.I)
+
+# nofile.io:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?nofile\.io/f/[^/].+)$', re.I)
 	,	'grab': re.compile(r'\s+downloadButton[^>]*?\s+href="?([^\s\'">]+)', re.I)
 	}
+
+# sta.sh:
+
 ,	{	'page': re.compile(r'^(\w+:/+sta\.sh/\w+)([/?#]|$)', re.I)
 	,	'grab': re.compile(r'<meta\s+property=[\'"]*og:image[\'"]*\s+content=[\'"]*([^\s\'">]+)', re.I)
 	,	'name': [
@@ -460,21 +579,29 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		,	[1, r'\1']
 		]
 	}
+
+# upload.cat:
+
 ,	{	'page': re.compile(r'^(\w+:/+upload\.cat/\w+)([/?#]|$)', re.I)
 	,	'grab': re.compile(r'''
-			<img\s+alt\b[^>]*?\s+src=[\'"]*([^">\s]+)
-		|	<a\b[^>]*?\s+href=[\'"]*([^">\s]+)(?:[\s"]+[^>]*)?>\w*?download
+			<img\s+alt(?:\s+[^>]*?)?\s+src=[\'"]*([^">\s]+)
+		|	<a(?:\s+[^>]*?)?\s+href=[\'"]*([^">\s]+)(?:[\s"]+[^>]*)?>\w*?download
 		''', re.I | re.X)
+
 # sample from https://upload.cat/c9d04f72208d7966
 # <img alt="cache_95c50f95-ffdb-4502-c548-fef6618fb774.png" src="https://upload.cat/imageviewer/8e175786cf0929b39570ce75f92e307e_40518" style="max-width: 100%;"/>
 # <a onclick="_gaq.push(['_trackPageview', '/download_image']);" href="https://upload.cat/c9d04f72208d7966?download_token=9daebf1bf5552c8d83f8a11960f424d820c0d8eb8883de28ae20b1644d2e9abf" target="_blank">(download)</a>
+
 	,	'name': [
 			[0, r'\1 - ']
 		,	[1, r'\1']
 		]
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?webm(share)?\.\w+/\w+)(?:[/?#]|$)', re.I)
-	,	'grab': re.compile(r'<source\b[^>]*?\s+src=[\'"]*/*([^\s\'">]+?)(?:/\d+)?[\s\'">]', re.I)
+
+# webmshare:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?webm(share)?\.\w+/\w+)(?:[/?#]|$)', re.I)
+	,	'grab': re.compile(r'<source(?:\s+[^>]*?)?\s+src=[\'"]*/*([^\s\'">]+?)(?:/\d+)?[\s\'">]', re.I)
 	,	'name': [
 			[0, r'\1 - ']
 		,	[re.compile(r'''
@@ -484,11 +611,13 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 			''', re.I | re.X), r'\1 - \2 - ']
 		]
 	}
+
 # twitter:
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?t.co/[^/]+)', re.I)
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?t.co/[^/]+)', re.I)
 	,	'grab': re.compile(r'URL="?([^"]+?)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^/?#]+\.)?twitter\.com/[^/]+/status/[^/]+)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?twitter\.com/[^/]+/status/[^/]+)', re.I)
 	,	'grab': re.compile(r'''
 		\s+(?:
 			data-url="?([^"]*?/status/\d+/photo/[^"?]*)
@@ -498,39 +627,48 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		)
 		''', re.I | re.X)
 	}
+
 # twitter - grab video by thumb:
+
+,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>twimg\.com/+tweet_video)_thumb(?P<ImageID>/+[^/.?#]+)([.?#]|$)', re.I)
+	,	'link': [r'https://video.\g<Domain>\g<ImageID>.mp4']
+	}
+
 # sample from https://twitter.com/tukudani01/status/1140647123873964032
 # https://pbs.twimg.com/tweet_video_thumb/D9RkbuHVUAA7Ch0.jpg
 # https://video.twimg.com/tweet_video/D9RkbuHVUAA7Ch0.mp4
-,	{	'page': re.compile(r'^(\w+:/+)?([^/?#]+\.)?(?P<Domain>twimg\.com/+tweet_video)_thumb(?P<ImageID>/+[^/.?#]+)([.?#]|$)', re.I)
-	,	'link': [r'https://video.\g<Domain>\g<ImageID>.mp4']
-	}
+
 # tumblr:
-,	{	'page': re.compile(r'^(\w+:/+)([^/?#]+\.)?(tumblr\.com)/video(?:_file)?(?:/\w+:\w+)?/(\w+)/(\w+)(?:[/?#]|$)', re.I)
-	,	'grab': re.compile(r'<source\b[^>]*?\s+src=[\'"]*([^">\s]+)', re.I)
+
+,	{	'page': re.compile(r'^(\w+:/+)([^:/?#]+\.)?(tumblr\.com)/video(?:_file)?(?:/\w+:\w+)?/(\w+)/(\w+)(?:[/?#]|$)', re.I)
+	,	'grab': re.compile(r'<source(?:\s+[^>]*?)?\s+src=[\'"]*([^">\s]+)', re.I)
 	,	'name': [
 			[0, r'\1\4.\3/post/\5 - ']
 		,	[1, r'\1']
 		]
 	}
-# tumblr etc, check this even after 1st "og:image" step:
+
+# tumblr photoset, check this even after 1st "og:image" step:
+
 ,	{	'page': re.compile(r'^(\w+:/+[^/?#]+/post/\d+/photoset)_iframe([/?#]|$)', re.I)
-	,	'grab': re.compile(r'<(?:a\b[^>]*?\s+href|img\b[^>]*?\s+src)="?/*([^">\s]+)', re.I)
+	,	'grab': re.compile(r'<(?:a(?:\s+[^>]*?)?\s+href|img(?:\s+[^>]*?)?\s+src)="?/*([^">\s]+)', re.I)
 	,	'name': [
 			[0, r'\1 - ']
 		,	[-1,r'\1 - ']
 		]
 	}
-# tumblr / based, any random domains possible:
+
+# tumblr-based blogs, any random domains possible:
+
 ,	{	'page': re.compile(r'^(\w+:/+[^/?#]+/(image|post|private|video(_file)?(/\w+:\w+)?)/\d+)([/?#]|$)', re.I)
 	,	'grab': re.compile(r'''
 			<(?:
 				(?:
 					meta\s+property=[\'"]*og:image[\'"]*\s+content
-				|	a\b[^>]*?\s+data-highres
-				|	a\b[^>]*?\s+href=[\'"]*[^\s\'">]+/image/\d+[^>]*<img\b[^>]*?\s+src
-				|	iframe\b[^>]*?\s+id=[\'"]*photoset[^>]*?\s+src
-				|	img\b[^>]*?\s+data-src
+				|	a(?:\s+[^>]*?)?\s+data-highres
+				|	a(?:\s+[^>]*?)?\s+href=[\'"]*[^\s\'">]+/image/\d+[^>]*<img(?:\s+[^>]*?)?\s+src
+				|	iframe(?:\s+[^>]*?)?\s+id=[\'"]*photoset[^>]*?\s+src
+				|	img(?:\s+[^>]*?)?\s+data-src
 				)
 				=[\'"]*
 				(
@@ -539,10 +677,10 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 				)?
 				([^\s\'">]+/)?
 
-			|	img\b[^>]*?\s+src=[\'"]*
+			|	img(?:\s+[^>]*?)?\s+src=[\'"]*
 				([^\s\'">]+/tumblr_inline)
 
-			|	iframe\b[^>]*?\s+src=[\'"]*
+			|	iframe(?:\s+[^>]*?)?\s+src=[\'"]*
 				([^\s\'">]+/video(?:_file)?/)
 			)
 			([^\s\'">]+)
@@ -555,16 +693,40 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 	}
 ]
 
+# MEGA URL samples:
+# https://mega.nz/#!mkpXDQhJ!9Bi_Mop4x3_rEW9QanFQ8U-2UAH1XUKyIFPL7Mt6RaA
+# https://mega.nz/#F!eNVWQJhJ!V2KmcjYK9hEhjwgTKz0F_w
+# https://mega.nz/file/mkpXDQhJ#9Bi_Mop4x3_rEW9QanFQ8U-2UAH1XUKyIFPL7Mt6RaA
+# https://mega.nz/folder/eNVWQJhJ#V2KmcjYK9hEhjwgTKz0F_w
+
+pat_mega_path = re.compile(r'''
+(?:
+	(?:^|[/.])
+	mega
+	(?:(?:\.co)?\.nz)?
+	[:/]+
+|
+	^[\w-]+[:/]+96d0d4e7-1ed7-4efb-99d0-b1bd780800b3[^#!]*?
+)
+(
+	#(F)?!.+
+|
+	(file|folder)/+
+	([^!#/]+)[!#]+
+	([^!#/]+)
+)
+$''', re.I | re.X)
+
 pat2open_in_browser = [	# <- too complicated to grab, so handle it by a prepared browser (js, etc)
-	[	re.compile(r'^(\w+:/+([^/?#]+\.)?drive\.(google\.\w+/file|bitcasa\.\w+/send)/.*)$', re.I)]
-,	[	re.compile(r'^(\w+:/+([^/?#]+\.)?mega(\.co)?\.nz/#!.*)$', re.I), None]
-,	[	re.compile(r'^(\w+:/+([^/?#]+\.)?yadi\.sk/\w+/[^/]+)', re.I), r'\1#dl']
+	[pat_mega_path, None]
+,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?drive\.(google\.\w+/file|bitcasa\.\w+/send)/.*)$', re.I)]
+,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?yadi\.sk/\w+/[^/]+)', re.I), r'\1#dl']
 ]
 
 pat2recheck_next_time = [
-	re.compile(r'^\w+:/+([^/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+', re.I)
-,	re.compile(r'^\w+:/+([^/?#]+\.)?dropbox(usercontent)?\.\w+/', re.I)
-,	re.compile(r'^\w+:/+([^/?#]+\.)?twitter\.com/\w+', re.I)
+	re.compile(r'^\w+:/+([^:/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+', re.I)
+,	re.compile(r'^\w+:/+([^:/?#]+\.)?dropbox(usercontent)?\.\w+/', re.I)
+,	re.compile(r'^\w+:/+([^:/?#]+\.)?twitter\.com/\w+', re.I)
 ]
 
 #pat2etag = [	# <- TODO: request using ETag header from the copy saved before, will get "304: not modified" for unchanged without full dl
@@ -615,12 +777,12 @@ pat2replace_before_saving_file = [
 
 pat_blocked_url = [
 	re.compile(r'^\w+:/+[^/?#]+/rkndeny', re.I)
-,	re.compile(r'^\w+:/+([^/?#]+\.)?blocked\.netbynet\.\w+/', re.I)
+,	re.compile(r'^\w+:/+([^:/?#]+\.)?blocked\.netbynet\.\w+/', re.I)
 ]
 
 pat_blocked_content = [
 	re.compile(r'(^|\]\s*=\>\s*)\w+:/+[^/?#]+/rkndeny', re.I)
-,	re.compile(r'(^|\]\s*=\>\s*)\w+:/+([^/?#]+\.)?blocked\.netbynet\.\w+/', re.I)
+,	re.compile(r'(^|\]\s*=\>\s*)\w+:/+([^:/?#]+\.)?blocked\.netbynet\.\w+/', re.I)
 ,	re.compile(ur'''
 		<title>\s*
 			Доступ\s+
@@ -1296,18 +1458,25 @@ def process_url(dest_root, url, utf='', prfx=''):
 			write_file(log_no_file, [e, '\n\n'])
 
 		udl_trim = re.sub(pat_trim, '', udl)
+
 		if udl != udl_trim:
 			print 'Retrying after trim:\n'
 			finished += process_url(dest_root, udl_trim)
+
+		elif e.code > 400 and e.code != 404 and e.code < 500 and udl.find(default_web_proxy) != 0:
+			print 'Retrying with proxy:\n'
+			finished += process_url(dest_root, get_proxified_url(udl))
 
 	except Exception as e:
 		write_exception_traceback()
 
 		print 'Unexpected error. See logs.\n'
 		write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
+
 		if udl.find('http://') != 0:
 			print 'Retrying with plain http:\n'
 			finished += process_url(dest_root, re.sub(pat_badp, 'http://', udl))
+
 		elif udl.find(default_web_proxy) != 0:
 			print 'Retrying with proxy:\n'
 			finished += process_url(dest_root, get_proxified_url(udl))
@@ -1489,7 +1658,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			etag = get_by_caseless_key(headers, 'ETag')
 
 			if filesize <= 0:
-				why_not_save = 'filesize = ' + filesize
+				why_not_save = 'filesize = ' + str(filesize)
 			else:
 				why_not_save = None
 

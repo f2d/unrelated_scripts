@@ -1,7 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
-import fnmatch, io, re, sys, tarfile, traceback
+import fnmatch, io, re, os, sys, tarfile, traceback
 
 argc = len(sys.argv)
 
@@ -17,22 +17,36 @@ regex_mod_flags = [
 ]
 
 if argc < 4:
-	print '* Usage: tar2tar.py <Source> <Dest> <Mask> [<Mask>] [<!Mask>] [TEST] ...'
-	print
-	print '* Source: path to file to read.'
-	print '* Dest: path to file to write. If "TEST", do not write.'
-	print '* Mask: include files, whose names matches any of these.'
-	print '* !Mask: exclude files, whose names matches any of these.'
-	print
-	print '* All masks are checked and the last met hit (include/exclude) wins.'
-	print '* Mask can be a:'
-	print '*	full pathname (never starts with a slash)'
-	print '*	glob pattern: *path/name?.*'
-	print '*	regular expression: ' + regex_delim + '<pattern>' + regex_delim + '[modifiers:' + regex_mod_args + ']'
-	print
-	print '* Example 1: tar2tar.py old.tar TEST *.txt'
-	print '* Example 2: tar2tar.py old.tar new.tar !*.txt "root/sub/*.txt"'
-	print '* Example 3: tar2tar.py ./old.tar /tmp/new.tar "!/^var/run.*$/i"'
+	self_name = os.path.basename(__file__)
+
+	help_text_lines = [
+		''
+	,	'* Description:'
+	,	'	Save some files from a tar file into a new tar file.'
+	,	''
+	,	'* Usage:'
+	,	'	%s <source> <dest> <mask> [<mask>] [<!mask>] [TEST] ...'
+	,	''
+	,	'<source>: path to file to read.'
+	,	'<dest>: path to file to write. If "TEST", do not write.'
+	,	'<mask>: wildcard to include files, whose names matches any of these.'
+	,	'<!mask>: wildcard to exclude files, whose names matches any of these.'
+	,	''
+	,	'	All masks are checked and the last met hit (include/exclude) wins.'
+	,	''
+	,	'	Mask can be a:'
+	,	'	- full pathname (never starts with a slash)'
+	,	'	- glob pattern: *path/name?.*'
+	,	'	- regular expression: ' + regex_delim + '<pattern>' + regex_delim + '[modifiers:' + regex_mod_args + ']'
+	,	''
+	,	'* Examples:'
+	,	'	%s old.tar TEST *.txt'
+	,	'	%s old.tar new.tar !*.txt "root/sub/*.txt"'
+	,	'	%s ./old.tar /tmp/new.tar "!/^var/run.*$/i"'
+	]
+
+	print('\n'.join(help_text_lines).replace('%s', self_name))
+
 	sys.exit()
 
 reg_type = None

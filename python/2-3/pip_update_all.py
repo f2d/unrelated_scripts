@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
-
 # Python 2 or 3 should work.
 
 # Check versions of python and pip:
