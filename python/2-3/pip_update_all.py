@@ -8,7 +8,9 @@
 import subprocess, sys
 
 python_version_string = str(sys.version_info.major)
-pip_exe_filename = 'pip' + python_version_string
+
+# pip_exe_filename = 'pip' + python_version_string
+pip_exe_filename = 'python' + python_version_string + ' -m pip'
 
 print('Got python version: ' + python_version_string + ', full text:\n' + sys.version + '\n')
 
