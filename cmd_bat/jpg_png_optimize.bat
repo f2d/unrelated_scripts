@@ -42,9 +42,13 @@ ECHO:	b) %%WINDIR%%\SYSTEM32 e.g. %WINDIR%\SYSTEM32\.
 ECHO:	c) any other folder from %%PATH%%: %PATH%.
 ECHO:
 ECHO: * Notes:
-ECHO:	OxiPNG works but is not recommended, OptiPNG result filesize is better, except OxiPNG with -Z option which takes very long time.
+ECHO:	OxiPNG works but is not recommended, OptiPNG result filesize is better, except OxiPNG using Zopfli with "-Z" option which takes very long time.
 ECHO:	TruePNG works but is not recommended, result filesize is better than OptiPNG, but takes significantly more time.
 ECHO:	TruePNG versions 0.6.2.2-0.6.2.4 with "/o max" option can corrupt specific monocrome files. Fixed in version 0.6.2.5.
+ECHO:
+ECHO: * Other:
+ECHO:	If you don't mind using the slowest Zopfli algorithm for better filesize, then instead of this script I recommend Leanify, which supports similar use cases and many more file formats, and has no problems with commas in filenames. Its only drawback is needing to manually copy your files before optimizing, to avoid corruption in case anything breaks or power supply goes down.
+ECHO:	Leanify - https://github.com/JayXon/Leanify
 
 goto end_after_pause
 
