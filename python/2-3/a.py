@@ -99,9 +99,9 @@ def get_exe_paths():
 						for subdir_suffix in exe_try_subdir_suffixes:
 							for filename_suffix in exe_try_filename_suffixes:
 								path = fix_slashes(
-									root_dir
-								+'/'+	subdir + subdir_suffix
-								+'/'+	filename + filename_suffix
+									root_dir + '/' +
+									subdir + subdir_suffix + '/' +
+									filename + filename_suffix
 								)
 
 								if os.path.isfile(path):
@@ -131,9 +131,9 @@ def print_help():
 	,	'* Usage:'
 	,	''
 	,	'	%s'
-		+' '.join([
+		+ ' '.join([
 			'"['
-			+']['.join([
+			+ ']['.join([
 				''.join(sorted(set(
 					'1234_069.,;fzwdatmnckl'
 				+	flags_all_solid_types
@@ -142,16 +142,16 @@ def print_help():
 			,	def_name_separator+'<name>'
 			,	def_suffix_separator+'<suffix>'
 			])
-			+']"'
-		,	'["<subj>"|'+def_subj+']'
-		,	'["<dest>"|'+def_dest+']'
+			+ ']"'
+		,	'["<subj>"|' + def_subj + ']'
+		,	'["<dest>"|' + def_dest + ']'
 		,	'[<optional args> ...]'
 		])
 	,	''
 	,	'* Warning:'
 	,	''
 	,	'	In shell, add "quotes" around arguments, that contain any of the'
-	,	'	following symbols: "'+must_quote+'"'
+	,	'	following symbols: "' + must_quote + '"'
 	,	'	Or quote/escape anything beyond latin letters and digits just in case.'
 	,	''
 	,	'* Current executable paths to be used (found or fallback):'
@@ -160,7 +160,7 @@ def print_help():
 		'	%s:	%s' % (k, v) for k, v in exe_paths.items()
 	] + [
 		''
-	,	'* Switch letters (concatenate in any order, any case):'
+	,	'* Flags (switch letters, concatenate in any order, any case):'
 	,	''
 	,	'	c: check resulting command lines without running them.'
 	,	'	k: don\'t wait for key press after errors.'
@@ -184,10 +184,10 @@ def print_help():
 	,	'	12: same as "2" but files without ID go to one list, not separate.'
 	,	'	. and/or ,: same as "1" or "2" but ID may contain dots and/or commas.'
 	,	'		("1" is implied unless "2" is given)'
-	,	'	3: shortcut, equivalent to "'+flags_group_by_num_dot+'".'
+	,	'	3: shortcut, equivalent to "' + flags_group_by_num_dot + '".'
 	,	'	4: make separate archives for each dir of subject mask.'
 	,	'	f: make separate archives for each file of subject mask.'
-	,	'		(use one of "4" or "f" with any of "'+flags_group_by_num_any_sep+'" to add only dirs or'
+	,	'		(use one of "4" or "f" with any of "' + flags_group_by_num_any_sep + '" to add only dirs or'
 	,	'		files to the groups)'
 #	,	'TODO ->	5 and/or g: make separate archives for each group of subjects'
 #	,	'TODO ->		by longest common subject name parts.'
@@ -210,15 +210,15 @@ def print_help():
 	,	'	s: make solid archives.'
 	,	'	e: make archives with solid blocks grouped by filename extension.'
 	,	'	n: make non-solid archives (implied unless "s" or "e" is given).'
-	,	'	a: make a set of solid variants, equivalent to "'+flags_all_solid_types+'".'
-	,	'	8: make all types currently supported, equivalent to "'+flags_all_types+'".'
+	,	'	a: make a set of solid variants, equivalent to "' + flags_all_solid_types + '".'
+	,	'	8: make all types currently supported, equivalent to "' + flags_all_types + '".'
 	,	''
 	,	'	---- archive filenames:'
 	,	'	t: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
 	,	'	m: add each archive\'s last-modified time to its filename.'
 	,	'	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
-	,	'	'+def_suffix_separator+': put timestamp before archive type suffix.'
-	,	'	'+def_name_separator+'filename'+def_suffix_separator+'suffix: add given suffix between timestamp and archive type.'
+	,	'	' + def_suffix_separator + ': put timestamp before archive type suffix.'
+	,	'	' + def_name_separator + 'filename' + def_suffix_separator + 'suffix: add given suffix between timestamp and archive type.'
 	,	''
 	,	'	---- clean up:'
 	,	'	d: delete subjects (source files) when done.'
@@ -237,21 +237,21 @@ def print_help():
 	,	''
 	,	'	%s ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
 	,	''
-	,	'	%s "7r_e'+def_name_separator+'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
+	,	'	%s "7r_e' + def_name_separator + 'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
 	]
 
 	print('\n'.join(help_text_lines).replace('%s', self_name))
 
-def uniq(n, e, t0):
-	r = n+e
+def uniq(path_part_before, path_part_after, timestamp):
+	full_path = path_part_before + path_part_after
 
-	if os.path.exists(r):
-		r = n+t0+e
+	if os.path.exists(full_path):
+		full_path = path_part_before + timestamp + path_part_after
 
-	while os.path.exists(r):
-		r = '(2).'.join(r.rsplit('.', 1))
+	while os.path.exists(full_path):
+		full_path = '(2).'.join(full_path.rsplit('.', 1))
 
-	return fix_slashes(r)
+	return fix_slashes(full_path)
 
 def is_any_char_of_a_in_b(a, b):
 	for c in a:
@@ -261,7 +261,7 @@ def is_any_char_of_a_in_b(a, b):
 	return False
 
 def quoted_if_must(text):
-	return '"'+text+'"' if is_any_char_of_a_in_b(must_quote, text) else text
+	return ('"%s"' % text) if is_any_char_of_a_in_b(must_quote, text) else text
 
 def quoted_list(a):
 	return map(quoted_if_must, a)
@@ -286,14 +286,14 @@ def run_batch_archiving(argv):
 					lambda x: (
 						None if x[0:4] == '-mqs'
 					else	None if x[0:4] == '-md='
-					else	(None if '0' in flag else '-mfb=256') if x[0:5] == '-mfb='
+					else	(None if '0' in flags else '-mfb=256') if x[0:5] == '-mfb='
 					else	x
 					), cmd_args
 				))
 
 			dest = uniq(dest, suffix, t0)
 			path_args = (
-				[('-n' if rar else '-i')+subj, '--', dest] if is_subj_list else
+				[('-n' if rar else '-i') + subj, '--', dest] if is_subj_list else
 				['--', dest, subj]
 			)
 
@@ -332,43 +332,43 @@ def run_batch_archiving(argv):
 		for i in ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']:
 			name = name.replace(i[0], i[1] if len(i) > 1 else '_')
 
-		print('name:	', name)
+		print('name:	%s' % name)
 
-		name = dest+'/'+name+(t0 if 't' in flag else '')
-		paths = list(map(fix_slashes, [subj, name]))
+		dest_name = dest + '/' + name + (t0 if 't' in flags else '')
+		paths = list(map(fix_slashes, [subj, dest_name]))
 
-		ddup = ',dedup' if 'l' in flag else ''
-		uncm = ',store' if '0' in flag else ''
-		dcsz = ',d=256m' if '6' in flag else ''
+		dest_name_part_dedup		= ',dedup' if 'l' in flags else ''
+		dest_name_part_uncompressed	= ',store' if '0' in flags else ''
+		dest_name_part_dict_size	= ',d=256m' if '6' in flags else ''
 
-		if '7' in flag:
-			ext = (uncm or dcsz)+'.7z'
+		if '7' in flags:
+			ext = (dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
 			solid = 0
-			if is_subj_mass and not uncm:
-				if 'e' in flag: solid += append_cmd(cmd_queue, paths, ',se'+ext, ['-ms=e'])
-				if 's' in flag: solid += append_cmd(cmd_queue, paths, ',s'+ext, ['-ms'])
-			if not solid or 'n' in flag: append_cmd(cmd_queue, paths, ext, ['-ms=off'])
+			if is_subj_mass and not dest_name_part_uncompressed:
+				if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
+				if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-ms'])
+			if not solid or 'n' in flags: append_cmd(cmd_queue, paths, ext, ['-ms=off'])
 
-		ext = uncm+'.zip'
+		ext = dest_name_part_uncompressed + '.zip'
 
-		if 'z' in flag: append_cmd(cmd_queue, paths, ',7z'+ext)
-		if 'w' in flag: append_cmd(cmd_queue, paths, ',winrar'+ext)
+		if 'z' in flags: append_cmd(cmd_queue, paths, ',7z' + ext)
+		if 'w' in flags: append_cmd(cmd_queue, paths, ',winrar' + ext)
 
-		if 'r' in flag:
-			ext = (uncm or dcsz)+ddup+'.rar'
+		if 'r' in flags:
+			ext = (dest_name_part_uncompressed or dest_name_part_dict_size) + dest_name_part_dedup + '.rar'
 			solid = 0
-			if is_subj_mass and not uncm:
-				if 'e' in flag: solid += append_cmd(cmd_queue, paths, ',se'+ext, ['-se'])
-				if 's' in flag: solid += append_cmd(cmd_queue, paths, ',s'+ext, ['-s'])
-			if not solid or 'n' in flag: append_cmd(cmd_queue, paths, ext, ['-s-'])
+			if is_subj_mass and not dest_name_part_uncompressed:
+				if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-se'])
+				if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-s'])
+			if not solid or 'n' in flags: append_cmd(cmd_queue, paths, ext, ['-s-'])
 
 		del_warn = 0
 
 		# delete subj files, only for last queued cmd per subj:
-		if 'd' in flag:
+		if 'd' in flags:
 			da = (
-				['-df', '-y', '-t'] if ('w' in flag) or ('r' in flag) else
-				['-sdel', '-y'] if ('7' in flag) or ('z' in flag) else
+				['-df', '-y', '-t'] if ('w' in flags) or ('r' in flags) else
+				['-sdel', '-y'] if ('7' in flags) or ('z' in flags) else
 				[]
 			)
 			if da:
@@ -404,19 +404,19 @@ def run_batch_archiving(argv):
 
 # - calculate params ----------------------------------------------------------
 
-	flag, def_name = pad_list((argv_flag.strip('"') or '').split(def_name_separator, 1))
+	flags, def_name = pad_list((argv_flag.strip('"') or '').split(def_name_separator, 1))
 
-	flag = (
-		flag
+	flags = (
+		flags
 		.lower()
 		.replace('8', flags_all_types)
 		.replace('a', flags_all_solid_types)
 		.replace('3', flags_group_by_num_dot)
-	#+'9'
+	# + '9'
 	)
 
-	if (def_suffix_separator in def_name) and not (def_suffix_separator in flag):
-		flag += def_suffix_separator
+	if (def_suffix_separator in def_name) and not (def_suffix_separator in flags):
+		flags += def_suffix_separator
 
 	def_name, def_suffix = pad_list((def_name or '').split(def_suffix_separator, 1))
 
@@ -424,16 +424,16 @@ def run_batch_archiving(argv):
 	dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
 	rest = argv_rest or []
 
-	print()
-	print('argc:	', argc)
-	print('flags:	', flag)
-	print('suffix:	', def_suffix)
-	print('subj:	', subj)
-	print('dest:	', dest)
-	print('etc:	', ' '.join(rest))
-	print()
+	print('')
+	print('argc:	%s' % argc)
+	print('flags:	%s' % flags)
+	print('suffix:	%s' % def_suffix)
+	print('subj:	%s' % subj)
+	print('dest:	%s' % dest)
+	print('etc:	%s' % ' '.join(rest))
+	print('')
 
-	if '_' in flag:
+	if '_' in flags:
 		SW_MINIMIZE = 6
 		minimized = subprocess.STARTUPINFO()
 		minimized.dwFlags = subprocess.STARTF_USESHOWWINDOW
@@ -442,11 +442,11 @@ def run_batch_archiving(argv):
 		minimized = None
 
 	is_subj_list = (subj[0] == '@')
-	foreach_date = flag.count('9')
-	foreach_dir  = '4' in flag
-	foreach_file = 'f' in flag
+	foreach_date = flags.count('9')
+	foreach_dir  = '4' in flags
+	foreach_file = 'f' in flags
 	foreach = (foreach_dir or foreach_file) and not is_subj_list
-	foreach_ID = ''.join(map(lambda x: x if x in flag else '', flags_group_by_num_any_sep))
+	foreach_ID = ''.join(map(lambda x: x if x in flags else '', flags_group_by_num_any_sep))
 
 	exe_paths = get_exe_paths()
 
@@ -454,9 +454,9 @@ def run_batch_archiving(argv):
 	cmd_template['7z'] = (
 		[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
 	+	(
-			['-mx0', '-mmt=off'] if '0' in flag else
+			['-mx0', '-mmt=off'] if '0' in flags else
 			['-mx9', '-mmt=2'] + (
-				['-md=256m', '-mfb=256'] if '6' in flag else
+				['-md=256m', '-mfb=256'] if '6' in flags else
 				['-md=64m', '-mfb=273']
 			)
 		)
@@ -487,14 +487,14 @@ def run_batch_archiving(argv):
 	cmd_template['rar'] = (
 		[exe_paths['rar'], 'a', '-tl', '-dh', '-ma5', '-qo+']
 	+	(
-			['-m0', '-mt1'] if '0' in flag else
+			['-m0', '-mt1'] if '0' in flags else
 			['-m5', '-mt4'] + (
-				['-md256m'] if '6' in flag else
+				['-md256m'] if '6' in flags else
 				[]
 			)
 		)
 	+	(
-			['-oi:0'] if 'l' in flag else
+			['-oi:0'] if 'l' in flags else
 			['-oi-']
 		)
 	+	(
@@ -506,7 +506,7 @@ def run_batch_archiving(argv):
 
 	cmd_queue = []
 	del_warn = 0
-	time_format = ';_%Y-%m-%d,%H-%M-%S' if ';' in flag else '_%Y-%m-%d_%H-%M-%S'
+	time_format = ';_%Y-%m-%d,%H-%M-%S' if ';' in flags else '_%Y-%m-%d_%H-%M-%S'
 	t0 = time.strftime(time_format)
 
 # - fill batch queue ----------------------------------------------------------
@@ -525,8 +525,8 @@ def run_batch_archiving(argv):
 			for i in d:
 				if i in foreach_ID:
 					dots += i
-			d = '\d'+dots
-			pat_ID = re.compile(r'^(\D*\d['+d+']*)([^'+d+']|$)' if dots else r'^(\D*\d+)(\D|$)')
+			d = '\d' + dots
+			pat_ID = re.compile(r'^(\D*\d[' + d + ']*)([^' + d + ']|$)' if dots else r'^(\D*\d+)(\D|$)')
 
 			if '2' in foreach_ID:
 				no_group = def_name or def_name_fallback
@@ -540,9 +540,9 @@ def run_batch_archiving(argv):
 					d[n].append(subj)
 				names = []
 				for i in d.keys():
-					name = dest+'/'+i+'_list.txt'
-					names.append('@'+name)
-					if not 'c' in flag:
+					name = dest + '/' + i + '_list.txt'
+					names.append('@' + name)
+					if not 'c' in flags:
 						f = open(name, 'wb')
 						r = f.write('\n'.join(d[i]))
 						f.close()
@@ -551,7 +551,7 @@ def run_batch_archiving(argv):
 				for subj in names:
 					s = re.search(pat_ID, subj)
 					if s:
-						n = s.group(1)+'*'
+						n = s.group(1) + '*'
 						if not (n in d):
 							d.append(n)
 					else:
@@ -566,15 +566,17 @@ def run_batch_archiving(argv):
 	else:
 		del_warn += queue(cmd_queue, dest, subj)
 
-	if len(cmd_queue) > 0:
-		print()
+	cmd_count = len(cmd_queue)
+
+	if cmd_count > 0:
+		print('')
 	else:
 		print('----	----	Nothing to do, command queue is empty.')
 		return
 
 	if del_warn:
 		print('----	----	WARNING, only WinRAR or 7-zip v17+ can delete files!')
-		print()
+		print('')
 
 	error_count = 0
 
@@ -588,18 +590,18 @@ def run_batch_archiving(argv):
 
 		print(' '.join(quoted_list(cmd_args)))
 
-		if not 'c' in flag:
-			e = subprocess.call(cmd_args, startupinfo=minimized)
+		if not 'c' in flags:
+			result_code = subprocess.call(cmd_args, startupinfo=minimized)
 
-			if e:
+			if result_code:
 				error_count += 1
 
 			if os.path.exists(cmd_dest):
-				c = cmd_suffix if ((def_suffix_separator in flag) and cmd_suffix) else '.'
+				c = cmd_suffix if ((def_suffix_separator in flags) and cmd_suffix) else '.'
 				d = cmd_dest
 				j = (
 					datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
-					if 'm' in flag
+					if 'm' in flags
 					else ''
 				) + def_suffix + c
 
@@ -613,32 +615,33 @@ def run_batch_archiving(argv):
 
 					os.rename(cmd_dest, d)
 
-			c = exit_codes[cmd_type]
+			codes_of_type = exit_codes[cmd_type]
+			result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
 
-			print(e, ':', c[e] if e in c else 'Unknown code')
-			print()
+			print('%d: %s' % (result_code, result_text))
+			print('')
 
 # - finished ------------------------------------------------------------------
 
-	if 'c' in flag:
-		print()
+	if 'c' in flags:
+		print('')
 
 	if error_count > 0:
-		if 'k' in flag:
-			print('----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. See messages above.')
+		if 'k' in flags:
+			print('----	----	Done %d archives, %d errors. See messages above.' % (cmd_count, error_count))
 		else:
-			print('----	----	Done', len(cmd_queue), 'archives,', error_count, 'errors. Press Enter to continue.')
+			print('----	----	Done %d archives, %d errors. Press Enter to continue.' % (cmd_count, error_count))
 
-			if sys.version_info.major == 3:
-				input()
-			else:
+			if sys.version_info.major == 2:
 				raw_input()
-	elif 'c' in flag:
-		print('----	----	Total', len(cmd_queue), 'commands.')
+			else:
+				input()
+	elif 'c' in flags:
+		print('----	----	Total %d commands.' % cmd_count)
 	else:
-		print('----	----	Done', len(cmd_queue), 'archives.')
+		print('----	----	Done %d archives.' % cmd_count)
 
 # - runtime, when not imported as module --------------------------------------
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 	run_batch_archiving(sys.argv[1:])

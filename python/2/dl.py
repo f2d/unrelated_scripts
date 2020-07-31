@@ -1864,18 +1864,26 @@ while 1:
 		if '	' in line:
 			old_meta.append(line.split('	'))
 
-	changes = u = 0
+	changes = count_urls_done = 0
 	urls_done_this_time = []
 
 	for p in read_paths:
-		for line in read_path(p[0], p[1]):
+		lines = read_path(p[0], p[1])
+		count_urls_to_do = len(lines)
+
+		for line in lines:
 			processed = 0
 			finished = process_url(*line)
 
 			if finished:
-				u += finished
-				print '(done in this round:', u, ')\n'
-			if TEST and u > 1:
+				if finished > 1:
+					count_urls_to_do += finished - 1
+
+				count_urls_done += finished
+
+				print '(done in this round: %d / %d)\n' % (count_urls_done, count_urls_to_do)
+
+			if TEST and count_urls_done > 1:
 				break
 
 	if changes and new_meta:
