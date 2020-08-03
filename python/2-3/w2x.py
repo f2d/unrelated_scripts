@@ -142,10 +142,10 @@ def get_image_sizes(src):
 
 		return None
 
-	except Exception as e:
+	except Exception as exception:
 		if arg_test:
 			print('')
-			print('Error: %r - "%s"' % (e, src.encode(print_encoding)))
+			print('Error: %r - "%s"' % (exception, src.encode(print_encoding)))
 
 		return None
 

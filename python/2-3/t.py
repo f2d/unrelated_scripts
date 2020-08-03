@@ -139,10 +139,10 @@ def read_file(path, mode='r'):
 	# There was no PermissionError in Python 2.7, it was introduced in the Python 3.3 stream with PEP 3151.
 	# https://stackoverflow.com/a/18199529
 
-	except (IOError, OSError) as exn:
+	except (IOError, OSError) as exception:
 		if arg_verbose:
 			print('Error reading contents of file "%s":' % path.encode(print_encoding))
-			print(exn)
+			print(exception)
 			print('')
 
 	if file:
@@ -207,10 +207,10 @@ def process_folder(path):
 			if timestamp_text:
 				try:
 					timestamp_value = get_timestamp_value(timestamp_text)
-				except Exception as exn:
+				except Exception as exception:
 					if arg_verbose:
 						print('Error reading time text from file "%s":' % path_name.encode(print_encoding))
-						print(exn)
+						print(exception)
 						print('')
 
 					count_files_errors += 1
@@ -226,9 +226,9 @@ def process_folder(path):
 							timestamp_value,
 							path_name
 						))
-					except Exception as exn:
+					except Exception as exception:
 						print('Error printing path info for "%s":' % path_name.encode(print_encoding))
-						print(exn)
+						print(exception)
 						print('')
 
 				if arg_apply:
@@ -276,9 +276,9 @@ def process_folder(path):
 						get_timestamp_text(modtime_value),
 						path
 					))
-				except Exception as exn:
+				except Exception as exception:
 					print('Error printing path info for "%s":' % path.encode(print_encoding))
-					print(exn)
+					print(exception)
 					print('')
 
 			if arg_apply:

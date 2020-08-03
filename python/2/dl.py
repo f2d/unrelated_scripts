@@ -1864,12 +1864,12 @@ while 1:
 		if '	' in line:
 			old_meta.append(line.split('	'))
 
-	changes = count_urls_done = 0
+	changes = count_urls_done = count_urls_to_do = 0
 	urls_done_this_time = []
 
 	for p in read_paths:
 		lines = read_path(p[0], p[1])
-		count_urls_to_do = len(lines)
+		count_urls_to_do += len(lines)
 
 		for line in lines:
 			processed = 0
