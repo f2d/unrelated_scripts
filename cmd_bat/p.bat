@@ -59,19 +59,22 @@ if not "%pause%" == "n" set pause=pause
 
 REM	--------	--------	Figure out interpreter and target script paths to call:	--------	--------
 
-set script_name=%~1
+set "script_name=%~1"
+set "script_name=%script_name:>=%"
+set "script_name=%script_name:<=%"
+set "script_name=%script_name:/=%"
+set "script_name=%script_name:\=%"
 
 if "%script_name%" == "" (
  echo Error: script file not specified.
  goto done
 )
 
-set script_name_without_spaces=%script_name:* =%
+set "script_name_ext=%~x1%"
 
-if not "%script_name%" == "%script_name_without_spaces%" (
- echo Error: script name must contain no spaces: %script_name%
- goto done
-)
+if not "%script_name_ext%" == ".pyc" ^
+if not "%script_name_ext%" == ".py" ^
+set script_name_ext=
 
 :check_version_start
 :check_version_3_start
@@ -89,13 +92,13 @@ set python_exe_path=%python_v3_exe_path%
 
 if exist "%scripts_v3_path%\%script_name%.pyc"		set script_path=%scripts_v3_path%\%script_name%.pyc
 if exist "%scripts_v3_path%\%script_name%.py"		set script_path=%scripts_v3_path%\%script_name%.py
-if exist "%scripts_v3_path%\%script_name%"		set script_path=%scripts_v3_path%\%script_name%
+if exist "%scripts_v3_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_v3_path%\%script_name%
 if exist "%scripts_common_path%\%script_name%.pyc"	set script_path=%scripts_common_path%\%script_name%.pyc
 if exist "%scripts_common_path%\%script_name%.py"	set script_path=%scripts_common_path%\%script_name%.py
-if exist "%scripts_common_path%\%script_name%"		set script_path=%scripts_common_path%\%script_name%
+if exist "%scripts_common_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_common_path%\%script_name%
 if exist "%script_name%.pyc"				set script_path=%script_name%.pyc
 if exist "%script_name%.py"				set script_path=%script_name%.py
-if exist "%script_name%"				set script_path=%script_name%
+if exist "%script_name%"				if not "%script_name_ext%" == "" set script_path=%script_name%
 
 if not "%script_path%" == "" goto check_version_end
 
@@ -115,14 +118,15 @@ set python_exe_path=%python_v2_exe_path%
 
 if exist "%scripts_v2_path%\%script_name%.pyc"		set script_path=%scripts_v2_path%\%script_name%.pyc
 if exist "%scripts_v2_path%\%script_name%.py"		set script_path=%scripts_v2_path%\%script_name%.py
-if exist "%scripts_v2_path%\%script_name%"		set script_path=%scripts_v2_path%\%script_name%
+if exist "%scripts_v2_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_v2_path%\%script_name%
 if exist "%scripts_common_path%\%script_name%.pyc"	set script_path=%scripts_common_path%\%script_name%.pyc
 if exist "%scripts_common_path%\%script_name%.py"	set script_path=%scripts_common_path%\%script_name%.py
-if exist "%scripts_common_path%\%script_name%"		set script_path=%scripts_common_path%\%script_name%
+if exist "%scripts_common_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_common_path%\%script_name%
 if exist "%script_name%.pyc"				set script_path=%script_name%.pyc
 if exist "%script_name%.py"				set script_path=%script_name%.py
-if exist "%script_name%"				set script_path=%script_name%
+if exist "%script_name%"				if not "%script_name_ext%" == "" set script_path=%script_name%
 
+if not "%script_path%" == "" goto check_version_end
 if not "%script_path%" == "" goto check_version_end
 
 :check_version_2_end
