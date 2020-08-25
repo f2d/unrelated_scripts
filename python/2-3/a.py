@@ -10,7 +10,7 @@ flags_group_by_num_any_sep = '12.,'
 flags_group_by_num_dot = '12.'
 flags_all_solid_types = '7res'
 flags_all_types = 'anwz'
-must_quote = ' ,;>='
+must_quote_chars = ' ,;>='
 
 def_name_fallback = 'default'
 def_name_separator = '='
@@ -151,7 +151,7 @@ def print_help():
 	,	'* Warning:'
 	,	''
 	,	'	In shell, add "quotes" around arguments, that contain any of the'
-	,	'	following symbols: "' + must_quote + '"'
+	,	'	following symbols: "' + must_quote_chars + '"'
 	,	'	Or quote/escape anything beyond latin letters and digits just in case.'
 	,	''
 	,	'* Current executable paths to be used (found or fallback):'
@@ -253,18 +253,34 @@ def uniq(path_part_before, path_part_after, timestamp):
 
 	return fix_slashes(full_path)
 
-def is_any_char_of_a_in_b(a, b):
-	for c in a:
-		if b.find(c) >= 0:
+def is_any_char_of_a_in_b(chars, text):
+	for char in chars:
+		if text.find(char) >= 0:
+			return True
+
+	return False
+
+def is_quoted(text):
+	for char in '\'"':
+		if text[0] == char and text[-1 : ][0] == char:
 			return True
 
 	return False
 
 def quoted_if_must(text):
-	return ('"%s"' % text) if is_any_char_of_a_in_b(must_quote, text) else text
+	text = '%s' % text
 
-def quoted_list(a):
-	return map(quoted_if_must, a)
+	return (
+		('"%s"' % text)
+		if not is_quoted(text) and is_any_char_of_a_in_b(must_quote_chars, text)
+		else text
+	)
+
+def quoted_list(args):
+	return list(map(quoted_if_must, args))
+
+def cmd_args_to_text(args):
+	return ' '.join(quoted_list(args))
 
 def pad_list(a, minimum_len=2, pad_value=''):
 	diff = minimum_len - len(a)
@@ -588,7 +604,7 @@ def run_batch_archiving(argv):
 		cmd_type = cmd['exe_type']
 		cmd_suffix = cmd['suffix']
 
-		print(' '.join(quoted_list(cmd_args)))
+		print(cmd_args_to_text(cmd_args))
 
 		if not 'c' in flags:
 			result_code = subprocess.call(cmd_args, startupinfo=minimized)

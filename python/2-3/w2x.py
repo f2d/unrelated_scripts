@@ -9,7 +9,7 @@ work_dir = u'd:/programs/!_media/waifu2x-converter_x64_0813/'
 base_cmd = [work_dir+'waifu2x-converter_x64.exe', '-j', '7']
 mode = 'scale'
 suffix = ',waifu2x_0813_'
-must_quote = ' ,;>='
+must_quote_chars = ' ,;>='
 
 pat_res = re.compile(r'^[\'"]*(?P<Width>\d+)?(?:x(?P<Height>\d+))?[\'"]*$', re.I)
 pat_help = re.compile(r'^(-+h[elp]*|/\?)$', re.I)
@@ -63,21 +63,34 @@ def show_help_and_exit(exit_code=0):
 
 	sys.exit(exit_code)
 
-def is_any_char_of_a_in_b(a, b):
-	for c in a:
-		if b.find(c) >= 0:
+def is_any_char_of_a_in_b(chars, text):
+	for char in chars:
+		if text.find(char) >= 0:
+			return True
+
+	return False
+
+def is_quoted(text):
+	for char in '\'"':
+		if text[0] == char and text[-1 : ][0] == char:
 			return True
 
 	return False
 
 def quoted_if_must(text):
-	return ('"%s"' % text) if is_any_char_of_a_in_b(must_quote, text) else text
+	text = '%s' % text
 
-def quoted_list(a):
-	return map(quoted_if_must, a)
+	return (
+		('"%s"' % text)
+		if not is_quoted(text) and is_any_char_of_a_in_b(must_quote_chars, text)
+		else text
+	)
 
-def get_cmd_text(cmd_args):
-	return ' '.join(quoted_list(cmd_args))
+def quoted_list(args):
+	return list(map(quoted_if_must, args))
+
+def cmd_args_to_text(args):
+	return ' '.join(quoted_list(args))
 
 arg_w = arg_h = res = None
 args = []
@@ -122,8 +135,8 @@ for i in range(0, 2):
 
 base_cmd += ['-m', mode]
 
-# print('base_cmd: %s' % get_cmd_text(base_cmd))
-# print('args: %s' % get_cmd_text(args))
+# print('base_cmd: %s' % cmd_args_to_text(base_cmd))
+# print('args: %s' % cmd_args_to_text(args))
 print('flags: %s' % flags)
 print('base_dest: %s' % base_dest)
 print('width x height: %sx%s' % (arg_w, arg_h))
@@ -235,7 +248,7 @@ def process_folder(path):
 
 			if arg_test:
 				print('Test resize: %s x %s -> %s' % (orig_res, scale, dest_res))
-				print('Test command: %s' % get_cmd_text(file_cmd))
+				print('Test command: %s' % cmd_args_to_text(file_cmd))
 			else:
 				if not os.path.exists(base_dest):
 					os.makedirs(base_dest)

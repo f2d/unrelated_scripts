@@ -154,7 +154,7 @@ def process_folder(path):
 	global count_dirs_checked, count_dirs_changed, count_dirs_errors
 	global count_files_checked, count_files_changed, count_files_errors, count_files_read
 
-	last_file_time_ex = last_file_time = 0
+	last_file_time_of_included = last_file_time = 0
 
 	try:
 		names = os.listdir(path)
@@ -170,7 +170,10 @@ def process_folder(path):
 			count_dirs_checked += 1
 
 			if arg_recurse:
-				process_folder(path_name)
+				modtime_value = process_folder(path_name)
+
+				if last_file_time < modtime_value:
+					last_file_time = modtime_value
 
 		elif os.path.isfile(path_name):
 			count_files_checked += 1
@@ -184,6 +187,7 @@ def process_folder(path):
 					for partial_format in exp_date:
 						try:
 							timestamp_text = match.expand(partial_format)
+
 							break
 
 						except:
@@ -238,6 +242,7 @@ def process_folder(path):
 
 			if arg_folders_modtime_by_files:
 				modtime_value = os.path.getmtime(path_name)
+
 				if last_file_time < modtime_value:
 					last_file_time = modtime_value
 
@@ -246,14 +251,17 @@ def process_folder(path):
 				for mask in masks:
 					if fnmatch.fnmatch(name, mask):
 						included = False
+
 						break
 
-				if included and last_file_time_ex < modtime_value:
-					last_file_time_ex = modtime_value
+				if included and last_file_time_of_included < modtime_value:
+					last_file_time_of_included = modtime_value
+
+	timestamp_value = last_file_time_of_included or last_file_time
+	modtime_value = 0
 
 	if arg_folders_modtime_by_files:
 		modtime_value = os.path.getmtime(path)
-		timestamp_value = last_file_time_ex or last_file_time
 
 		if (
 			timestamp_value > t_min_valid
@@ -285,6 +293,8 @@ def process_folder(path):
 				count_dirs_changed += 1
 
 				os.utime(path, (timestamp_value, timestamp_value))
+
+	return timestamp_value or modtime_value
 
 process_folder(u'.')
 
