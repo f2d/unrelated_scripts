@@ -8,6 +8,8 @@ import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess,
 
 from dl_config import *
 
+print_enc = default_encoding
+
 TEST = 0
 
 # command line arguments ------------------------------------------------------
@@ -117,6 +119,7 @@ for p in read_paths:
 			f += 1
 		else:
 			nf += 1
+
 			print 'Path not found:', d
 if not f:
 	sys.exit(1)
@@ -323,14 +326,14 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # imgur:
 
-# JSON sample from /a/zVhZg: {"hash":"JdFDePz","title":"","description":null,"has_sound":false,"width":863,"height":800,"size":136820,"ext":".jpg","animated":false,"prefer_video":false,"looping":false,"datetime":"2015-09-06 19:54:17"}
-# JSON sample from /a/xyN6u: {"hash":"wPpFLrE","title":"","description":null,"has_sound":false,"width":710,"height":1002,"size":392671,"ext":".png","animated":false,"prefer_video":false,"looping":false,"datetime":"2019-05-29 16:18:38","edited":"0"},
+# JSON sample from imgur.com/a/zVhZg: {"hash":"JdFDePz","title":"","description":null,"has_sound":false,"width":863,"height":800,"size":136820,"ext":".jpg","animated":false,"prefer_video":false,"looping":false,"datetime":"2015-09-06 19:54:17"}
+# JSON sample from imgur.com/a/xyN6u: {"hash":"wPpFLrE","title":"","description":null,"has_sound":false,"width":710,"height":1002,"size":392671,"ext":".png","animated":false,"prefer_video":false,"looping":false,"datetime":"2019-05-29 16:18:38","edited":"0"},
 
 	{	'page':		# <- parent: where to look, URL partial match
 		re.compile(r'''
 			^(\w+:/+([^:/?#]+\.)?
-			imgur\.com/(a/|ga[lery]+/|t/[^/]+/)?
-			\w+(\.gifv|/embed)?)
+			imgur\.com/+(a/+|ga[lery]+/+|t/+[^/]+/+)?
+			\w+(\.gifv|/+embed)?)
 			([,&?#]|$)
 		''', re.I | re.X)
 	,	'grab':		# <- child: what to grab, concat all subpatterns if none can be expanded from optional 'link' array
@@ -437,54 +440,12 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		]
 	}
 
-# twitpic, vk shared files, etc - indiscriminately grab any links:
-
-,	{	'page': re.compile(r'''^
-			(\w+:/+(
-				twitpic\.com
-			|	[^:/?#]+\.jpg\.to
-			|	([^:/?#]+\.)?vk\.(com|ru)/doc[\w-]+
-			))
-			([/?#]|$)
-		''', re.I | re.X)
-	,	'grab': re.compile(r'\s+(?:src|href)="?([^">\s]+)', re.I)
-	}
-
-# exhentai:
-
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)e[x-]*hentai\.org/g(/\d+)+)', re.I)
-	,	'grab': re.compile(r'\s+href=[\'"]*([^\s\'">]+?hathdler[^\s\'">]+)', re.I)
-	}
-
-# ezgif:
-
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?ezgif\.\w+)/\w+(/\w+)\.gif([/?#]|$)', re.I)
-	,	'grab': re.compile(r'<img(?:\s+[^>]*?)?\s+src="?/*([^">\s]+)"*(?:\s+[^>]*?)?\s+id="?target', re.I)
-	}
-
-# fastpic:
-
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?fastpic\.ru/+(big|view)/+[^?#]*)', re.I)
-	,	'grab': pat_imgs
-	}
-
-# skype:
-
-# link samples:
-# https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
-# https://web.skype.com/xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
-# https://api.asm.skype.com/v1/objects/0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae/views/imgpsh_fullsize
-
-,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>skype\.com/)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)', re.I)
-	,	'link': [r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize']	# <- direct link to image instead of page, which contains no links and relies on JS
-	}
-
 # gyazo:
 
-,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>gyazo\.com/)([^?#]*?)?(?P<ImageID>/\w{32})(\W.*)?$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>gyazo\.com/+)([^?#]*?)?(?P<ImageID>/+\w{32})(\W.*)?$', re.I)
 	,	'link': [r'\g<Domain>\g<ImageID>']	# <- view page instead of direct link to image
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?gyazo\.com/[^/]+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?gyazo\.com/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'''
 			(?:
 				<img(?:\s+[^>]*?)?\s+src="?(?P<ImageSrc>[^">\s]+)
@@ -502,33 +463,84 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		]
 	}
 
+# twitpic, vk shared files, etc - indiscriminately grab any links:
+
+,	{	'page': re.compile(r'''^
+			(\w+:/+(
+				twitpic\.com
+			|	[^:/?#]+\.jpg\.to
+			|	([^:/?#]+\.)?vk\.(com|ru)/doc[\w-]+
+			))
+			(?:[/?#]|$)
+		''', re.I | re.X)
+	,	'grab': re.compile(r'\s+(?:src|href)="?([^">\s]+)', re.I)
+	}
+
+# skype:
+
+# link samples:
+# https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
+# https://web.skype.com/xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
+# https://api.asm.skype.com/v1/objects/0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae/views/imgpsh_fullsize
+
+,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>skype\.com/+)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)', re.I)
+	,	'link': [r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize']	# <- direct link to image instead of page, which contains no links and relies on JS
+	}
+
+# exhentai:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)e[x-]*hentai\.org/+g(/+\d+)+)', re.I)
+	,	'grab': re.compile(r'\s+href=[\'"]*([^\s\'">]+?hathdler[^\s\'">]+)', re.I)
+	}
+
+# ezgif:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?ezgif\.\w+)/+\w+(/+\w+)\.gif(?:[/?#]|$)', re.I)
+	,	'grab': re.compile(r'<img(?:\s+[^>]*?)?\s+src="?/*([^">\s]+)"*(?:\s+[^>]*?)?\s+id="?target', re.I)
+	}
+
+# fastpic:
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?fastpic\.ru/+(big|view)/+[^?#]*)', re.I)
+	,	'grab': pat_imgs
+	}
+
 # hqpix:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?hqpix.\w+/image/[^/?#]+)([/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?hqpix.\w+/+image/+[^/?#]+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'<a\b[^<]*?\s+href="?([^">\s]+)[">\s][^<]*?\s+download=', re.I)
+	}
+
+# ibb / imgbb:
+
+# HTML sample from https://ibb.co/M8cc1my:
+# <img src="https://i.ibb.co/YDccdx4/scr00044.jpg" alt="scr00044" width="2560" height="1440" data-load="full">
+
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(?:ibb|imgbb).com?/+\w+)(?:[/?#]|$)', re.I)
+	,	'grab': re.compile(r'<img(?:\s+[^>]*?)?\s+src="?/*([^">\s]+)"*(?:\s+[^>]*?)?\s+data-load="?full', re.I)
 	}
 
 # imgstun:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?imgstun.\w+)(/\w+){3}(\.\w+){2}([/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?imgstun.\w+)(/+\w+){3}(\.\w+){2}(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'</dd>[^<]*?<dt[^<]*?</dt><dd[^<]*?<input(?:\s+[^>]*?)?\s+value="?([^">\s]+)', re.I)
 	}
 
 # awesomescreenshot:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?awesomescreenshot\.com/[^/]+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?awesomescreenshot\.com/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+id="screenshotA"\s+href="?([^">\s]+)', re.I)
 	}
 
 # clip2net:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(c2n\.\w+|clip2net\.\w+/s)/[^/]+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(c2n\.\w+|clip2net\.\w+/+s)/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+class="image-down-file"\s+href="?([^">\s]+?)(?:&fd=[^&]*)?[">\s]', re.I)
 	}
 
 # prntscrn:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(prnt.sc|prntscrn?\.com)/[^/]+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(prnt.sc|prntscrn?\.com)/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'''
 			<meta\s+property=[\'"]*og:image[\'"]*\s+content=[\'"]*
 			([^\s\'">]+)
@@ -544,35 +556,35 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # screencapture:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?screencapture\.ru/file/[^/]+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?screencapture\.ru/+file/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+href="?([^\s\'">]+?/file/download/[^\s\'">]+)', re.I)
 	}
 
 # screencast:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?screencast\.com/t/[^/]+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?screencast\.com/+t/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'\s+class="?embeddedObject"?\s+src="?([^">\s]+)', re.I)
 	}
 
 # rghost:
 
-,	{	'page': re.compile(r'(^|[/.])(?:rgho(?:st)?\.\w+|ad-l\.ink)/(private/)?(\d\w+)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink))/+(private/+)?(\d\w+)', re.I)
 	,	'grab': re.compile(r'\s+href="((?:\w+:|/+\w+)/+(?:[^/?#.]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/download/(?:private/)?\d\w+/[^">\s]+)', re.I)
 	,	'name': [
-			[0, r'rgh \3 - ']
+			[0, r'rgh \4 - ']
 		,	[re.compile(r'<time(?:\s+[^>]*?)?\s+datetime="([^":\s]+)\s+([^":]+):([^":]+):([^":]+)', re.I), r'\1,\2-\3-\4 - ']
 		]
 	}
 
 # nofile.io:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?nofile\.io/f/[^/].+)$', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?nofile\.io/+f/+[^/].+)$', re.I)
 	,	'grab': re.compile(r'\s+downloadButton[^>]*?\s+href="?([^\s\'">]+)', re.I)
 	}
 
 # sta.sh:
 
-,	{	'page': re.compile(r'^(\w+:/+sta\.sh/\w+)([/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+sta\.sh/+\w+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'<meta\s+property=[\'"]*og:image[\'"]*\s+content=[\'"]*([^\s\'">]+)', re.I)
 	,	'name': [
 			[0, r'\1 - ']
@@ -582,7 +594,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # upload.cat:
 
-,	{	'page': re.compile(r'^(\w+:/+upload\.cat/\w+)([/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+upload\.cat/+\w+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'''
 			<img\s+alt(?:\s+[^>]*?)?\s+src=[\'"]*([^">\s]+)
 		|	<a(?:\s+[^>]*?)?\s+href=[\'"]*([^">\s]+)(?:[\s"]+[^>]*)?>\w*?download
@@ -600,7 +612,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # webmshare:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?webm(share)?\.\w+/\w+)(?:[/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?webm(share)?\.\w+/+\w+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'<source(?:\s+[^>]*?)?\s+src=[\'"]*/*([^\s\'">]+?)(?:/\d+)?[\s\'">]', re.I)
 	,	'name': [
 			[0, r'\1 - ']
@@ -614,10 +626,10 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # twitter:
 
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?t.co/[^/]+)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?t.co/+[^/]+)', re.I)
 	,	'grab': re.compile(r'URL="?([^"]+?)', re.I)
 	}
-,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?twitter\.com/[^/]+/status/[^/]+)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?twitter\.com/+[^/]+/+status/+[^/]+)', re.I)
 	,	'grab': re.compile(r'''
 		\s+(?:
 			data-url="?([^"]*?/status/\d+/photo/[^"?]*)
@@ -640,7 +652,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # tumblr:
 
-,	{	'page': re.compile(r'^(\w+:/+)([^:/?#]+\.)?(tumblr\.com)/video(?:_file)?(?:/\w+:\w+)?/(\w+)/(\w+)(?:[/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+)([^:/?#]+\.)?(tumblr\.com)/+video(?:_file)?(?:/+\w+:\w+)?/+(\w+)/+(\w+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'<source(?:\s+[^>]*?)?\s+src=[\'"]*([^">\s]+)', re.I)
 	,	'name': [
 			[0, r'\1\4.\3/post/\5 - ']
@@ -650,7 +662,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # tumblr photoset, check this even after 1st "og:image" step:
 
-,	{	'page': re.compile(r'^(\w+:/+[^/?#]+/post/\d+/photoset)_iframe([/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+[^/?#]+/+post/+\d+/+photoset)_iframe(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'<(?:a(?:\s+[^>]*?)?\s+href|img(?:\s+[^>]*?)?\s+src)="?/*([^">\s]+)', re.I)
 	,	'name': [
 			[0, r'\1 - ']
@@ -660,7 +672,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # tumblr-based blogs, any random domains possible:
 
-,	{	'page': re.compile(r'^(\w+:/+[^/?#]+/(image|post|private|video(_file)?(/\w+:\w+)?)/\d+)([/?#]|$)', re.I)
+,	{	'page': re.compile(r'^(\w+:/+[^/?#]+/+(image|post|private|video(_file)?(/+\w+:\w+)?)/+\d+)(?:[/?#]|$)', re.I)
 	,	'grab': re.compile(r'''
 			<(?:
 				(?:
@@ -855,6 +867,78 @@ def try_decode(text, enc_in=None, enc_out=None):
 			# return ''
 
 	return text
+
+# https://stackoverflow.com/a/919684
+def try_print(*list_args, **keyword_args):
+	lines = []
+	count_args = count_keyword_args = 0
+	before_task = tell_if_readonly = False
+
+	def try_append(arg):
+		try:
+			lines.append(unicode(arg))
+		except:
+			try:
+				lines.append(str(arg))
+			except:
+				try:
+					lines.append('%s' % arg)
+				except:
+					lines.append(arg)
+
+	if list_args:
+		for arg in list_args:
+			try_append(arg)
+			count_args += 1
+
+	if keyword_args:
+		for keyword, arg in keyword_args.items():
+			if keyword == 'before_task':
+				before_task = arg
+			elif keyword == 'tell_if_readonly':
+				tell_if_readonly = arg
+			else:
+				try_append(arg)
+				count_keyword_args += 1
+
+	if not (count_args or count_keyword_args):
+		return
+
+# encode/decode are bad kludges:
+
+	# separator = '\n'
+	separator = ' '
+
+	if lines:
+		try:
+			text = separator.join(lines)
+		except:
+			try:
+				text = separator.join(try_decode(line) for line in lines)
+			except:
+				try:
+					text = separator.join(try_decode(line).encode(print_enc) for line in lines)
+				except:
+					try:
+						text = separator.join(line.encode(print_enc) for line in lines)
+					except:
+						text = separator.join(line.decode(print_enc) for line in lines)
+
+		try:
+			print('%s' % text)
+		except:
+			try:
+				print('%s' % text.encode(print_enc))
+			except:
+				try:
+					print('%s' % text.decode(print_enc))
+				except:
+					print('Error: unprintable text.')
+
+					write_exception_traceback()
+
+	else:
+		print('Warning: nothing to print with %d args and %d keyword args.' % (count_args, count_keyword_args))
 
 def translate_url_to_filename(text):
 	try:			return text.translate(url2name)
@@ -1115,12 +1199,12 @@ def read_log(path, start=0, size=0):
 	f.close()
 
 	try:
-		print start, 'to', sz, 'bytes in', path.rsplit('/', 1)[1]
+		try_print(start, 'to', sz, 'bytes in', path.rsplit('/', 1)[1])
 
 	except Exception:
 		write_exception_traceback()
 
-		print start, 'to', sz, 'bytes in <Unwritable>'
+		try_print(start, 'to', sz, 'bytes in <Unwritable>')
 
 	return [r, '%d	%d	%s' % (start, sz, path)]
 
@@ -1189,12 +1273,13 @@ def read_path(path, dest_root, lvl=0):
 	if recurse:
 		can_go_deeper = (path == path.rstrip('/.')) and (recurse > lvl)
 		if TEST:
-			print path, '->', lvl
+			try_print(path, '->', lvl)
 		else:
-			print path
+			try_print(path)
 	else:
 		can_go_deeper = False
-		print path
+
+		try_print(path)
 
 	for name in os.listdir(path):
 		f = path+'/'+name
@@ -1220,7 +1305,7 @@ def read_path(path, dest_root, lvl=0):
 			except IOError as e:
 				write_exception_traceback()
 
-				print 'Error reading log:', log_stamp(), e
+				try_print('Error reading log:', log_stamp(), e)
 				r = meta = ''
 				# continue
 
@@ -1232,7 +1317,7 @@ def read_path(path, dest_root, lvl=0):
 				rd = try_decode(r, enc, default_encoding)
 
 				if TEST:
-					print name, 'length in', enc, '=', len(rd)
+					try_print(name, 'length in', enc, '=', len(rd))
 
 				for i in re.finditer(pat_grab, rd):
 					prfx = dnm = dtp = None
@@ -1278,12 +1363,12 @@ def read_path(path, dest_root, lvl=0):
 
 								ude = utf = url
 						try:
-							print ude
+							try_print(ude)
 
 						except Exception as e:
 							write_exception_traceback()
 
-							print '<Unprintable>', url.split('//', 1)[-1].split('/', 1)[0]
+							try_print('<Unprintable>', url.split('//', 1)[-1].split('/', 1)[0])
 
 						urls.append([d, url, utf, prfx])
 						u += 1
@@ -1299,7 +1384,7 @@ def read_path(path, dest_root, lvl=0):
 
 						if TEST and u > 1:
 							break
-		new_meta += meta+'\n'
+		new_meta += meta + '\n'
 
 	if lvl < 1:
 		print
@@ -1320,9 +1405,9 @@ def get_response(req):
 					data.append(h)
 				break
 	if header:
-		print 'Headers:', header
+		try_print('Headers:', header)
 	if data:
-		print 'POST:', data
+		try_print('POST:', data)
 	else:
 		data = None
 	return urllib2.urlopen(urllib2.Request(req, data, header) if header else req, data, timeout_request, context=false_ctx)
@@ -1336,12 +1421,13 @@ def get_by_caseless_key(dic, k):
 
 def redl(url, regex, msg=''):
 	if msg:
-		print msg, url
+		try_print(msg, url)
 
 	response = get_response(url)
 	content = response.read()
 
-	print '\n', response.info()
+	print
+	try_print(response.info())
 
 	r = re.search(regex, content)
 	if r:
@@ -1371,7 +1457,7 @@ def pass_url(app, url):
 	app_path = dest_app[k if k in dest_app else dest_app_default]
 
 	try:
-		print 'Passing URL (as is) to program,', app, app_path
+		try_print('Passing URL (as is) to program,', app, app_path)
 		p = subprocess.Popen(
 			(app_path + [url]) if isinstance(app_path, a_type) else
 			[app_path, url]
@@ -1436,7 +1522,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 	udn = [utf, '\n']+([udl, '\n'] if udl != url else [])
 
 	try:
-		print 'Downloading', try_decode(udl)
+		try_print('Downloading', udl)
 		req = ('l/?'+udl) if TEST else udl
 
 		if hostname == 'db.tt':
@@ -1511,7 +1597,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# check result:
 
 			if urldest != url:
-				print 'From', urldest
+				try_print('From', urldest)
 
 				if is_url_blocked(urldest, content):
 					write_file(log_blocked, [log_stamp(), 'blocked	']+udn)
@@ -1704,18 +1790,18 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# save this file:
 
 			if why_not_save:
-				print 'Not saved, reason:', why_not_save
+				try_print('Not saved, reason:', why_not_save)
 
 				write_file(log_not_saved, [log_stamp()]+udn+[why_not_save, '\n\n'])
 			else:
 				try:
 					saved = save_uniq_copy(f, content)
 
-					print 'To', saved
+					try_print('To', saved)
 
 					if not saved:
 						try:
-							print 'Tried to', f
+							try_print('Tried to', f)
 						except Exception as e:
 							print 'Tried to <Unprintable>'
 
@@ -1727,13 +1813,17 @@ def process_url(dest_root, url, utf='', prfx=''):
 				except Exception as e:
 					write_exception_traceback()
 
-					print 'Save to', f
-					print 'failed with error:', e
+					try:
+						try_print('Save to', f)
+					except Exception as e:
+						print 'Save to <Unprintable>'
+
+					try_print('failed with error:', e)
 
 					write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
 
 			print
-			print headers
+			try_print(headers)
 
 			# check new links found on the way:
 
@@ -1773,7 +1863,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 						print '<re: skipped unmatched group in source link>'
 						p2 = pat_href
 
-					print 'Recurse target pattern:', type(pat_grab), p2.pattern
+					try_print('Recurse target pattern:', type(pat_grab), p2.pattern)
 
 					for d2 in re.finditer(p2, content):
 						prfx = ''
