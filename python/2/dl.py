@@ -2,7 +2,31 @@
 # -*- coding: UTF-8 -*-
 
 from email.utils import parsedate
-import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, urllib, urllib2, zlib
+import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
+
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint(*list_args, **keyword_args): print(list_args[0])
+
+# https://stackoverflow.com/a/17510727
+try:
+	# Python 3.0 and later:
+	from urllib.error import URLError, HTTPError
+	from urllib.request import urlopen, Request
+
+except ImportError:
+	# Python 2.x fallback:
+	from urllib2 import URLError, HTTPError, urlopen, Request
+
+# https://stackoverflow.com/a/47625614
+if sys.version_info[0] >= 3:
+	unicode = str
 
 # configure -------------------------------------------------------------------
 
@@ -120,7 +144,7 @@ for p in read_paths:
 		else:
 			nf += 1
 
-			print 'Path not found:', d
+			print colored('Path not found:', 'red'), d
 if not f:
 	sys.exit(1)
 
@@ -1198,13 +1222,15 @@ def read_log(path, start=0, size=0):
 	sz = f.tell()
 	f.close()
 
+	bytes_text = colored('%d to %d bytes in' % (start, sz), 'yellow')
+
 	try:
-		try_print(start, 'to', sz, 'bytes in', path.rsplit('/', 1)[1])
+		try_print(bytes_text, path.rsplit('/', 1)[1])
 
 	except Exception:
 		write_exception_traceback()
 
-		try_print(start, 'to', sz, 'bytes in <Unwritable>')
+		try_print(bytes_text, colored('<Unprintable>', 'red'))
 
 	return [r, '%d	%d	%s' % (start, sz, path)]
 
@@ -1273,7 +1299,7 @@ def read_path(path, dest_root, lvl=0):
 	if recurse:
 		can_go_deeper = (path == path.rstrip('/.')) and (recurse > lvl)
 		if TEST:
-			try_print(path, '->', lvl)
+			try_print(path, colored('->', 'yellow'), lvl)
 		else:
 			try_print(path)
 	else:
@@ -1305,7 +1331,7 @@ def read_path(path, dest_root, lvl=0):
 			except IOError as e:
 				write_exception_traceback()
 
-				try_print('Error reading log:', log_stamp(), e)
+				try_print(colored('Error reading log:', 'red'), log_stamp(), e)
 				r = meta = ''
 				# continue
 
@@ -1317,7 +1343,7 @@ def read_path(path, dest_root, lvl=0):
 				rd = try_decode(r, enc, default_encoding)
 
 				if TEST:
-					try_print(name, 'length in', enc, '=', len(rd))
+					try_print(name, colored('length in %s = %d' % (enc, len(rd)), 'yellow'))
 
 				for i in re.finditer(pat_grab, rd):
 					prfx = dnm = dtp = None
@@ -1368,7 +1394,7 @@ def read_path(path, dest_root, lvl=0):
 						except Exception as e:
 							write_exception_traceback()
 
-							try_print('<Unprintable>', url.split('//', 1)[-1].split('/', 1)[0])
+							try_print(colored('<Unprintable>', 'red'), url.split('//', 1)[-1].split('/', 1)[0])
 
 						urls.append([d, url, utf, prfx])
 						u += 1
@@ -1393,24 +1419,31 @@ def read_path(path, dest_root, lvl=0):
 
 def get_response(req):
 	hostname = re.search(pat_host, req).group('Domain')
-	header = {}
+	headers = {}
 	data = []
+
 	for batch in add_headers_to:
 		for s in batch[0]:
 			if (hostname if s.find('/') < 0 else req).find(s) >= 0:
 				h = batch[1]
 				if hasattr(h, 'update'):
-					header.update(h)
+					headers.update(h)
 				else:
 					data.append(h)
 				break
-	if header:
-		try_print('Headers:', header)
+
+	if headers:
+		try_print(colored('Request headers:', 'yellow'), headers)
+
 	if data:
-		try_print('POST:', data)
+		try_print(colored('POST:', 'yellow'), data)
 	else:
 		data = None
-	return urllib2.urlopen(urllib2.Request(req, data, header) if header else req, data, timeout_request, context=false_ctx)
+
+	if headers:
+		req = Request(req, data, headers)
+
+	return urlopen(req, data, timeout_request, context=false_ctx)
 
 def get_by_caseless_key(dic, k):
 	k = k.lower()
@@ -1421,19 +1454,20 @@ def get_by_caseless_key(dic, k):
 
 def redl(url, regex, msg=''):
 	if msg:
-		try_print(msg, url)
+		try_print(colored(msg, 'yellow'), url)
 
 	response = get_response(url)
 	content = response.read()
+	headers = response.info()
 
 	print
-	try_print(response.info())
+	try_print(colored('Response headers:', 'yellow'), headers)
 
 	r = re.search(regex, content)
 	if r:
 		return r.group(1)
 	else:
-		raise urllib2.URLError(content)
+		raise URLError(content)
 
 def is_url_blocked(url=None, content=None):
 	if url:
@@ -1463,12 +1497,12 @@ def pass_url(app, url):
 			[app_path, url]
 		)
 		if p:
-			print 'Process ID:', p.pid
+			print colored('Process ID:', 'magenta'), p.pid
 
 	except Exception as e:
 		write_exception_traceback()
 
-		print 'Unexpected error. See logs.\n'
+		cprint('Unexpected error. See logs.\n', 'red')
 		write_file(log_no_response, [log_stamp(), e, '\n\n'])
 
 	return 1
@@ -1522,21 +1556,24 @@ def process_url(dest_root, url, utf='', prfx=''):
 	udn = [utf, '\n']+([udl, '\n'] if udl != url else [])
 
 	try:
-		try_print('Downloading', udl)
+		try_print(colored('Downloading', 'yellow'), udl)
 		req = ('l/?'+udl) if TEST else udl
 
 		if hostname == 'db.tt':
 			response = get_response(req)
 			req = response.geturl()
-			print response.info()
+			headers = response.info()
+
+			print
+			try_print(colored('Response headers:', 'yellow'), headers)
 
 			if req == udl:
 				req = redl(get_proxified_url(udl), pat_href, 'Expected redirect, got dummy. Trying proxy:')
 
 		response = get_response(req)
 
-	except urllib2.HTTPError as e:
-		print 'Server could not fulfill the request. Error code:', e.code, '\n'
+	except HTTPError as e:
+		print colored('Server could not fulfill the request. Error code:', 'red'), e.code, '\n'
 
 		write_file(log_no_file, [log_stamp(), '%d	' % e.code]+udn)
 
@@ -1546,25 +1583,25 @@ def process_url(dest_root, url, utf='', prfx=''):
 		udl_trim = re.sub(pat_trim, '', udl)
 
 		if udl != udl_trim:
-			print 'Retrying after trim:\n'
+			cprint('Retrying after trim:\n', 'yellow')
 			finished += process_url(dest_root, udl_trim)
 
 		elif e.code > 400 and e.code != 404 and e.code < 500 and udl.find(default_web_proxy) != 0:
-			print 'Retrying with proxy:\n'
+			cprint('Retrying with proxy:\n', 'yellow')
 			finished += process_url(dest_root, get_proxified_url(udl))
 
 	except Exception as e:
 		write_exception_traceback()
 
-		print 'Unexpected error. See logs.\n'
+		cprint('Unexpected error. See logs.\n', 'red')
 		write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
 
 		if udl.find('http://') != 0:
-			print 'Retrying with plain http:\n'
+			cprint('Retrying with plain http:\n', 'yellow')
 			finished += process_url(dest_root, re.sub(pat_badp, 'http://', udl))
 
 		elif udl.find(default_web_proxy) != 0:
-			print 'Retrying with proxy:\n'
+			cprint('Retrying with proxy:\n', 'yellow')
 			finished += process_url(dest_root, get_proxified_url(udl))
 	else:
 		try:
@@ -1575,7 +1612,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		except Exception as e:
 			write_exception_traceback()
 
-			print 'Unexpected error. See logs.\n'
+			cprint('Unexpected error. See logs.\n', 'red')
 			write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
 		else:
 			# uncompress file content:
@@ -1597,12 +1634,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# check result:
 
 			if urldest != url:
-				try_print('From', urldest)
+				try_print(colored('From', 'yellow'), urldest)
 
 				if is_url_blocked(urldest, content):
 					write_file(log_blocked, [log_stamp(), 'blocked	']+udn)
 
-					print 'Blocked page, retrying with proxy:\n'
+					cprint('Blocked page, retrying with proxy:\n', 'yellow')
 					finished += process_url(dest_root, get_proxified_url(udl))
 			else:
 				urldest = ''
@@ -1649,7 +1686,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 					except Exception:
 						write_exception_traceback()
 
-						print '<filename appending error>'
+						cprint('<filename appending error>', 'red')
 
 			ext = '' if dest.find('.') < 0 else dest.rsplit('.', 1)[1].lower()
 			d = dest_root+'/'
@@ -1790,20 +1827,20 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# save this file:
 
 			if why_not_save:
-				try_print('Not saved, reason:', why_not_save)
+				try_print(colored('Not saved, reason:', 'red'), why_not_save)
 
 				write_file(log_not_saved, [log_stamp()]+udn+[why_not_save, '\n\n'])
 			else:
 				try:
 					saved = save_uniq_copy(f, content)
 
-					try_print('To', saved)
+					try_print(colored('To', 'yellow'), saved)
 
 					if not saved:
 						try:
-							try_print('Tried to', f)
+							try_print(colored('Tried to', 'red'), f)
 						except Exception as e:
-							print 'Tried to <Unprintable>'
+							cprint('Tried to <Unprintable>', 'red')
 
 						write_file(log_not_saved, [log_stamp()]+udn+[
 							'Tried path: ', f, '\n'
@@ -1814,16 +1851,16 @@ def process_url(dest_root, url, utf='', prfx=''):
 					write_exception_traceback()
 
 					try:
-						try_print('Save to', f)
+						try_print(colored('Save to', 'yellow'), f)
 					except Exception as e:
-						print 'Save to <Unprintable>'
+						cprint('Save to <Unprintable>', 'red')
 
-					try_print('failed with error:', e)
+					try_print(colored('failed with error:', 'red'), e)
 
 					write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
 
 			print
-			try_print(headers)
+			try_print(colored('Response headers:', 'yellow'), headers)
 
 			# check new links found on the way:
 
@@ -1846,7 +1883,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 							except Exception:
 								write_exception_traceback()
 
-								print '<re: skipped unmatched group in source link>'
+								cprint('<re: skipped unmatched group in source link>', 'red')
 						break
 
 					try:
@@ -1860,10 +1897,10 @@ def process_url(dest_root, url, utf='', prfx=''):
 					except Exception:
 						write_exception_traceback()
 
-						print '<re: skipped unmatched group in source link>'
+						cprint('<re: skipped unmatched group in source link>', 'red')
 						p2 = pat_href
 
-					try_print('Recurse target pattern:', type(pat_grab), p2.pattern)
+					try_print(colored('Recurse target pattern:', 'yellow'), type(pat_grab), p2.pattern)
 
 					for d2 in re.finditer(p2, content):
 						prfx = ''
@@ -1880,7 +1917,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 								except Exception:
 									write_exception_traceback()
 
-									if TEST: print '<re: skipped unmatched group in dest.link>'
+									if TEST: cprint('<re: skipped unmatched group in dest.link>', 'red')
 						url2 = ''
 						if pat_link:
 							for x in pat_link:
@@ -1890,7 +1927,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 								except Exception:
 									write_exception_traceback()
 
-									if TEST: print '<re: skipped unfulfilled link pattern>'
+									if TEST: cprint('<re: skipped unfulfilled link pattern>', 'red')
 
 								if url2:
 									break
@@ -1914,8 +1951,9 @@ def process_url(dest_root, url, utf='', prfx=''):
 					pass_url(dest_app_default, url2)
 					break
 	if wait:
-		print timestamp(), 'Waiting for', wait, 'sec. after each download attempt.\n'
+		cprint('%s Waiting for %d sec. after each download attempt.\n' % (timestamp(), wait), 'cyan')
 		time.sleep(wait)
+
 	return finished
 
 # run -------------------------------------------------------------------------
@@ -1946,7 +1984,7 @@ urls_done = list(set(
 i = 0
 while 1:
 	i += 1
-	print timestamp(), 'Reading logs #', i, '#, URLs done:', len(urls_done)
+	cprint('%s Reading logs # %d #, URLs done: %d' % (timestamp(), i, len(urls_done)), 'yellow')
 
 	new_meta = ''
 	old_meta = []
@@ -1971,7 +2009,7 @@ while 1:
 
 				count_urls_done += finished
 
-				print '(done in this round: %d / %d)\n' % (count_urls_done, count_urls_to_do)
+				cprint('(done in this round: %d / %d)\n' % (count_urls_done, count_urls_to_do), 'green')
 
 			if TEST and count_urls_done > 1:
 				break
@@ -1980,7 +2018,7 @@ while 1:
 		write_file(log_last_pos, new_meta.encode(default_encoding), 'w')
 
 	if interval:
-		print timestamp(), 'Sleeping for', interval, 'sec. Press Ctrl+C to break.'
+		cprint('%s Sleeping for %d sec. Press Ctrl+C to break.' % (timestamp(), interval), 'cyan')
 
 		try:
 			time.sleep(interval)
@@ -1991,5 +2029,5 @@ while 1:
 		except Exception:
 			write_exception_traceback()
 	else:
-		print 'Done.'
+		cprint('Done.', 'green')
 		break

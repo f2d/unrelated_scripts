@@ -3,6 +3,16 @@
 
 import datetime, os, re, sys, zipfile
 
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint(*list_args, **keyword_args): print(list_args[0])
+
 from r_config import default_print_encoding, default_name_cut_length, dest_root, dest_root_by_ext, dest_root_yt, ext_web, sites
 
 arg_name_cut = 'cut'
@@ -305,6 +315,7 @@ def rf(name, size=0):
 	global n_fail
 	ext = get_file_ext(name)
 	r = ''
+
 	try:
 		if ext == 'maff':
 			z = zipfile.ZipFile(name, 'r')
@@ -312,24 +323,26 @@ def rf(name, size=0):
 				name = path.rsplit('/', 1)[-1:][0]
 				if name == 'index.rdf':
 					if TEST:
-						print info_prfx, 'MAFF test, meta file:', path, '\n'
+						print info_prfx, colored('MAFF test, meta file:', 'yellow'), path, '\n'
 					r = z.read(path)			# <- return source URL
 					if not size:
 						s = re.search(pat_idx, r)
 						if s and s.group(1):
 							path = path[:-len(name)] + s.group(1)
 							if TEST:
-								print info_prfx, 'MAFF test, content file:', path, '\n'
+								print info_prfx, colored('MAFF test, content file:', 'yellow'), path, '\n'
 							r = z.read(path)	# <- return source HTML
 					break
 		else:
 			f = open(name)
 			r = f.read(size) if size else f.read()
 			f.close()
+
 	except Exception as e:
 		n_fail += 1
-		print msg_prfx, 'Path length:', len(name)
+		print msg_prfx, colored('Path length:', 'yellow'), len(name)
 		print e
+
 	return r
 
 def get_formatted_modtime(src_path, format):
@@ -337,14 +350,18 @@ def get_formatted_modtime(src_path, format):
 
 def uniq(src, d):
 	i = 0
+
 	if os.path.exists(d) and os.path.exists(src):
 		d = get_formatted_modtime(src, ';_%Y-%m-%d,%H-%M-%S.').join(d.rsplit('.', 1))
 		i += 1
+
 	while os.path.exists(d):
 		d = '(2).'.join(d.rsplit('.', 1))
 		i += 1
+
 	if i:
-		print '+', i, 'duplicate(s)'
+		cprint('+ %d duplicate(s)' % i, 'yellow')
+
 	return d
 
 def meet(obj, criteria):
@@ -369,6 +386,7 @@ def get_sub(subj, rules):
 		return [rules, '']
 
 	name, meeting, board = subj
+
 	for r in rules:
 		if not r:
 			continue
@@ -435,11 +453,14 @@ def print_name(name, prefix='', extra_line=True):
 	if extra_line:
 		print
 
-	print prefix, 'name in utf-8:'
-	print name.encode('utf-8')
+	if prefix:
+		prefix = '%s ' % prefix
+	else:
+		prefix = ''
 
-	print prefix, 'name in unicode-escape:'
-	print name.encode('unicode-escape')
+	for enc in ['utf-8', 'unicode-escape']:
+		cprint('{0}name in {1}:'.format(prefix, enc), 'yellow')
+		print name.encode(enc)
 
 def r(path, later=0):
 	global n_i, n_fail, n_matched, n_moved, n_back, n_later, n_max_len, not_existed, dup_lists_by_ID
@@ -452,12 +473,12 @@ def r(path, later=0):
 		if os.path.isdir(src):
 			if arg_recurse_into_subdirs:
 				if TEST and arg_print_full_path:
-					print_name(name, 'dir')
+					print_name(name, 'Dir')
 				r(src, later)
 			continue
 
 		if TEST and arg_print_full_path:
-			print_name(name, 'file')
+			print_name(name, 'File')
 
 		# optionally cut long names before anything else:
 
@@ -476,8 +497,8 @@ def r(path, later=0):
 				dest_show = (dest_path if arg_print_full_path else get_file_name(dest_path))
 
 				print
-				print 'cut from', src_len, (src_path if arg_print_full_path else name).encode(default_print_encoding)
-				print 'cut to', len(dest_show), dest_show.encode(default_print_encoding)
+				print colored('Cut from', 'yellow'), src_len, (src_path if arg_print_full_path else name).encode(default_print_encoding)
+				print colored('Cut to', 'yellow'), len(dest_show), dest_show.encode(default_print_encoding)
 
 				if DO:
 					os.rename(src, dest_path)
@@ -512,7 +533,7 @@ def r(path, later=0):
 				if not is_type_str(d):
 					continue
 
-				print d.encode(default_print_encoding), '<-', name.encode(default_print_encoding)
+				print d.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
 
 				if DO and os.path.exists(src) and os.path.isdir(d):
 					os.rename(src, uniq(src, d+'/'+name))
@@ -600,7 +621,7 @@ def r(path, later=0):
 				if TEST:
 					if arg_print_full_path:
 						print info_prfx, src.encode(default_print_encoding)
-					print dest, ufull
+					print dest, colored('<-', 'yellow'), ufull
 
 				# rename target files downloaded from RGHost/booru/yt/etc:
 				for p in pat_ren:
@@ -707,7 +728,7 @@ def r(path, later=0):
 				try:
 					d = (dest_root+dest).rstrip('/.')
 				except Exception as e:
-					print 'Destination path error:', e
+					print colored('Destination path error:', 'red'), e
 				if len(d) < 1:
 					d = u'.'
 				dq = d
@@ -715,7 +736,7 @@ def r(path, later=0):
 				if DO:
 					try:
 						if not os.path.exists(d):
-							print msg_prfx, 'Path not found, make dirs:', d.encode(default_print_encoding)
+							print msg_prfx, colored('Path not found, make dirs:', 'yellow'), d.encode(default_print_encoding)
 							os.makedirs(d)
 						d += '/'+(name[:-2] if ext == 'mhtml' else name)
 						dq = uniq(src, d)
@@ -724,19 +745,19 @@ def r(path, later=0):
 							n_moved += 1
 							if arg_print_full_path:
 								print info_prfx, src.encode(default_print_encoding)
-							print dest, ufull
+							print dest, colored('<-', 'yellow'), ufull
 						else:
 							n_back += 1		# <- if renamed "path/name" to the same "path/name(2)", revert
 							os.rename(dq, d)	# <- this is simpler than checking equality, symlinks and stuff
 					except Exception as e:
 						n_fail += 1
 						d, dq = len(d), len(dq)
-						print msg_prfx, 'Destination path length:', d
+						print msg_prfx, colored('Destination path length:', 'red'), d
 						if d != dq:
-							print msg_prfx, 'Renamed unique length:', dq
+							print msg_prfx, colored('Renamed unique length:', 'red'), dq
 						print e
 				elif not d in not_existed and not os.path.exists(d):
-					print msg_prfx, 'Path not found:', d.encode(default_print_encoding)
+					print msg_prfx, colored('Path not found:', 'red'), d.encode(default_print_encoding)
 					not_existed.append(d)
 				break
 
@@ -803,7 +824,7 @@ def r(path, later=0):
 									d = dup_lists_by_ID[dup_ID] = '1'
 							if TEST:
 								lend = len(d.keys() if isinstance(d, d_type) else d)
-								print dup_ID.encode(default_print_encoding), '- dup #', lend, dup_stamp.encode(default_print_encoding)
+								print dup_ID.encode(default_print_encoding), colored('- dup #', 'yellow'), lend, dup_stamp.encode(default_print_encoding)
 							continue
 						elif not (
 							d
@@ -838,21 +859,21 @@ def r(path, later=0):
 				d = path.rstrip('/') + '/' + get_formatted_modtime(src, arg_subdir_modtime_format).strip('/')
 
 			if d:
-				print d.encode(default_print_encoding), '<-', name.encode(default_print_encoding)
+				print d.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
 
 				if DO:
 					dest = uniq(src, d+'/'+name)
 
 					try:
 						if not os.path.exists(d):
-							print msg_prfx, 'Path not found, make dirs:', d.encode(default_print_encoding)
+							print colored('Path not found, make dirs:', 'yellow'), d.encode(default_print_encoding)
 							os.makedirs(d)
 						os.rename(src, dest)
 						n_moved += 1
 
 					except Exception as e:
 						n_fail += 1
-						print msg_prfx, 'Path length:', len(src), 'to', len(dest)
+						print msg_prfx, colored('Path length:', 'yellow'), len(src), colored('to', 'yellow'), len(dest)
 						print e
 
 def run(later=0):
@@ -865,26 +886,26 @@ def run(later=0):
 			d = dup_lists_by_ID[i]
 
 			if isinstance(d, a_type):
-				lend = len(d)
-				if lend > 1:
+				len_d = len(d)
+				if len_d > 1:
 					if TEST:
-						print 'ID:', i
-						print lend, 'before sort:', d
+						print colored('ID:', 'yellow'), i
+						print len_d, colored('before sort:', 'yellow'), d
 				d.sort()
 				d.pop(0)		# <- leave alone the earliest at old place
-				lend = len(d)
-				if lend:
+				len_d = len(d)
+				if len_d:
 					if TEST:
-						print lend, 'after sort:', d
+						print len_d, colored('after sort:', 'green'), d
 						print
 				n_later -= 1
 
 			elif isinstance(d, d_type):
-				lend = len(d.keys())
-				if lend > 1:
+				len_d = len(d.keys())
+				if len_d > 1:
 					if TEST:
-						print 'ID:', i
-						print lend, 'before sort:', str(d).replace('u\'', '\nu\'')
+						print colored('ID:', 'yellow'), i
+						print len_d, colored('before sort:', 'yellow'), str(d).replace('u\'', '\nu\'')
 						print
 				name_0 = stamp_0 = None
 				for name in d:
@@ -898,31 +919,31 @@ def run(later=0):
 						name_0 = name
 						stamp_0 = stamp
 				d.pop(name_0)		# <- leave alone the first by name of the earliest ones
-				lend = len(d.keys())
-				if lend:
+				len_d = len(d.keys())
+				if len_d:
 					if TEST:
-						print lend, 'after sort:', str(d).replace('u\'', '\nu\'')
+						print len_d, colored('after sort:', 'green'), str(d).replace('u\'', '\nu\'')
 						print
 				n_later -= 1
 
 			elif TEST:
-				print len(d), ':', d
+				print colored('%d:' % len(d), 'yellow'), d
 
 	a = []
 	n = [
 		[n_i	,	'checks']
 	,	[n_matched,	'matches']
-	,	[n_moved,	'moved']
-	,	[n_later,	'later']
-	,	[n_fail,	'failed']
-	,	[n_back,	'back']
+	,	[n_moved,	colored('moved', 'green')]
+	,	[n_later,	colored('later', 'cyan')]
+	,	[n_fail,	colored('failed', 'red')]
+	,	[n_back,	colored('back', 'yellow')]
 	,	[n_max_len,	'max name length']
 	]
 	for i in n:
 		if i[0] > 0:
 			a.append(str(i[0])+' '+i[1])
 
-	print msg_prfx, 'Result:', ', '.join(a) if len(a) > 0 else 'no files matched.'
+	print msg_prfx, colored('Result:', 'green'), (', '.join(a) if len(a) > 0 else 'no files matched.')
 
 	return n_later if DO else 0
 
