@@ -4,6 +4,17 @@
 
 import datetime, glob, os, re, subprocess, sys, time
 
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint(*list_args, **keyword_args): print(list_args[0])
+
 # - configuration and defaults ------------------------------------------------
 
 flags_group_by_num_any_sep = '12.,'
@@ -115,6 +126,9 @@ def get_exe_paths():
 			pass
 
 	return exe_paths_found
+
+def print_with_colored_prefix(prefix, value, color=None):
+	print('%s	%s' % (colored(prefix, color or 'yellow'), value))
 
 def print_help():
 	self_name = os.path.basename(__file__)
@@ -348,7 +362,7 @@ def run_batch_archiving(argv):
 		for i in ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']:
 			name = name.replace(i[0], i[1] if len(i) > 1 else '_')
 
-		print('name:	%s' % name)
+		print_with_colored_prefix('name:', name)
 
 		dest_name = dest + '/' + name + (t0 if 't' in flags else '')
 		paths = list(map(fix_slashes, [subj, dest_name]))
@@ -441,12 +455,12 @@ def run_batch_archiving(argv):
 	rest = argv_rest or []
 
 	print('')
-	print('argc:	%s' % argc)
-	print('flags:	%s' % flags)
-	print('suffix:	%s' % def_suffix)
-	print('subj:	%s' % subj)
-	print('dest:	%s' % dest)
-	print('etc:	%s' % ' '.join(rest))
+	print_with_colored_prefix('argc:', argc)
+	print_with_colored_prefix('flags:', flags)
+	print_with_colored_prefix('suffix:', def_suffix)
+	print_with_colored_prefix('subj:', subj)
+	print_with_colored_prefix('dest:', dest)
+	print_with_colored_prefix('etc:', ' '.join(rest))
 	print('')
 
 	if '_' in flags:
@@ -587,11 +601,11 @@ def run_batch_archiving(argv):
 	if cmd_count > 0:
 		print('')
 	else:
-		print('----	----	Nothing to do, command queue is empty.')
+		cprint('----	----	Nothing to do, command queue is empty.', 'cyan')
 		return
 
 	if del_warn:
-		print('----	----	WARNING, only WinRAR or 7-zip v17+ can delete files!')
+		cprint('----	----	WARNING, only WinRAR or 7-zip v17+ can delete files!', 'yellow')
 		print('')
 
 	error_count = 0
@@ -634,7 +648,11 @@ def run_batch_archiving(argv):
 			codes_of_type = exit_codes[cmd_type]
 			result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
 
-			print('%d: %s' % (result_code, result_text))
+			cprint(
+				'%d: %s' % (result_code, result_text)
+			,	'red' if result_code != 0 else 'cyan'
+			)
+
 			print('')
 
 # - finished ------------------------------------------------------------------
@@ -644,18 +662,26 @@ def run_batch_archiving(argv):
 
 	if error_count > 0:
 		if 'k' in flags:
-			print('----	----	Done %d archives, %d errors. See messages above.' % (cmd_count, error_count))
+			print(' '.join([
+				colored('----	----	Done %d archives,' % cmd_count, 'green')
+			,	colored('%d errors.' % error_count, 'red')
+			,	'See messages above.'
+			]))
 		else:
-			print('----	----	Done %d archives, %d errors. Press Enter to continue.' % (cmd_count, error_count))
+			print(' '.join([
+				colored('----	----	Done %d archives,' % cmd_count, 'green')
+			,	colored('%d errors.' % error_count, 'red')
+			,	'Press Enter to continue.'
+			]))
 
 			if sys.version_info.major == 2:
 				raw_input()
 			else:
 				input()
 	elif 'c' in flags:
-		print('----	----	Total %d commands.' % cmd_count)
+		cprint('----	----	Total %d commands.' % cmd_count, 'green')
 	else:
-		print('----	----	Done %d archives.' % cmd_count)
+		cprint('----	----	Done %d archives.' % cmd_count, 'green')
 
 # - runtime, when not imported as module --------------------------------------
 

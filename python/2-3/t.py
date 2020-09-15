@@ -4,6 +4,17 @@
 
 import datetime, fnmatch, io, os, re, sys, time
 
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint(*list_args, **keyword_args): print(list_args[0])
+
 print_encoding = sys.getfilesystemencoding() or 'utf-8'
 argc = len(sys.argv)
 
@@ -96,6 +107,17 @@ count_files_checked = count_files_changed = count_files_errors = count_files_rea
 t_min_valid = 60
 t_now = str(datetime.datetime.now())	# <- '2011-05-03 17:45:35.177000', from http://stackoverflow.com/a/5877368
 
+def print_exception(title, exception=None, path=None):
+	cprint(title, 'red')
+
+	if path is not None:
+		print('"%s"' % path.encode(print_encoding))
+
+	if exception is not None:
+		print(exception)
+
+	print('')
+
 def get_timestamp_text(value):
 	return time.strftime(fmt_date, time.localtime(value))
 
@@ -141,9 +163,7 @@ def read_file(path, mode='r'):
 
 	except (IOError, OSError) as exception:
 		if arg_verbose:
-			print('Error reading contents of file "%s":' % path.encode(print_encoding))
-			print(exception)
-			print('')
+			print_exception('Error reading contents of file:', exception, path)
 
 	if file:
 		file.close()
@@ -213,9 +233,7 @@ def process_folder(path):
 					timestamp_value = get_timestamp_value(timestamp_text)
 				except Exception as exception:
 					if arg_verbose:
-						print('Error reading time text from file "%s":' % path_name.encode(print_encoding))
-						print(exception)
-						print('')
+						print_exception('Error reading time text from file:', exception, path_name)
 
 					count_files_errors += 1
 
@@ -224,16 +242,14 @@ def process_folder(path):
 
 				if arg_verbose:
 					try:
-						print('%d %s %d %s' % (
-							count_files_read,
-							timestamp_text,
-							timestamp_value,
-							path_name
-						))
+						print(' '.join([
+							colored(count_files_read, 'yellow')
+						,	timestamp_text
+						,	colored(timestamp_value, 'yellow')
+						,	path_name
+						]))
 					except Exception as exception:
-						print('Error printing path info for "%s":' % path_name.encode(print_encoding))
-						print(exception)
-						print('')
+						print_exception('Error printing path info for:', exception, path_name)
 
 				if arg_apply:
 					count_files_changed += 1
@@ -278,16 +294,17 @@ def process_folder(path):
 						'='
 					)
 
-					print('%s in %s %s of %s' % (
-						get_timestamp_text(timestamp_value),
-						comparison_sign,
-						get_timestamp_text(modtime_value),
-						path
-					))
+					print(' '.join([
+						get_timestamp_text(timestamp_value)
+					,	colored('inside', 'yellow')
+					,	comparison_sign
+					,	colored('own', 'yellow')
+					,	get_timestamp_text(modtime_value)
+					,	colored('of', 'yellow')
+					,	path
+					]))
 				except Exception as exception:
-					print('Error printing path info for "%s":' % path.encode(print_encoding))
-					print(exception)
-					print('')
+					print_exception('Error printing path info for:', exception, path)
 
 			if arg_apply:
 				count_dirs_changed += 1
@@ -300,12 +317,14 @@ process_folder(u'.')
 
 if not arg_silent:
 	print('')
-	print('- Done:')
+	cprint('- Done:', 'green')
 
-	if count_files_checked:	print('%d files checked.'		% count_files_checked)
-	if count_files_read:	print('%d files contain timestamps.'	% count_files_read)
-	if count_files_changed:	print('%d files changed.'		% count_files_changed)
-	if count_files_errors:	print('%d files skipped with error.'	% count_files_errors)
-	if count_dirs_checked:	print('%d folders checked.'		% count_dirs_checked)
-	if count_dirs_changed:	print('%d folders changed.'		% count_dirs_changed)
-	if count_dirs_errors:	print('%d folders skipped with error.'	% count_dirs_errors)
+	if count_dirs_checked:	print('%d %s' % (count_dirs_checked,	colored('folders checked.',		'cyan')))
+	if count_files_checked:	print('%d %s' % (count_files_checked,	colored('files checked.',		'cyan')))
+	if count_files_read:	print('%d %s' % (count_files_read,	colored('files contain timestamps.',	'cyan')))
+
+	if count_dirs_errors:	print('%d %s' % (count_dirs_errors,	colored('folders skipped with error.',	'red')))
+	if count_files_errors:	print('%d %s' % (count_files_errors,	colored('files skipped with error.',	'red')))
+
+	if count_dirs_changed:	print('%d %s' % (count_dirs_changed,	colored('folders changed.',		'green')))
+	if count_files_changed:	print('%d %s' % (count_files_changed,	colored('files changed.',		'green')))

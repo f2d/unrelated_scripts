@@ -4,6 +4,7 @@
 from email.utils import parsedate
 import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
 
+# Use colored text if available:
 try:
 	from termcolor import colored, cprint
 	import colorama

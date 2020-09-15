@@ -3,6 +3,7 @@
 
 import datetime, os, re, sys, zipfile
 
+# Use colored text if available:
 try:
 	from termcolor import colored, cprint
 	import colorama
