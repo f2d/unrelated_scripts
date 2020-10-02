@@ -47,6 +47,12 @@ else:
 	packages = [dist.project_name for dist in pkg_resources.working_set]
 
 cmd_string = pip_exe_filename + ' install --upgrade ' + ' '.join(packages)
-print('Running: ' + cmd_string + '\n')
+print('Command to run: ' + cmd_string + '\n')
+print('Press Enter to continue.')
+
+if sys.version_info.major == 2:
+	raw_input()
+else:
+	input()
 
 subprocess.call(cmd_string, shell=True)
