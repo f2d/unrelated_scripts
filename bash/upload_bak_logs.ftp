@@ -1,0 +1,6 @@
+connect ftps://LOGIN:PASSWORD@backup-ftp.example.com/
+ls
+mput *.gz.tar
+mput *.tar.xz
+ls
+quit

@@ -1,0 +1,5 @@
+connect ftps://LOGIN:PASSWORD@backup-ftp.example.com/
+ls
+mput *.pem
+ls
+quit
