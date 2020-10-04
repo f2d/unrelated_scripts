@@ -15,10 +15,12 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint(*list_args, **keyword_args): print(list_args[0])
 
-# - configuration and defaults ------------------------------------------------
+# - Configuration and defaults ------------------------------------------------
 
 argc = len(sys.argv)
 
+compression_modes = ['gz', 'bz2', 'xz']
+path_enc = 'utf-8'
 regex_delim = '/'
 regex_mod_args = 'iLmsux'
 regex_mod_flags = [
@@ -69,8 +71,8 @@ if argc < 4:
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	%s old.tar TEST *.txt'
-	,	'	%s old.tar new.tar !*.txt "root/sub/*.txt"'
-	,	'	%s ./old.tar /tmp/new.tar "!/^var/run.*$/i"'
+	,	'	%s old.tar.gz new.tar.bz2 !*.txt "root/sub/*.txt"'
+	,	'	%s ./old.tar.xz /tmp/new.tar "!/^var/run.*$/i"'
 	]
 
 	print('\n'.join(help_text_lines).replace('%s', self_name))
@@ -81,13 +83,32 @@ reg_type = type(re.compile('.'))
 str_type = type('')
 uni_type = type(u'')
 
+# - Declare functions ---------------------------------------------------------
+
 def is_type_reg(v): return isinstance(v, reg_type)
 def is_type_str(v): return isinstance(v, str_type) or isinstance(v, uni_type)
 
 def print_with_colored_prefix(prefix, value, color=None):
 	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
 
-path_enc = 'utf-8'
+def get_open_tarfile(path, mode):
+
+	for compression_mode in compression_modes:
+		if path[-len(compression_mode)-1 : ] == '.' + compression_mode:
+			mode += ':' + compression_mode
+			break
+
+	try:
+		opened_file = tarfile.open(path, mode)
+		opened_file.dereference = False
+
+		return opened_file
+	except:
+		traceback.print_exc()
+
+	return None
+
+# - Check command line arguments ----------------------------------------------
 
 old_path = sys.argv[1]
 new_path = sys.argv[2]
@@ -160,12 +181,9 @@ if not len(criteria):
 
 	sys.exit(1)
 
-try:
-	old_file = tarfile.open(old_path, 'r')
-	old_file.dereference = False
-except:
-	traceback.print_exc()
-	old_file = None
+# - Open archive files --------------------------------------------------------
+
+old_file = get_open_tarfile(old_path, 'r')
 
 if not old_file:
 	print('')
@@ -174,12 +192,7 @@ if not old_file:
 	sys.exit(2)
 
 if not TEST:
-	try:
-		new_file = tarfile.open(new_path, 'w')
-		new_file.dereference = False
-	except:
-		traceback.print_exc()
-		new_file = None
+	new_file = get_open_tarfile(new_path, 'w')
 
 	if not new_file:
 		print('')
@@ -196,6 +209,8 @@ count_members_added = 0
 count_members_matching = 0
 count_skipped_by_error = 0
 skip_log = None
+
+# - Iterate archived files ----------------------------------------------------
 
 while True:
 	member = old_file.next()
@@ -275,10 +290,7 @@ while True:
 
 							skip_log.write(u'<# Unwritable file path - {} #>\n'.format(count_members))
 
-	# if TEST:
-		# if not included: print_with_colored_prefix('Skipped for test:', member.name.encode(path_enc), 'cyan')
-		# TEST += 1
-		# if TEST > 1234: break
+# - Result summary ------------------------------------------------------------
 
 old_file.close()
 
@@ -296,3 +308,5 @@ if not TEST:
 
 	if count_skipped_by_error > 0:
 		print_with_colored_prefix('Skipped', '{} files due to errors, see log.'.format(count_skipped_by_error), 'cyan')
+
+# - End -----------------------------------------------------------------------
