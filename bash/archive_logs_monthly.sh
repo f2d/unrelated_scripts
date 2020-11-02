@@ -36,6 +36,7 @@ fi
 sub_dirs=(
 	chatbot
 	drawpile
+	drawpile-srv
 	duplicity
 	nginx
 )
@@ -54,6 +55,7 @@ do
 			-not -empty
 			-name "*.log*"
 		)
+
 		cmd_arch=(
 			tar cfJ
 			${sub_dir}_logs_${start_date}.tar.xz
@@ -66,6 +68,8 @@ done
 
 if [ -d "${log_dir}" ]; then
 	cd "${log_dir}"
+
+	source "${script_dir}/update_hostname_ip.sh"
 
 	lftp -f "${script_dir}/upload_bak_logs.ftp"
 

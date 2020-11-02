@@ -2,10 +2,11 @@
 
 if [ -z "${start_date}" ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
 if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
+if [ -z "${script_dir}" ]; then script_dir=/root/scripts; fi
 
 echo "- ${start_date} - Started backup script."
 
-target_hostname=backup-ftp.example.com
+target_hostname=ftp.example.com
 target_username=LOGIN
 target_password=PASSWORD
 
@@ -76,25 +77,7 @@ fi
 
 target_addr=${target_hostname}
 
-# https://unix.stackexchange.com/a/20793
-
-# 1) dig queries DNS servers directly, does not look at /etc/hosts/NSS/etc:
-# target_ip=`dig +short $target_hostname | awk '/^[0-9]+\./ { print ; exit }'`
-
-# 2) getent, which comes with glibc, resolves using gethostbyaddr/gethostbyname2, and so also will check /etc/hosts/NIS/etc:
-target_ip=`getent ahosts $target_hostname | awk '/^[0-9]+\./ { print $1; exit }'`
-ip_pattern='^[0-9\.]+$'
-
-if [[ "$target_ip" =~ $ip_pattern ]]; then
-	echo "Using backup server IP: ${target_ip}"
-
-	target_addr=${target_ip}
-else
-	echo "Warning: ${target_ip} is not a valid IP address. Using hostname instead."
-
-	# echo "Error: ${target_ip} is not a valid IP address."
-	# exit
-fi
+source "${script_dir}/update_hostname_ip.sh"
 
 target_path=ftps://${target_username}@${target_addr}/${HOSTNAME}_${cmd_scope}/
 

@@ -1,4 +1,4 @@
-connect ftps://LOGIN:PASSWORD@backup-ftp.example.com/
+connect ftps://LOGIN:PASSWORD@ftp.example.com/
 ls
 mput *.pem
 ls
