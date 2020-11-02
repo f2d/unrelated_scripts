@@ -17,10 +17,10 @@ except ImportError:
 
 # - Configuration and defaults ------------------------------------------------
 
-argc = len(sys.argv)
+print_encoding = sys.getfilesystemencoding() or 'utf-8'
+path_encoding = 'utf-8'
 
 compression_modes = ['gz', 'bz2', 'xz']
-path_enc = 'utf-8'
 regex_delim = '/'
 regex_mod_args = 'iLmsux'
 regex_mod_flags = [
@@ -32,7 +32,16 @@ regex_mod_flags = [
 ,	re.X # verbose
 ]
 
-if argc < 4:
+reg_type = type(re.compile('.'))
+str_type = type('')
+uni_type = type(u'')
+
+# - Declare functions ---------------------------------------------------------
+
+def print_with_colored_prefix(prefix, value, color=None):
+	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
+
+def print_help():
 	self_name = os.path.basename(__file__)
 
 	help_text_lines = [
@@ -41,9 +50,9 @@ if argc < 4:
 	,	'	Save some files from a tar file into a new tar file.'
 	,	''
 	,	colored('* Usage:', 'yellow')
-	,	'	%s'
-		+		colored(' <source> <dest> <mask>', 'cyan')
-		+		colored(' [<mask>] [<!mask>] ...', 'magenta')
+	,	'	{0}'
+		+	colored(' <source> <dest> <mask>', 'cyan')
+		+	colored(' [<mask>] [<!mask>] ...', 'magenta')
 	,	''
 	,	colored('<source>', 'cyan') + ': path to file to read.'
 	,	colored('<dest>', 'cyan') + ': path to file to write. If equals "TEST", do not write.'
@@ -70,26 +79,15 @@ if argc < 4:
 	,	colored('		"!/^/*(lib|opt|root|usr|var|srv)(/|$)/i"', 'cyan')
 	,	''
 	,	colored('* Examples:', 'yellow')
-	,	'	%s old.tar TEST *.txt'
-	,	'	%s old.tar.gz new.tar.bz2 !*.txt "root/sub/*.txt"'
-	,	'	%s ./old.tar.xz /tmp/new.tar "!/^var/run.*$/i"'
+	,	'	{0} old.tar TEST *.txt'
+	,	'	{0} old.tar.gz new.tar.bz2 !*.txt "root/sub/*.txt"'
+	,	'	{0} ./old.tar.xz /tmp/new.tar "!/^var/run.*$/i"'
 	]
 
-	print('\n'.join(help_text_lines).replace('%s', self_name))
-
-	sys.exit()
-
-reg_type = type(re.compile('.'))
-str_type = type('')
-uni_type = type(u'')
-
-# - Declare functions ---------------------------------------------------------
+	print('\n'.join(help_text_lines).format(self_name))
 
 def is_type_reg(v): return isinstance(v, reg_type)
 def is_type_str(v): return isinstance(v, str_type) or isinstance(v, uni_type)
-
-def print_with_colored_prefix(prefix, value, color=None):
-	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
 
 def get_open_tarfile(path, mode):
 
@@ -108,205 +106,226 @@ def get_open_tarfile(path, mode):
 
 	return None
 
-# - Check command line arguments ----------------------------------------------
+# - Main job function ---------------------------------------------------------
 
-old_path = sys.argv[1]
-new_path = sys.argv[2]
+def run_batch_repack(argv):
 
-# https://stackoverflow.com/questions/28583565/str-object-has-no-attribute-decode-python-3-error#comment85846909_28583969
-try:
-	old_path = old_path.decode(path_enc)
-	new_path = new_path.decode(path_enc)
-except AttributeError:
-	pass
+# - Show help and exit --------------------------------------------------------
 
-old_path = old_path.replace('\\', '/')
-new_path = new_path.replace('\\', '/')
+	argc = len(argv)
 
-TEST = True if new_path == 'TEST' else False
+	if argc < 3:
+		print_help()
 
-include_by_default = True
+		return 1
 
-criteria = []
+# - Check arguments -----------------------------------------------------------
 
-for arg in sys.argv[3:]:
-	if len(arg.strip('./*?!"')) > 0:
-		x = arg.replace('\\', '/')
+	old_path = argv[0]
+	new_path = argv[1]
 
-		inclusive = (x[0] != '!')
+	# https://stackoverflow.com/questions/28583565/str-object-has-no-attribute-decode-python-3-error#comment85846909_28583969
+	try:
+		old_path = old_path.decode(path_encoding)
+		new_path = new_path.decode(path_encoding)
 
-		if inclusive:
-			include_by_default = False
-		else:
-			x = x[1 : ]
+	except AttributeError:
+		pass
 
-		if x[0] == regex_delim:
-			regex_delim_pos = x.rfind(regex_delim)
-			regex_pat = x[1 : regex_delim_pos]
+	old_path = old_path.replace('\\', '/')
+	new_path = new_path.replace('\\', '/')
 
-			if len(regex_pat) == 0:
-				continue
+	TEST = True if new_path == 'TEST' else False
 
-			regex_mod = x[regex_delim_pos + 1 : ]
+	include_by_default = True
 
-			n = len(regex_mod)
-			regex_flags = 0
+	criteria = []
 
-			if n > 0:
-				for i in range(n):
-					j = regex_mod_args.find(regex_mod[i])
+	for arg in argv[2 : ]:
+		if len(arg.strip('./*?!"')) > 0:
+			x = arg.replace('\\', '/')
 
-					if j >= 0:
-						regex_flags |= regex_mod_flags[i]
+			inclusive = (x[0] != '!')
 
-			try:
-				x = re.compile(regex_pat, regex_flags)
+			if inclusive:
+				include_by_default = False
+			else:
+				x = x[1 : ]
 
-			except re.error:
-				traceback.print_exc()
-				print('')
-				print_with_colored_prefix('Error in mask expression:', x, 'red')
+			if x[0] == regex_delim:
+				regex_delim_pos = x.rfind(regex_delim)
+				regex_pat = x[1 : regex_delim_pos]
 
-				sys.exit(4)
+				if len(regex_pat) == 0:
+					continue
 
-		criteria.append({
-			'include_if': inclusive
-		,	'pattern': x
-		,	'arg': arg
-		})
+				regex_mod = x[regex_delim_pos + 1 : ]
 
-if not len(criteria):
-	print('')
-	cprint('Error: No parts to match.', 'red')
+				n = len(regex_mod)
+				regex_flags = 0
 
-	sys.exit(1)
+				if n > 0:
+					for i in range(n):
+						j = regex_mod_args.find(regex_mod[i])
+
+						if j >= 0:
+							regex_flags |= regex_mod_flags[i]
+
+				try:
+					x = re.compile(regex_pat, regex_flags)
+
+				except re.error:
+					traceback.print_exc()
+					print('')
+					print_with_colored_prefix('Error in mask expression:', x, 'red')
+
+					return 12
+
+			criteria.append({
+				'include_if': inclusive
+			,	'pattern': x
+			,	'arg': arg
+			})
+
+	if not len(criteria):
+		print('')
+		cprint('Error: No parts to match.', 'red')
+
+		return 11
 
 # - Open archive files --------------------------------------------------------
 
-old_file = get_open_tarfile(old_path, 'r')
+	old_file = get_open_tarfile(old_path, 'r')
 
-if not old_file:
-	print('')
-	print_with_colored_prefix('Error: Could not open source file to read:', old_path, 'red')
-
-	sys.exit(2)
-
-if not TEST:
-	new_file = get_open_tarfile(new_path, 'w')
-
-	if not new_file:
+	if not old_file:
 		print('')
-		print_with_colored_prefix('Error: Could not open destination file to write:', new_path, 'red')
+		print_with_colored_prefix('Error: Could not open source file to read:', old_path, 'red')
 
-		sys.exit(3)
+		return 21
 
-print_with_colored_prefix('From:    ', old_path.encode(path_enc))
-print_with_colored_prefix('To:      ', new_path.encode(path_enc))
-print_with_colored_prefix('Matching:', ', '.join(map(lambda x: x['arg'], criteria)).encode(path_enc))
+	if not TEST:
+		new_file = get_open_tarfile(new_path, 'w')
 
-count_members = 0
-count_members_added = 0
-count_members_matching = 0
-count_skipped_by_error = 0
-skip_log = None
+		if not new_file:
+			print('')
+			print_with_colored_prefix('Error: Could not open destination file to write:', new_path, 'red')
+
+			return 22
+
+	print_with_colored_prefix('From:    ', old_path.encode(print_encoding))
+	print_with_colored_prefix('To:      ', new_path.encode(print_encoding))
+	print_with_colored_prefix('Matching:', ', '.join(map(lambda x: x['arg'], criteria)).encode(print_encoding))
+
+	count_members = 0
+	count_members_added = 0
+	count_members_matching = 0
+	count_skipped_by_error = 0
+	skip_log = None
 
 # - Iterate archived files ----------------------------------------------------
 
-while True:
-	member = old_file.next()
+	while True:
+		member = old_file.next()
 
-	if member is None:
-		break
+		if member is None:
+			break
 
-# for member in old_file.getmembers():
-	count_members += 1
-	included = include_by_default
+	# for member in old_file.getmembers():
+		count_members += 1
+		included = include_by_default
 
-	for x in criteria:
-		matched = False
-		pattern = x['pattern']
+		for x in criteria:
+			matched = False
+			pattern = x['pattern']
 
-		if is_type_str(pattern):
-			matched = fnmatch.fnmatch(member.name, pattern)
+			if is_type_str(pattern):
+				matched = fnmatch.fnmatch(member.name, pattern)
 
-		elif is_type_reg(pattern):
-			matched = re.search(pattern, member.name)
+			elif is_type_reg(pattern):
+				matched = re.search(pattern, member.name)
 
-		if matched:
-			included = x['include_if']
+			if matched:
+				included = x['include_if']
 
-	if included:
-		count_members_matching += 1
+		if included:
+			count_members_matching += 1
 
-		try:
-			print(member.name)
-
-		except (UnicodeEncodeError, UnicodeDecodeError):
 			try:
-				print(member.name.decode(path_enc))
+				print(member.name)
 
 			except (UnicodeEncodeError, UnicodeDecodeError):
 				try:
-					print(member.name.encode(path_enc))
-
-				except (UnicodeEncodeError, UnicodeDecodeError):
-
-					cprint('<# Unprintable file path - {} #>'.format(count_members), 'red')
-
-		if not TEST:
-			try:
-				if (
-					member.type == tarfile.LNKTYPE
-				or	member.type == tarfile.SYMTYPE
-				):
-					extracted_file = member
-				else:
-					extracted_file = old_file.extractfile(member)
-
-				if extracted_file:
-					new_file.addfile(member, extracted_file)
-					count_members_added += 1
-
-			except (KeyError, UnicodeEncodeError, UnicodeDecodeError):
-				traceback.print_exc()
-
-				count_skipped_by_error += 1
-
-				if not skip_log:
-					skip_log = io.open(new_path + '_skip.log', 'a', encoding=path_enc)
-
-				try:
-					skip_log.write(member.name + u'\n')
+					print(member.name.decode(print_encoding))
 
 				except (UnicodeEncodeError, UnicodeDecodeError):
 					try:
-						skip_log.write(member.name.decode(path_enc) + u'\n')
+						print(member.name.encode(print_encoding))
+
+					except (UnicodeEncodeError, UnicodeDecodeError):
+
+						cprint('<# Unprintable file path - {} #>'.format(count_members), 'red')
+
+			if not TEST:
+				try:
+					if (
+						member.type == tarfile.LNKTYPE
+					or	member.type == tarfile.SYMTYPE
+					):
+						extracted_file = member
+					else:
+						extracted_file = old_file.extractfile(member)
+
+					if extracted_file:
+						new_file.addfile(member, extracted_file)
+						count_members_added += 1
+
+				except (KeyError, UnicodeEncodeError, UnicodeDecodeError):
+					traceback.print_exc()
+
+					count_skipped_by_error += 1
+
+					if not skip_log:
+						skip_log = io.open(new_path + '_skip.log', 'a', encoding=path_encoding)
+
+					try:
+						skip_log.write(member.name + u'\n')
 
 					except (UnicodeEncodeError, UnicodeDecodeError):
 						try:
-							skip_log.write(member.name.encode(path_enc) + u'\n')
+							skip_log.write(member.name.decode(path_encoding) + u'\n')
 
 						except (UnicodeEncodeError, UnicodeDecodeError):
+							try:
+								skip_log.write(member.name.encode(path_encoding) + u'\n')
 
-							skip_log.write(u'<# Unwritable file path - {} #>\n'.format(count_members))
+							except (UnicodeEncodeError, UnicodeDecodeError):
+
+								skip_log.write(u'<# Unwritable file path - {} #>\n'.format(count_members))
 
 # - Result summary ------------------------------------------------------------
 
-old_file.close()
+	old_file.close()
 
-print('')
-print_with_colored_prefix('Found', '{} files in old archive, with {} matching.'.format(count_members, count_members_matching), 'yellow')
+	print('')
+	print_with_colored_prefix('Found', '{} files in old archive, with {} matching.'.format(count_members, count_members_matching), 'yellow')
 
-if count_members_added > 0:
-	print_with_colored_prefix('Added', '{} files to new archive.'.format(count_members_added), 'green')
+	if count_members_added > 0:
+		print_with_colored_prefix('Added', '{} files to new archive.'.format(count_members_added), 'green')
 
-if not TEST:
-	new_file.close()
+	if not TEST:
+		new_file.close()
 
-	if skip_log:
-		skip_log.close()
+		if skip_log:
+			skip_log.close()
 
-	if count_skipped_by_error > 0:
-		print_with_colored_prefix('Skipped', '{} files due to errors, see log.'.format(count_skipped_by_error), 'cyan')
+		if count_skipped_by_error > 0:
+			print_with_colored_prefix('Skipped', '{} files due to errors, see log.'.format(count_skipped_by_error), 'cyan')
+
+	return 0 if count_members_added > 0 else -1
+
+# - Run from commandline, when not imported as module -------------------------
+
+if __name__ == '__main__':
+	sys.exit(run_batch_repack(sys.argv[1 : ]))
 
 # - End -----------------------------------------------------------------------

@@ -4,36 +4,23 @@
 
 import os, sys, re
 
-print_encoding = sys.getfilesystemencoding() or 'utf-8'
-argc = len(sys.argv)
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
 
-if argc < 2:
-	self_name = os.path.basename(__file__)
+	colorama.init()
 
-	help_text_lines = [
-		''
-	,	'* Description:'
-	,	'	Find and extract known files (PNGs) stored as is inside other files.'
-	,	''
-	,	'* Usage:'
-	,	'	%s <source> <dest>'
-	,	''
-	,	'<source>: path to binary data file or folder with files to read.'
-	,	'<dest>: path to folder to save extracted files. If "TEST", do not save.'
-	,	''
-	,	'* Examples:'
-	,	'	%s "/read/from/folder/" "/save/to/folder/"'
-	,	'	%s "/read/from/data.bin" TEST'
-	]
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint(*list_args, **keyword_args): print(list_args[0])
 
-	print('\n'.join(help_text_lines).replace('%s', self_name))
+# - Configuration and defaults ------------------------------------------------
 
-	sys.exit()
-
-# png magic bytes:
-# ‰PNG
-# IEND
-# ®B`‚
+# PNG magic bytes:
+#	‰PNG
+#	IEND
+#	®B`‚
 
 pat_file_content = {
 	'png': re.compile(br'''
@@ -46,64 +33,132 @@ pat_file_content = {
 
 pat_conseq_slashes = re.compile(r'[\\/]+')
 
+# - Declare functions ---------------------------------------------------------
+
+def print_with_colored_prefix_line(comment, value, color=None):
+	print('')
+	cprint(comment, color or 'yellow')
+	print(value)
+
+def print_with_colored_prefix(prefix, value, color=None):
+	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
+
+def print_help():
+	self_name = os.path.basename(__file__)
+
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	Find and extract known files stored as is inside other files.'
+	,	''
+	,	colored('* Known file formats:', 'yellow')
+	,	'	' + ', '.join(sorted(set(pat_file_content.keys())))
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(' <source> <dest>', 'cyan')
+	,	''
+	,	colored('<source>', 'cyan') + ': path to binary data file or folder with files to read.'
+	,	colored('<dest>', 'cyan') + ': path to folder to save extracted files. If "TEST", do not save.'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
+	,	'	{0} "/read/from/data.bin" TEST'
+	]
+
+	print('\n'.join(help_text_lines).format(self_name))
+
 def fix_slashes(path):
 	return re.sub(pat_conseq_slashes, '/', u'' + path)
 
-def extract_from_file(src_path, dest_path):
-	src_file_path = fix_slashes(src_path)
+# - Main job function ---------------------------------------------------------
 
-	if not os.path.isfile(src_file_path):
-		return False
+def run_batch_extract(argv):
 
-	src_file = open(src_file_path, 'rb')
+	def extract_from_file(src_path, dest_path):
+		src_file_path = fix_slashes(src_path)
 
-	if not src_file:
-		print('Error: Could not open source file.')
-		return False
+		if not os.path.isfile(src_file_path):
+			return False
 
-	print('')
-	print('Read file: "%s"' % src_file_path.encode(print_encoding))
+		src_file = open(src_file_path, 'rb')
 
-	content = src_file.read()
-	src_file.close()
+		if not src_file:
+			print_with_colored_prefix_line('Error: Could not open source file:', src_file_path, 'red')
 
-	print('Size: %d bytes' % len(content))
+			return False
 
-	for ext, pat in pat_file_content.items():
-		i = 0
+		print_with_colored_prefix_line('Read file:', src_file_path)
 
-		for found in pat.finditer(content):
-			i += 1
+		content = src_file.read()
+		src_file.close()
 
-			found_content_part = found.group(0)
-			dest_file_path = fix_slashes('%s/%d.%s' % (dest_path, i, ext))
+		print_with_colored_prefix('Size:', '{} bytes'.format(len(content)))
 
-			print('')
-			print('Save file: "%s"' % dest_file_path.encode(print_encoding))
-			print('Size: %d bytes' % len(found_content_part))
+		for ext, pat in pat_file_content.items():
+			i = 0
 
-			if not TEST:
-				if not os.path.isdir(dest_path):
-					os.makedirs(dest_path)
+			for found in pat.finditer(content):
+				i += 1
 
-				dest_file = open(dest_file_path, 'wb')
-				dest_file.write(found_content_part)
-				dest_file.close()
+				found_content_part = found.group(0)
+				dest_file_path = fix_slashes('{}/{}.{}'.format(dest_path, i, ext))
 
-				print('Saved.')
+				print_with_colored_prefix_line('Save file:', dest_file_path)
 
-		print('Found %d %s files.' % (i, ext))
+				print_with_colored_prefix('Size:', '{} bytes'.format(len(found_content_part)))
 
-	print('	--------' * 4)
-	return True
+				if not TEST:
+					if not os.path.isdir(dest_path):
+						os.makedirs(dest_path)
 
-src_path = fix_slashes(sys.argv[1] if argc > 1 else '') or '.'
-dest_path = fix_slashes(sys.argv[2] if argc > 2 else '') or '.'
+					dest_file = open(dest_file_path, 'wb')
+					dest_file.write(found_content_part)
+					dest_file.close()
 
-TEST = (dest_path == 'TEST')
+					cprint('Saved.', 'green')
 
-if os.path.isdir(src_path):
-	for name in os.listdir(src_path):
-		extract_from_file(src_path+'/'+name, dest_path+'/'+name+'_parts')
-else:
-	extract_from_file(src_path, dest_path)
+			if i > 0:
+				print('')
+				print_with_colored_prefix('Found', '{} {} files.'.format(i, ext), 'cyan')
+
+		print('')
+		print('	--------' * 4)
+
+		return True
+
+# - Show help and exit --------------------------------------------------------
+
+	argc = len(argv)
+
+	if argc < 2:
+		print_help()
+
+		return 1
+
+# - Check arguments -----------------------------------------------------------
+
+	src_path = fix_slashes(argv[0] if argc > 0 else '') or '.'
+	dest_path = fix_slashes(argv[1] if argc > 1 else '') or '.'
+
+	TEST = (dest_path == 'TEST')
+
+# - Do the job ----------------------------------------------------------------
+
+	if os.path.isdir(src_path):
+		for name in os.listdir(src_path):
+			extract_from_file(
+				src_path + '/' + name
+			,	dest_path + '/' + name + '_parts'
+			)
+	else:
+		extract_from_file(src_path, dest_path)
+
+	return 0
+
+# - Run from commandline, when not imported as module -------------------------
+
+if __name__ == '__main__':
+	sys.exit(run_batch_extract(sys.argv[1 : ]))
+
+# - End -----------------------------------------------------------------------

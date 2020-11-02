@@ -15,7 +15,9 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint(*list_args, **keyword_args): print(list_args[0])
 
-# - configuration and defaults ------------------------------------------------
+# - Configuration and defaults ------------------------------------------------
+
+print_encoding = sys.getfilesystemencoding() or 'utf-8'
 
 flags_group_by_num_any_sep = '12.,'
 flags_group_by_num_dot = '12.'
@@ -28,6 +30,8 @@ def_name_separator = '='
 def_suffix_separator = '>'
 def_subj = '.'
 def_dest = '..'
+
+dest_name_replacements = ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']
 
 exit_codes = {
 
@@ -60,7 +64,7 @@ exit_codes = {
 	}
 }
 
-# - functions -----------------------------------------------------------------
+# - Declare functions ---------------------------------------------------------
 
 # https://stackoverflow.com/a/189664/8352410
 class GetOutOfLoop( Exception ):
@@ -127,55 +131,57 @@ def get_exe_paths():
 
 	return exe_paths_found
 
+def get_text_encoded_for_print(text):
+	return text.encode(print_encoding) if sys.version_info.major == 2 else text
+
 def print_with_colored_prefix(prefix, value, color=None):
-	print('%s	%s' % (colored(prefix, color or 'yellow'), value))
+	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
 
 def print_help():
 	self_name = os.path.basename(__file__)
 	exe_paths = get_exe_paths()
 
+	all_flags = ''.join(sorted(set(
+		'1234_069.,;fzwdatmnckl'
+	+	flags_all_solid_types
+	+	def_suffix_separator
+	)))
+
 	help_text_lines = [
 		''
-	,	'* Description:'
-	,	''
+	,	colored('* Description:', 'yellow')
 	,	'	This script calls several preinstalled programs in a batch'
 	,	'	to make a set of archives with same content with intention'
 	,	'	to compare and hand-pick the best or most suitable results.'
 	,	''
-	,	'* Usage:'
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(
+				' "['
+				+ ']['.join([
+					'<flags>'
+				,	def_name_separator + '<name>'
+				,	def_suffix_separator + '<suffix>'
+				])
+				+ ']"'
+			,	'cyan'
+			)
+		+	'\n		'
+		+	colored(' ["<subj>"|' + def_subj + ']', 'magenta')
+		+	colored(' ["<dest>"|' + def_dest + ']', 'magenta')
+		+	colored(' [<optional args> ...]', 'magenta')
 	,	''
-	,	'	%s'
-		+ ' '.join([
-			'"['
-			+ ']['.join([
-				''.join(sorted(set(
-					'1234_069.,;fzwdatmnckl'
-				+	flags_all_solid_types
-				+	def_suffix_separator
-				)))
-			,	def_name_separator+'<name>'
-			,	def_suffix_separator+'<suffix>'
-			])
-			+ ']"'
-		,	'["<subj>"|' + def_subj + ']'
-		,	'["<dest>"|' + def_dest + ']'
-		,	'[<optional args> ...]'
-		])
-	,	''
-	,	'* Warning:'
-	,	''
+	,	colored('* Warning:', 'yellow')
 	,	'	In shell, add "quotes" around arguments, that contain any of the'
 	,	'	following symbols: "' + must_quote_chars + '"'
 	,	'	Or quote/escape anything beyond latin letters and digits just in case.'
 	,	''
-	,	'* Current executable paths to be used (found or fallback):'
-	,	''
+	,	colored('* Current executable paths to be used (found or fallback):', 'yellow')
 	] + [
-		'	%s:	%s' % (k, v) for k, v in exe_paths.items()
+		'	{}:	{}'.format(k, v) for k, v in exe_paths.items()
 	] + [
 		''
-	,	'* Flags (switch letters, concatenate in any order, any case):'
-	,	''
+	,	colored('* Flags (switch letters, concatenate in any order, any case):', 'yellow')
 	,	'	c: check resulting command lines without running them.'
 	,	'	k: don\'t wait for key press after errors.'
 	,	''
@@ -239,22 +245,22 @@ def print_help():
 	,	'		(only by WinRAR, or 7-Zip since v17)'
 	,	'		(if by WinRAR, last archive is tested before deleting subjects)'
 	,	''
-	,	'* Examples:'
-	,	'	%s a'
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} a'
 	,	'	(default subj = current folder, destination = 1 folder up)'
 	,	''
-	,	'	%s a "*some*thing*"'
+	,	'	{0} a "*some*thing*"'
 	,	'	(default destination = 1 up, so wildcard won\'t grab result archives)'
 	,	''
-	,	'	%s a "subfolder/file"'
+	,	'	{0} a "subfolder/file"'
 	,	'	(default destination = here, safe because no wildcard)'
 	,	''
-	,	'	%s ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
+	,	'	{0} ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
 	,	''
-	,	'	%s "7r_e' + def_name_separator + 'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
+	,	'	{0} "7r_e' + def_name_separator + 'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
 	]
 
-	print('\n'.join(help_text_lines).replace('%s', self_name))
+	print('\n'.join(help_text_lines).format(self_name))
 
 def uniq(path_part_before, path_part_after, timestamp):
 	full_path = path_part_before + path_part_after
@@ -274,6 +280,13 @@ def is_any_char_of_a_in_b(chars, text):
 
 	return False
 
+def is_any_char_code_out_of_normal_range(text):
+	for char in text:
+		if ord(char) > 127:
+			return True
+
+	return False
+
 def is_quoted(text):
 	for char in '\'"':
 		if text[0] == char and text[-1 : ][0] == char:
@@ -282,11 +295,14 @@ def is_quoted(text):
 	return False
 
 def quoted_if_must(text):
-	text = '%s' % text
+	text = get_text_encoded_for_print(text)
 
 	return (
-		('"%s"' % text)
-		if not is_quoted(text) and is_any_char_of_a_in_b(must_quote_chars, text)
+		'"{}"'.format(text)
+		if not is_quoted(text) and (
+			is_any_char_of_a_in_b(must_quote_chars, text)
+		or	is_any_char_code_out_of_normal_range(text)
+		)
 		else text
 	)
 
@@ -301,6 +317,8 @@ def pad_list(a, minimum_len=2, pad_value=''):
 
 	return (a + [pad_value] * diff) if diff > 0 else a
 
+# - Main job function ---------------------------------------------------------
+
 def run_batch_archiving(argv):
 
 	def queue(cmd_queue, dest, subj, foreach=False):
@@ -314,9 +332,9 @@ def run_batch_archiving(argv):
 			if suffix.find('.zip') >= 0:
 				cmd_args = list(map(
 					lambda x: (
-						None if x[0:4] == '-mqs'
-					else	None if x[0:4] == '-md='
-					else	(None if '0' in flags else '-mfb=256') if x[0:5] == '-mfb='
+						None if x[0 : 4] == '-mqs'
+					else	None if x[0 : 4] == '-md='
+					else	(None if '0' in flags else '-mfb=256') if x[0 : 5] == '-mfb='
 					else	x
 					), cmd_args
 				))
@@ -359,10 +377,10 @@ def run_batch_archiving(argv):
 		else:
 			name = def_name_fallback
 
-		for i in ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']:
+		for i in dest_name_replacements:
 			name = name.replace(i[0], i[1] if len(i) > 1 else '_')
 
-		print_with_colored_prefix('name:', name)
+		print_with_colored_prefix('name:', get_text_encoded_for_print(name))
 
 		dest_name = dest + '/' + name + (t0 if 't' in flags else '')
 		paths = list(map(fix_slashes, [subj, dest_name]))
@@ -374,10 +392,12 @@ def run_batch_archiving(argv):
 		if '7' in flags:
 			ext = (dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
 			solid = 0
+
 			if is_subj_mass and not dest_name_part_uncompressed:
 				if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
 				if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-ms'])
-			if not solid or 'n' in flags: append_cmd(cmd_queue, paths, ext, ['-ms=off'])
+
+			if not solid or ('n' in flags): append_cmd(cmd_queue, paths, ext, ['-ms=off'])
 
 		ext = dest_name_part_uncompressed + '.zip'
 
@@ -387,10 +407,12 @@ def run_batch_archiving(argv):
 		if 'r' in flags:
 			ext = (dest_name_part_uncompressed or dest_name_part_dict_size) + dest_name_part_dedup + '.rar'
 			solid = 0
+
 			if is_subj_mass and not dest_name_part_uncompressed:
 				if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-se'])
 				if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-s'])
-			if not solid or 'n' in flags: append_cmd(cmd_queue, paths, ext, ['-s-'])
+
+			if not solid or ('n' in flags): append_cmd(cmd_queue, paths, ext, ['-s-'])
 
 		del_warn = 0
 
@@ -401,18 +423,19 @@ def run_batch_archiving(argv):
 				['-sdel', '-y'] if ('7' in flags) or ('z' in flags) else
 				[]
 			)
+
 			if da:
 				j = len(cmd_queue) - 1
 				a = cmd_queue[j]['args']
-				i = (a.index('--') - len(a)) if '--' in a else -2
-				a = a[:i] + da + a[i:]
+				i = (a.index('--') - len(a)) if ('--' in a) else -2
+				a = a[ : i] + da + a[i : ]
 				cmd_queue[j]['args'] = a
 			else:
 				del_warn = 1
 
 		return del_warn
 
-# - get argument values -------------------------------------------------------
+# - Check arguments -----------------------------------------------------------
 
 	argv = list(argv)
 	argc = len(argv)
@@ -422,7 +445,7 @@ def run_batch_archiving(argv):
 	argv_dest = argv.pop(0) if len(argv) else None
 	argv_rest = argv if len(argv) else None
 
-# - display help --------------------------------------------------------------
+# - Show help and exit --------------------------------------------------------
 
 	if (
 		not argv_flag
@@ -430,9 +453,10 @@ def run_batch_archiving(argv):
 	or	argv_flag[0] == '/'
 	):
 		print_help()
-		return
 
-# - calculate params ----------------------------------------------------------
+		return 1
+
+# - Calculate params ----------------------------------------------------------
 
 	flags, def_name = pad_list((argv_flag.strip('"') or '').split(def_name_separator, 1))
 
@@ -456,11 +480,11 @@ def run_batch_archiving(argv):
 
 	print('')
 	print_with_colored_prefix('argc:', argc)
-	print_with_colored_prefix('flags:', flags)
-	print_with_colored_prefix('suffix:', def_suffix)
-	print_with_colored_prefix('subj:', subj)
-	print_with_colored_prefix('dest:', dest)
-	print_with_colored_prefix('etc:', ' '.join(rest))
+	print_with_colored_prefix('flags:', get_text_encoded_for_print(flags))
+	print_with_colored_prefix('suffix:', get_text_encoded_for_print(def_suffix))
+	print_with_colored_prefix('subj:', get_text_encoded_for_print(subj))
+	print_with_colored_prefix('dest:', get_text_encoded_for_print(dest))
+	print_with_colored_prefix('etc:', get_text_encoded_for_print(' '.join(rest)))
 	print('')
 
 	if '_' in flags:
@@ -539,7 +563,7 @@ def run_batch_archiving(argv):
 	time_format = ';_%Y-%m-%d,%H-%M-%S' if ';' in flags else '_%Y-%m-%d_%H-%M-%S'
 	t0 = time.strftime(time_format)
 
-# - fill batch queue ----------------------------------------------------------
+# - Fill batch queue ----------------------------------------------------------
 
 	if foreach or foreach_ID:
 		names = list(map(
@@ -602,7 +626,8 @@ def run_batch_archiving(argv):
 		print('')
 	else:
 		cprint('----	----	Nothing to do, command queue is empty.', 'cyan')
-		return
+
+		return 11
 
 	if del_warn:
 		cprint('----	----	WARNING, only WinRAR or 7-zip v17+ can delete files!', 'yellow')
@@ -610,7 +635,7 @@ def run_batch_archiving(argv):
 
 	error_count = 0
 
-# - run batch queue -----------------------------------------------------------
+# - Do the job ----------------------------------------------------------------
 
 	for cmd in cmd_queue:
 		cmd_args = list(filter(bool, cmd['args']))
@@ -649,13 +674,13 @@ def run_batch_archiving(argv):
 			result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
 
 			cprint(
-				'%d: %s' % (result_code, result_text)
+				'{}: {}'.format(result_code, result_text)
 			,	'red' if result_code != 0 else 'cyan'
 			)
 
 			print('')
 
-# - finished ------------------------------------------------------------------
+# - Result summary ------------------------------------------------------------
 
 	if 'c' in flags:
 		print('')
@@ -663,14 +688,14 @@ def run_batch_archiving(argv):
 	if error_count > 0:
 		if 'k' in flags:
 			print(' '.join([
-				colored('----	----	Done %d archives,' % cmd_count, 'green')
-			,	colored('%d errors.' % error_count, 'red')
+				colored('----	----	Done {} archives,'.format(cmd_count), 'green')
+			,	colored('{} errors.'.format(error_count), 'red')
 			,	'See messages above.'
 			]))
 		else:
 			print(' '.join([
-				colored('----	----	Done %d archives,' % cmd_count, 'green')
-			,	colored('%d errors.' % error_count, 'red')
+				colored('----	----	Done {} archives,'.format(cmd_count), 'green')
+			,	colored('{} errors.'.format(error_count), 'red')
 			,	'Press Enter to continue.'
 			]))
 
@@ -679,11 +704,15 @@ def run_batch_archiving(argv):
 			else:
 				input()
 	elif 'c' in flags:
-		cprint('----	----	Total %d commands.' % cmd_count, 'green')
+		cprint('----	----	Total {} commands.'.format(cmd_count), 'green')
 	else:
-		cprint('----	----	Done %d archives.' % cmd_count, 'green')
+		cprint('----	----	Done {} archives.'.format(cmd_count), 'green')
 
-# - runtime, when not imported as module --------------------------------------
+	return 0 if error_count == 0 and cmd_count > 0 else -1
+
+# - Run from commandline, when not imported as module -------------------------
 
 if __name__ == '__main__':
-	run_batch_archiving(sys.argv[1:])
+	sys.exit(run_batch_archiving(sys.argv[1 : ]))
+
+# - End -----------------------------------------------------------------------

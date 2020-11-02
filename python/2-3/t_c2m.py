@@ -4,82 +4,162 @@
 
 import datetime, os, sys
 
-print_encoding = sys.getfilesystemencoding() or 'utf-8'
-argc = len(sys.argv)
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
 
-if argc < 2:
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint(*list_args, **keyword_args): print(list_args[0])
+
+# - Configuration and defaults ------------------------------------------------
+
+# print_encoding = 'unicode_escape'
+print_encoding = sys.getfilesystemencoding() or 'utf-8'
+
+default_time_threshold = 30*24*3600
+
+# - Declare functions ---------------------------------------------------------
+
+def get_text_encoded_for_print(text):
+	return text.encode(print_encoding) if sys.version_info.major == 2 else text
+
+def print_with_colored_prefix(comment, value, color=None):
+	print('{} {}'.format(colored(comment, color or 'yellow'), value))
+
+def print_with_colored_suffix(value, comment, color=None):
+	print('{} {}'.format(value, colored(comment, color or 'yellow')))
+
+def print_help():
 	self_name = os.path.basename(__file__)
 
 	help_text_lines = [
 		''
-	,	'Description:'
+	,	colored('* Description:', 'yellow')
 	,	'	For each file get its timestamp of creation on the disk volume,'
 	,	'	and if far enough, set file modification time to that.'
 	,	''
-	,	'Usage:'
-	,	'	%s <flags> [<threshold>]'
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(' <flags>', 'cyan')
+		+	colored(' [<threshold>]', 'magenta')
 	,	''
-	,	'<flags>: string of letters in any order.'
+	,	colored('<flags>', 'cyan') + ': string of letters in any order.'
 	,	'	a: Apply changes. Otherwise just show expected values.'
 	,	'	r: Recursively go into subfolders.'
 	,	'	t: Test output only, opposite of "a".'
 	,	''
-	,	'<threshold>: Number in seconds, default = 30*24*3600 seconds = ~1 month.'
+	,	colored('<threshold>', 'cyan') + ': Number in seconds, default = {} seconds = ~1 month.'.format(default_time_threshold)
 	,	'	threshold > 0: Changes apply if ctime > mtime + threshold.'
 	,	'	threshold < 0: Changes apply if ctime < mtime - threshold.'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} tr'
+	,	'	{0} ar 123'
 	]
 
-	print('\n'.join(help_text_lines).replace('%s', self_name))
+	print('\n'.join(help_text_lines).format(self_name))
 
-	sys.exit(0)
+# - Main job function ---------------------------------------------------------
 
-count_changed = count_checked = count_dirs_checked = count_files_checked = 0
+def run_batch_retime(argv):
 
-flags = sys.argv[1]
-arg_recurse = 'r' in flags
-arg_apply = ('a' in flags) and not ('t' in flags)
-arg_test = not arg_apply
-
-threshold = (int(sys.argv[2]) if argc > 2 else 0) or 30*24*3600
-
-def process_folder(path):
 	global count_changed, count_checked, count_dirs_checked, count_files_checked
 
-	for name in os.listdir(path):
-		count_checked += 1
+	def process_folder(path):
 
-		filepath = path+'/'+name
+		global count_changed, count_checked, count_dirs_checked, count_files_checked
 
-		if os.path.isdir(filepath):
-			if arg_recurse:
-				count_dirs_checked += 1
+		for name in os.listdir(path):
+			count_checked += 1
 
-				process_folder(filepath)
-			continue
+			filepath = path + '/' + name
 
-		count_files_checked += 1
+			if os.path.isdir(filepath):
+				if arg_recurse:
+					count_dirs_checked += 1
 
-	#	a_time = os.path.getatime(filepath)
-		c_time = os.path.getctime(filepath)
-		m_time = os.path.getmtime(filepath)
+					process_folder(filepath)
+				continue
 
-		time_difference = c_time - m_time
+			count_files_checked += 1
 
-		if (
-			time_difference > threshold if (threshold > 0) else
-			time_difference < threshold
-		):
-			count_changed += 1
-			print('%d	t_diff = %.2f	%s' % (count_checked, time_difference, filepath.encode('utf-8')))
+		#	a_time = os.path.getatime(filepath)
+			c_time = os.path.getctime(filepath)
+			m_time = os.path.getmtime(filepath)
 
-			if arg_apply:
-				os.utime(filepath, (c_time, c_time))
+			time_difference = c_time - m_time
 
-		if arg_test and count_changed > 9:
-			break
+			if (
+				time_difference > threshold if (threshold > 0) else
+				time_difference < threshold
+			):
+				count_changed += 1
 
-print('')
-process_folder(u'.')
+				print(' '.join([
+					colored(count_checked, 'yellow')
+				,	colored('c/m time diff =', 'cyan')
+				,	'{:.2f}'.format(time_difference)
+				,	colored('for file', 'cyan')
+				,	get_text_encoded_for_print(filepath)
+				]))
 
-print('')
-print('%d dirs, %d files, %d changes %s.' % (count_dirs_checked, count_files_checked, count_changed, 'done' if arg_apply else 'pending'))
+				if arg_apply:
+					os.utime(filepath, (c_time, c_time))
+
+			if arg_test and count_changed > 9:
+				break
+
+# - Show help and exit --------------------------------------------------------
+
+	argc = len(argv)
+
+	if argc < 1:
+		print_help()
+
+		return 1
+
+# - Check arguments -----------------------------------------------------------
+
+	flags = argv[0]
+	arg_recurse = ('r' in flags)
+	arg_apply = ('a' in flags) and not ('t' in flags)
+	arg_test = not arg_apply
+
+	threshold = (int(argv[1]) if argc > 1 else 0) or default_time_threshold
+
+	count_changed = count_checked = count_dirs_checked = count_files_checked = 0
+
+# - Do the job ----------------------------------------------------------------
+
+	print('')
+	process_folder(u'.')
+
+# - Result summary ------------------------------------------------------------
+
+	print('')
+	cprint('- Done:', 'green')
+
+	if count_dirs_checked > 0:
+		print_with_colored_suffix(count_dirs_checked, 'folders checked.')
+
+	if count_files_checked > 0:
+		print_with_colored_suffix(count_files_checked, 'files checked.')
+
+	if count_changed > 0:
+		if arg_apply:
+			print_with_colored_suffix(count_changed, 'changed.', 'green')
+		else:
+			print_with_colored_suffix(count_changed, 'to change.', 'cyan')
+
+	return 0
+
+# - Run from commandline, when not imported as module -------------------------
+
+if __name__ == '__main__':
+	sys.exit(run_batch_retime(sys.argv[1 : ]))
+
+# - End -----------------------------------------------------------------------
