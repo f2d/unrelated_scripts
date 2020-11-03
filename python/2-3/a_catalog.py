@@ -3,24 +3,22 @@
 # Python 2 or 3 should work.
 
 import datetime, os, re, subprocess, sys, time
+import a
 
-# - config: -------------------------------------------------------------------
+# - Configuration and defaults ------------------------------------------------
 
-root_path = u'.'
+default_root_path = u'.'
 time_format = ';_%Y-%m-%d,%H-%M-%S'
 
 pat_normalize_title = [
 	[re.compile(r'[;_]*\d{4}(\D\d\d){5}'), '']
 ]
 
-# - functions: ----------------------------------------------------------------
-
-def encode_cmd(cmd_array):
-	fse = sys.getfilesystemencoding()
-	return [(arg.encode(fse) if isinstance(arg,unicode) else arg) for arg in cmd_array]
+# - Declare functions ---------------------------------------------------------
 
 def pad_list(a, minimum_len=2, pad_value=''):
 	diff = minimum_len - len(a)
+
 	return (a + [pad_value] * diff) if diff > 0 else a
 
 def add_before_ext(path, add):
@@ -29,50 +27,75 @@ def add_before_ext(path, add):
 		name = path
 	else:
 		folder, name = pad_list(path.rsplit('/', 1))
-	name, ext = pad_list(name.rsplit('.', 1))
-	return (folder+'/' if folder else '') + (name+add+'.'+ext).rstrip('.')
 
-def get_dest_name(src):
-	if not os.path.exists(src):
+	name, ext = pad_list(name.rsplit('.', 1))
+
+	return (folder + '/' if folder else '') + (name + add + '.' + ext).rstrip('.')
+
+def get_path_with_timestamp(src_path):
+	if not os.path.exists(src_path):
 		return ''
 
-	d = datetime.datetime.fromtimestamp(os.path.getmtime(src)).strftime(time_format)
-	d = t = add_before_ext(src, d)
-	i = 1
-	while os.path.exists(d):
-		i += 1
-		d = add_before_ext(t, '('+i+')')
-	if i > 1:
-		print('+', i, 'duplicate(s)')
-	return d
+	dest_path = datetime.datetime.fromtimestamp(os.path.getmtime(src_path)).strftime(time_format)
+	dest_path = temp_path = add_before_ext(src_path, dest_path)
+	try_count = 1
 
-# - run names colection: ------------------------------------------------------
+	while os.path.exists(dest_path):
+		try_count += 1
+		dest_path = add_before_ext(temp_path, '({})'.format(try_count))
 
-src_list = os.listdir(root_path)
-names = []
+	if try_count > 1:
+		print('+ {} name duplicate(s)'.format(try_count))
 
-for name in src_list:
-	path = root_path+'/'+name
-	if os.path.isdir(path):
-		n = name
-		for pat in pat_normalize_title:
-			n = re.sub(pat[0], pat[1], n)
-		if len(n) > 0 and not n in names:
-			names.append(n)
-		n = get_dest_name(root_path+'/'+n)
-		if n and n != path:
-			print(path)
-			print(n)
-			os.rename(path, n)
+	return dest_path
 
-if len(names) > 0:
-	names.sort()
-	suffix = ',[' + ','.join(names) + ']'
-else:
-	suffix = ''
+def get_label(root_path, fix_timestamps=True):
+	src_list = os.listdir(root_path)
+	names = []
 
-# - run batch archiving: ------------------------------------------------------
+	for name in src_list:
+		src_path = root_path + '/' + name
 
-import a
+		if os.path.isdir(src_path):
+			new_name = name
 
-a.run_batch_archiving(['7r_sdm;=_catalog_htm>'+suffix, '.', '..'])
+			for pat in pat_normalize_title:
+				new_name = re.sub(pat[0], pat[1], new_name)
+
+			if len(new_name) > 0 and not new_name in names:
+				names.append(new_name)
+
+			if fix_timestamps:
+				dest_path = get_path_with_timestamp(root_path + '/' + new_name)
+
+				if dest_path and dest_path != src_path:
+					print(src_path)
+					print(dest_path)
+
+					os.rename(src_path, dest_path)
+
+	if len(names) > 0:
+		return ',[' + ','.join(sorted(names)) + ']'
+
+	return ''
+
+# - Main job function ---------------------------------------------------------
+
+def run_catalog_batch_archiving(argv):
+	root_path = argv[0] if len(argv) > 0 else default_root_path
+	archive_label = get_label(root_path)
+
+	if archive_label:
+		return a.run_batch_archiving(['7r_sdm;=_catalog_htm>' + archive_label, '.', '..'])
+	else:
+		print('')
+		print('Nothing to archive.')
+
+		return 1
+
+# - Run from commandline, when not imported as module -------------------------
+
+if __name__ == '__main__':
+	sys.exit(run_catalog_batch_archiving(sys.argv[1 : ]))
+
+# - End -----------------------------------------------------------------------
