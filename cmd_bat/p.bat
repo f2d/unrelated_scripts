@@ -2,10 +2,15 @@
 @echo off
 
 REM Description:
-REM	This batch file is only useful for calling scripts written in Python from Windows command line, using specified Python version.
+REM	This batch file is only useful as shorthand for choosing by name one of available Python scripts
+REM	and calling it from Windows command line with given arguments, using (un)specified Python version.
+REM
+REM	Script from the current folder is chosen first, if exists.
+REM	Then from the common path.
+REM	Then from the path by specified version.
 REM
 REM Usage:
-REM	p.bat script_filename<.py> [script_arg_1] ["script arg 2"] [...]
+REM	p.bat script_filename[.py] [script_arg_1] ["script arg 2"] [...]
 REM
 REM Notes:
 REM	This batch file can be copied/hardlinked and used under the following names:
@@ -15,9 +20,13 @@ REM		p2.bat   - use Python 2, pause.
 REM		p2np.bat - use Python 2, no pause.
 REM		p3.bat   - use Python 3, pause.
 REM		p3np.bat - use Python 3, no pause.
+REM
 REM	Specifically, only 2nd character (version number) and 3rd ("n") have meaning.
 REM	This is done to fit more arguments for actual Python scripts into cmd's %1...%9 substitution limits.
+REM
 REM	Currently this substitution limit is only relevant if any argument contains redirection arrow symbol (angle bracket ">").
+REM	Checking for containing angle brackets is done for the first 255 arguments, or until 9 consecutive empty values.
+REM
 REM	Default Python version, specified in this batch file, is currently 2.
 REM	Paths to Python executable and scripts are not automatic, but configurable below in this file.
 
@@ -34,9 +43,10 @@ REM		set python_exe_path=python%python_version%.exe
 
 set python_v2_exe_path=d:\programs\_dev\Python\2\python.exe
 set python_v3_exe_path=d:\programs\_dev\Python\3\python.exe
+
+set scripts_common_path=d:\programs\_dev\Python\scripts\2-3
 set scripts_v2_path=d:\programs\_dev\Python\scripts\2
 set scripts_v3_path=d:\programs\_dev\Python\scripts\3
-set scripts_common_path=d:\programs\_dev\Python\scripts\2-3
 
 
 
@@ -145,14 +155,17 @@ REM	--------	--------	Check arguments for target script:	--------	--------
 
 set all_args=%*
 set fallback_args="%~2" "%~3" "%~4" "%~5" "%~6" "%~7" "%~8" "%~9"
-set args_count=1
+set args_count=2
 set args_count_max=255
 
 :test_loop_start
 
 shift
-set "test_arg_unquoted=%~1"
 
+set "test_arg_look_ahead=%~1%~2%~3%~4%~5%~6%~7%~8%~9"
+if "%test_arg_look_ahead%" == "" goto test_loop_end
+
+set "test_arg_unquoted=%~1"
 if "%test_arg_unquoted%" == "" goto test_loop_count
 
 :test_loop_filter
