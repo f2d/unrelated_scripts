@@ -25,7 +25,9 @@ REM	Specifically, only 2nd character (version number) and 3rd ("n") have meaning
 REM	This is done to fit more arguments for actual Python scripts into cmd's %1...%9 substitution limits.
 REM
 REM	Currently this substitution limit is only relevant if any argument contains redirection arrow symbol (angle bracket ">").
-REM	Checking for containing angle brackets is done for the first 255 arguments, or until 9 consecutive empty values.
+REM	Checking for containing angle brackets is done until 9 consecutive empty values.
+REM	This can count up to way over 255 arguments, with over 1000 arguments succesfully tested in Windows 10 cmd.
+REM	Total command line length also has a limit, around 4080 chars with arguments being a range of numbers from 1 to 1037.
 REM
 REM	Default Python version, specified in this batch file, is currently 2.
 REM	Paths to Python executable and scripts are not automatic, but configurable below in this file.
@@ -155,18 +157,16 @@ REM	--------	--------	Check arguments for target script:	--------	--------
 
 set all_args=%*
 set fallback_args="%~2" "%~3" "%~4" "%~5" "%~6" "%~7" "%~8" "%~9"
-set args_count=2
-set args_count_max=255
 
 :test_loop_start
 
-shift
+shift /1
 
 set "test_arg_look_ahead=%~1%~2%~3%~4%~5%~6%~7%~8%~9"
 if "%test_arg_look_ahead%" == "" goto test_loop_end
 
 set "test_arg_unquoted=%~1"
-if "%test_arg_unquoted%" == "" goto test_loop_count
+if "%test_arg_unquoted%" == "" goto test_loop_start
 
 :test_loop_filter
 
@@ -175,15 +175,7 @@ set "test_arg_filtered=%test_arg_filtered:<=%"
 
 if not "%test_arg_unquoted%" == "%test_arg_filtered%" goto use_fallback_args
 
-:test_loop_count
-
-set /a args_count+=1
-
-if "%args_count%" == "%args_count_max%" (
- goto test_loop_end
-) else (
- goto test_loop_start
-)
+goto test_loop_start
 
 :test_loop_end
 
