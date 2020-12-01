@@ -39,7 +39,7 @@ if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	,	'<flags>: string of letters in any order as first argument.'
 	,	'	t: for test output only (don\'t apply changes)'
 	,	'	f: when cutting, check length of full path instead of only name'
-	,	'	o: ,	full path instead of only name'
+	,	'	o: print full path instead of only name'
 	,	'	r: recurse into subfolders (default = stay in working folder)'
 	,	''
 	,	'	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
@@ -542,7 +542,7 @@ def r(path, later=0):
 
 		elif ext in ext_path_inside:
 			n_matched += 1
-			url = re.search(pat_url, rf(src, 123456))
+			url = re.search(pat_url, rf(src, 12345))
 			if not url:
 				continue
 

@@ -325,7 +325,7 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)([^&#%]+).*?$', re.I), r'\1.\2']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1:orig']
 ,	[re.compile(r'\b(twimg\.com/+profile_images?/+[^:?&#%]+)(_[^/:?&#%]+)(\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1\3']
-,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rgho.st/\2']
+,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rghost.net/\2']
 ,	[re.compile(r'(file.qip.ru/(file|photo)/[^?#]+)(\?.*)?$', re.I), r'\1?action=downloads']
 ,	[re.compile(r'shot\.qip\.ru[^-#]*-(.)([^/?#]+)(/+.*)?$', re.I), r'f\1.s.qip.ru/\2.png']
 ,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(skype\.com)/+login/+sso?go=(.*)$', re.I), r'\1web.\2/\3']	# <- get attachments via web version
@@ -365,8 +365,8 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		re.compile(r'''
 			<(?:
 				source(?:\s+[^>]*?)?\s+src
-			|	link\s+rel="(?:canonical|image_src)"[^>]*?\s+href
-			|	meta\s+property="og:image"\s+content
+			|	link(?:\s+[^>]*?)?\s+rel="(?:canonical|image_src)"(?:\s+[^>]*?)?\s+href
+			|	meta(?:\s+[^>]*?)?\s+property="og:image"(?:\s+[^>]*?)?\s+content
 		#	|	img(?:\s+[^>]*?)?\s+data-src		# <- thumbs, not needed
 			)
 			="?/*
@@ -377,7 +377,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 			)?
 			([^"?]+)		# <- 3
 
-		|	<a\s+href="?/*
+		|	<a(?:\s+[^>]*?)?\s+href="?/*
 			((?:\w+:/+)?[^"/]+/)	# <- 4
 			([^"?]+)"*\s+		# <- 5
 			(?:
@@ -474,9 +474,9 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 	,	'grab': re.compile(r'''
 			(?:
 				<img(?:\s+[^>]*?)?\s+src="?(?P<ImageSrc>[^">\s]+)
-			|	(?:<meta\s+content="?(?P<ImageWidth> \d+)"?\s+property="?og:image:width ["\s/>][^<]*?)?
-				(?:<meta\s+content="?(?P<ImageHeight>\d+)"?\s+property="?og:image:height["\s/>][^<]*?)?
-				<link(?:\s+[^>]*?)?\s+href="?(?P<ImageLink>[^">\s]+)"?\s+(?:[^>]*?\s+)?rel="?image[^a-z]?src["\s/>]
+			|	(?:<meta(?:\s+[^>]*?)?\s+content="?(?P<ImageWidth> \d+)"?(?:\s+[^>]*?)?\s+property="?og:image:width ["\s/>][^<]*?)?
+				(?:<meta(?:\s+[^>]*?)?\s+content="?(?P<ImageHeight>\d+)"?(?:\s+[^>]*?)?\s+property="?og:image:height["\s/>][^<]*?)?
+				<link(?:\s+[^>]*?)?\s+href="?(?P<ImageLink>[^">\s]+)"?(?:\s+[^>]*?)?\s+rel="?image[^a-z]?src["\s/>]
 			)
 		''', re.I | re.X)
 	,	'link': [r'\g<ImageSrc>', r'\g<ImageLink>']
@@ -1710,7 +1710,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 					elif ext != 'txt' and ext.find('htm') < 0:
 						add_ext = 'htm'
 
-				elif media == 'video' or media == 'audio':
+				elif media == 'video' or media == 'audio' or media == 'application':
 					if not ext_in_format:
 						add_ext = format
 
