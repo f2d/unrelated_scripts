@@ -2,7 +2,7 @@
 
 if [ -z "${update_hosts_file}" ]; then update_hosts_file=true; fi
 if [ -z "${hosts_file_path}"   ]; then hosts_file_path=/etc/hosts; fi
-if [ -z "${target_hostname}"   ]; then target_hostname=back.2draw.me; fi
+if [ -z "${target_hostname}"   ]; then target_hostname=ftp.example.com ; fi
 
 ip_pattern="[0-9]+([.][0-9]+)*"
 
