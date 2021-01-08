@@ -262,14 +262,27 @@ def print_help():
 
 	print('\n'.join(help_text_lines).format(self_name))
 
-def uniq(path_part_before, path_part_after, timestamp):
-	full_path = path_part_before + path_part_after
+def remove_trailing_dots_in_path_parts(path):
+	return '/'.join(
+		part if part == '.' or part == '..'
+		else part.rstrip('.')
+		for part in normalize_slashes(path).split('/')
+	)
+
+def get_unique_clean_path(path_part_before, path_part_after, timestamp):
+	try_count = 0
+	full_path = remove_trailing_dots_in_path_parts(path_part_before + path_part_after)
 
 	if os.path.exists(full_path):
-		full_path = path_part_before + timestamp + path_part_after
+		try_count += 1
+		full_path = remove_trailing_dots_in_path_parts(path_part_before + timestamp + path_part_after)
 
-	while os.path.exists(full_path):
-		full_path = '(2).'.join(full_path.rsplit('.', 1))
+	if os.path.exists(full_path):
+		full_path_parts = full_path.rsplit('.', 1)
+
+		while os.path.exists(full_path):
+			try_count += 1
+			full_path = '({}).'.format(try_count).join(full_path_parts)
 
 	return fix_slashes(full_path)
 
@@ -339,7 +352,7 @@ def run_batch_archiving(argv):
 					), cmd_args
 				))
 
-			dest = uniq(dest, suffix, t0)
+			dest = get_unique_clean_path(dest, suffix, t0)
 			path_args = (
 				[('-n' if rar else '-i') + subj, '--', dest] if is_subj_list else
 				['--', dest, subj]

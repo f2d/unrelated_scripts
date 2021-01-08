@@ -14,7 +14,9 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint(*list_args, **keyword_args): print(list_args[0])
 
-from r_config import default_print_encoding, default_name_cut_length, dest_root, dest_root_by_ext, dest_root_yt, ext_web, sites
+from r_config import default_print_encoding, default_name_cut_length
+from r_config import dest_root, dest_root_by_ext, dest_root_yt
+from r_config import ext_web, ext_web_index_file, sites
 
 arg_name_cut = 'cut'
 
@@ -42,11 +44,12 @@ if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	,	'	o: print full path instead of only name'
 	,	'	r: recurse into subfolders (default = stay in working folder)'
 	,	''
-	,	'	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
-	,	'	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
 	,	'	b: move aib-grabbed files into subdir by thread ID in filename'
+	,	'	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
 	,	'	p: move pixiv-grabbed files into subdir by work ID in filename'
+	,	'	s: move files with specific ext to configured paths'
 	,	'	u: move files up from subdir by type (flash, gif, video, etc, may start from underscore)'
+	,	'	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
 	,	'	x: move non-image files into subdir by type in ext (flash, gif, video, etc)'
 	,	'	y: rename Complete YouTube Saver downloads in sub/same-folder by ID in URL and filenames'
 	,	''
@@ -55,16 +58,19 @@ if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	,	'	'+arg_name_cut+'<number>: cut long names to specified length'
 	,	''
 	,	'	y:   move any leftover files into subdir named by mod-time year'
+	,	'	m:   subdir by month'
+	,	'	d:   subdir by day'
 	,	'	ym:  subdir by year-month'
 	,	'	ymd: subdir by year-month-day'
 	,	'		Notes: may be combined,'
 	,	'		interpreted as switches (on/off),'
-	,	'		resulting always in this order: y/ym/ymd'
+	,	'		resulting always in this order: y/ym/m/ymd/d'
+	,	'	dir: move dirs into subdir by mod-time too'
 	,	''
 	,	'* Examples:'
 	,	'	%s rwb'
 	,	'	%s tfo '+arg_name_cut+'234'
-	,	'	%s o y ym ymd'
+	,	'	%s o y ym ymd dir'
 	]
 
 	print('\n'.join(help_text_lines).replace('%s', self_name))
@@ -82,14 +88,18 @@ arg_move_aib_by_threads = 'b' in arg_flags
 arg_move_cys_by_id      = 'y' in arg_flags
 arg_move_dups_by_md5    = 'd' in arg_flags
 arg_move_pxv_by_id      = 'p' in arg_flags
+arg_move_types_by_ext   = 's' in arg_flags
 arg_move_subtypes       = 'x' in arg_flags
 arg_move_subtypes_up    = 'u' in arg_flags
 arg_move_web_pages      = 'w' in arg_flags
+arg_move_dirs_to_subdir_by_modtime = 'dir' in other_args
 
 arg_subdir_modtime_format = ''
 if 'y'   in other_args: arg_subdir_modtime_format += '/%Y'
 if 'ym'  in other_args: arg_subdir_modtime_format += '/%Y-%m'
+if 'm'   in other_args: arg_subdir_modtime_format += '/%m'
 if 'ymd' in other_args: arg_subdir_modtime_format += '/%Y-%m-%d'
+if 'd'   in other_args: arg_subdir_modtime_format += '/%d'
 
 j = len(arg_name_cut)
 if arg_name_cut in other_args:
@@ -102,12 +112,13 @@ else:
 			break
 
 pat_url = re.compile(r'''
-(?:^|[\r\n]\s*)
+(?:^|[>\r\n]\s*)
 (?P<Meta>
-	(
+	(?:
 		(?:Snapshot-)?Content-Location:[^\r\n\w]*	# <- [skip quotes, whitespace, any garbage, etc]
 	|	<base\s+href=[^<>\w]*
 	|	<MAF:originalurl\s+[^<>\s=]+=[^<>\w]*
+	|	<!--\s+Page\s+saved\s+with\s+SingleFileZ?\s+url:\s+
 	)
 )
 (?P<URL>
@@ -169,7 +180,7 @@ pat_ren = [
 	}
 ,	{
 		'type': 'filehosting'
-	,	'page': re.compile(ur'''^
+	,	'page': re.compile(ur'''^			# <- SyntaxError: invalid syntax in python3
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
 				(?P<SiteName>[^{}\s]+)\s+
@@ -303,6 +314,18 @@ def dumpclean(obj):
 			else: print v
 	else: print obj
 
+def normalize_slashes(path):
+	return path.replace('\\', '/')
+
+def fix_slashes(path):
+	if os.sep != '/':
+		path = path.replace('/', os.sep)
+
+	if os.sep != '\\':
+		path = path.replace('\\', os.sep)
+
+	return path
+
 def get_file_name(path):
 	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
 	return path
@@ -312,58 +335,92 @@ def get_file_ext(path):
 	if path.find('.') >= 0: path = path.rsplit('.', 1)[1]
 	return path.lower()
 
-def rf(name, size=0):
-	global n_fail
-	ext = get_file_ext(name)
-	r = ''
+def read_zip_file(name, return_source_html=False):
+	file_ext = get_file_ext(name)
 
-	try:
-		if ext == 'maff':
-			z = zipfile.ZipFile(name, 'r')
-			for path in z.namelist():
+	for ext, index_file_name in ext_web_index_file.items():
+		if ext != file_ext:
+			continue
+
+		try:
+			zip_file = zipfile.ZipFile(name, 'r')
+
+			for path in zip_file.namelist():
 				name = path.rsplit('/', 1)[-1:][0]
-				if name == 'index.rdf':
+				if name == index_file_name:
 					if TEST:
-						print info_prfx, colored('MAFF test, meta file:', 'yellow'), path, '\n'
-					r = z.read(path)			# <- return source URL
-					if not size:
-						s = re.search(pat_idx, r)
+						print info_prfx, colored('MAFF/ZIP test, meta file:', 'yellow'), path, '\n'
+
+					result = zip_file.read(path)			# <- return source URL
+
+					if return_source_html:
+						s = re.search(pat_idx, result)
 						if s and s.group(1):
 							path = path[:-len(name)] + s.group(1)
 							if TEST:
-								print info_prfx, colored('MAFF test, content file:', 'yellow'), path, '\n'
-							r = z.read(path)	# <- return source HTML
-					break
-		else:
+								print info_prfx, colored('MAFF/ZIP test, content file:', 'yellow'), path, '\n'
+
+							result = zip_file.read(path)	# <- return source HTML
+					return result
+
+		except zipfile.BadZipfile as exception:
+			if TEST:
+				print msg_prfx, colored('MAFF/ZIP test, cannot read file as ZIP:', 'yellow'), name
+				print exception
+
+
+def read_file_or_part(name, size=0):
+	global n_fail
+
+	result = ''
+
+	try:
+		result = read_zip_file(name, return_source_html=(not size))
+
+		if result is None:
 			f = open(name)
-			r = f.read(size) if size else f.read()
+			result = f.read(size) if size else f.read()
 			f.close()
 
-	except Exception as e:
+	except Exception as exception:
 		n_fail += 1
 		print msg_prfx, colored('Path length:', 'yellow'), len(name)
-		print e
+		print exception
 
-	return r
+	return result
 
 def get_formatted_modtime(src_path, format):
 	return datetime.datetime.fromtimestamp(os.path.getmtime(src_path)).strftime(format)
 
-def uniq(src, d):
-	i = 0
+def remove_trailing_dots_in_path_parts(path):
+	return '/'.join(
+		part if part == '.' or part == '..'
+		else part.rstrip('.')
+		for part in normalize_slashes(path).split('/')
+	)
 
-	if os.path.exists(d) and os.path.exists(src):
-		d = get_formatted_modtime(src, ';_%Y-%m-%d,%H-%M-%S.').join(d.rsplit('.', 1))
-		i += 1
+def get_unique_clean_path(src_path, dest_path):
+	try_count = 0
+	dest_path = remove_trailing_dots_in_path_parts(dest_path)
 
-	while os.path.exists(d):
-		d = '(2).'.join(d.rsplit('.', 1))
-		i += 1
+	if os.path.exists(dest_path) and os.path.exists(src_path):
+		try_count += 1
+		dest_path = get_formatted_modtime(src_path, ';_%Y-%m-%d,%H-%M-%S.').join(dest_path.rsplit('.', 1))
 
-	if i:
-		cprint('+ %d duplicate(s)' % i, 'yellow')
+	if os.path.exists(dest_path):
+		dest_path_parts = dest_path.rsplit('.', 1)
 
-	return d
+		while os.path.exists(dest_path):
+			try_count += 1
+			dest_path = '({}).'.format(try_count).join(dest_path_parts)
+
+	if try_count:
+		cprint('+ %d duplicate(s)' % try_count, 'yellow')
+
+	return dest_path
+
+def rename_to_unique_clean_path(src_path, dest_path):
+	return os.rename(src_path, get_unique_clean_path(src_path, dest_path))
 
 def meet(obj, criteria):
 	return True if (
@@ -463,7 +520,32 @@ def print_name(name, prefix='', extra_line=True):
 		cprint('{0}name in {1}:'.format(prefix, enc), 'yellow')
 		print name.encode(enc)
 
-def r(path, later=0):
+def move_processed_target(src, path, name, dest_dir=None):
+	global n_fail, n_moved
+
+	if not dest_dir and arg_subdir_modtime_format:
+		dest_dir = path.rstrip('/') + '/' + get_formatted_modtime(src, arg_subdir_modtime_format).strip('/')
+
+	if dest_dir:
+		print dest_dir.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
+
+		if DO:
+			dest = get_unique_clean_path(src, dest_dir+'/'+name)
+
+			try:
+				if not os.path.exists(dest_dir):
+					print colored('Path not found, make dirs:', 'yellow'), dest_dir.encode(default_print_encoding)
+					os.makedirs(dest_dir)
+
+				os.rename(src, dest)
+				n_moved += 1
+
+			except Exception as exception:
+				n_fail += 1
+				print msg_prfx, colored('Path length:', 'yellow'), len(src), colored('to', 'yellow'), len(dest)
+				print exception
+
+def process_dir(path, later=0):
 	global n_i, n_fail, n_matched, n_moved, n_back, n_later, n_max_len, not_existed, dup_lists_by_ID
 
 	names = os.listdir(path)
@@ -475,7 +557,11 @@ def r(path, later=0):
 			if arg_recurse_into_subdirs:
 				if TEST and arg_print_full_path:
 					print_name(name, 'Dir')
-				r(src, later)
+				process_dir(src, later)
+
+			if arg_move_dirs_to_subdir_by_modtime:
+				move_processed_target(src, path, name)
+
 			continue
 
 		if TEST and arg_print_full_path:
@@ -494,7 +580,7 @@ def r(path, later=0):
 
 				ext = '(...).' + get_file_ext(name)
 				dest_path = src_path[:arg_len - len(ext)].rstrip() + ext
-				dest_path = uniq(src_path, dest_path)
+				dest_path = get_unique_clean_path(src_path, dest_path)
 				dest_show = (dest_path if arg_print_full_path else get_file_name(dest_path))
 
 				print
@@ -512,7 +598,7 @@ def r(path, later=0):
 		ext = get_file_ext(name)
 		d = ''
 
-		if ext in dest_root_by_ext:
+		if arg_move_types_by_ext and ext in dest_root_by_ext:
 			if later:
 				n_later += 1
 			else:
@@ -537,12 +623,13 @@ def r(path, later=0):
 				print d.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
 
 				if DO and os.path.exists(src) and os.path.isdir(d):
-					os.rename(src, uniq(src, d+'/'+name))
+					rename_to_unique_clean_path(src, d+'/'+name)
 					n_moved += 1
 
 		elif ext in ext_path_inside:
 			n_matched += 1
-			url = re.search(pat_url, rf(src, 12345))
+			url = re.search(pat_url, read_file_or_part(src, 12345))
+
 			if not url:
 				continue
 
@@ -642,7 +729,7 @@ def r(path, later=0):
 					pat_child_name = p.get('child')
 
 					if site_type == 'booru':
-						page_content = re.sub(pat_ren_mht_linebreak, '', rf(src))
+						page_content = re.sub(pat_ren_mht_linebreak, '', read_file_or_part(src))
 
 					if site_type == 'youtube':
 						page_ID = re.search(pat_ren_yt_URL_ID, url.group('Query'))
@@ -681,7 +768,7 @@ def r(path, later=0):
 									print info_prfx, sub_name.encode(default_print_encoding)
 
 									if DO:
-										os.rename(sub_path, uniq(sub_path, sub_dest))
+										rename_to_unique_clean_path(sub_path, sub_dest)
 										n_moved += 1
 						elif os.path.isdir(child_path):
 							continue
@@ -721,18 +808,21 @@ def r(path, later=0):
 							print info_prfx, child_dest.encode(default_print_encoding)
 
 							if DO:
-								os.rename(child_path, uniq(child_path, child_dest))
+								rename_to_unique_clean_path(child_path, child_dest)
 								n_moved += 1
 					break
 
 				d = ''
+
 				try:
 					d = (dest_root+dest).rstrip('/.')
-				except Exception as e:
-					print colored('Destination path error:', 'red'), e
+				except Exception as exception:
+					print colored('Destination path error:', 'red'), exception
+
 				if len(d) < 1:
 					d = u'.'
-				dq = d
+
+				dq = d = remove_trailing_dots_in_path_parts(d)
 
 				if DO:
 					try:
@@ -740,7 +830,7 @@ def r(path, later=0):
 							print msg_prfx, colored('Path not found, make dirs:', 'yellow'), d.encode(default_print_encoding)
 							os.makedirs(d)
 						d += '/'+(name[:-2] if ext == 'mhtml' else name)
-						dq = uniq(src, d)
+						dq = get_unique_clean_path(src, d)
 						os.rename(src, dq)
 						if os.path.exists(d):		# <- check that new-moved and possible duplicate both exist
 							n_moved += 1
@@ -750,13 +840,29 @@ def r(path, later=0):
 						else:
 							n_back += 1		# <- if renamed "path/name" to the same "path/name(2)", revert
 							os.rename(dq, d)	# <- this is simpler than checking equality, symlinks and stuff
-					except Exception as e:
+
+					except Exception as exception:
+						print msg_prfx, colored('Error renaming:', 'red'), exception
+
 						n_fail += 1
-						d, dq = len(d), len(dq)
-						print msg_prfx, colored('Destination path length:', 'red'), d
-						if d != dq:
-							print msg_prfx, colored('Renamed unique length:', 'red'), dq
-						print e
+						d_len = len(d)
+						dq_len = len(dq)
+
+						print colored('Destination path length:', 'red'), d_len
+
+						try:
+							print colored('Destination path:', 'red'), d
+						except Exception as exception:
+							print colored('Error printing:', 'red'), exception
+
+						if d_len != dq_len:
+							print colored('Destination unique path length:', 'red'), dq_len
+
+							try:
+								print colored('Destination unique path:', 'red'), dq
+							except Exception as exception:
+								print colored('Error printing:', 'red'), exception
+
 				elif not d in not_existed and not os.path.exists(d):
 					print msg_prfx, colored('Path not found:', 'red'), d.encode(default_print_encoding)
 					not_existed.append(d)
@@ -856,31 +962,12 @@ def r(path, later=0):
 
 				break
 
-			if not d and arg_subdir_modtime_format:
-				d = path.rstrip('/') + '/' + get_formatted_modtime(src, arg_subdir_modtime_format).strip('/')
-
-			if d:
-				print d.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
-
-				if DO:
-					dest = uniq(src, d+'/'+name)
-
-					try:
-						if not os.path.exists(d):
-							print colored('Path not found, make dirs:', 'yellow'), d.encode(default_print_encoding)
-							os.makedirs(d)
-						os.rename(src, dest)
-						n_moved += 1
-
-					except Exception as e:
-						n_fail += 1
-						print msg_prfx, colored('Path length:', 'yellow'), len(src), colored('to', 'yellow'), len(dest)
-						print e
+			move_processed_target(src, path, name, d)
 
 def run(later=0):
 	global n_later, dup_lists_by_ID
 
-	r(u'.', later)
+	process_dir(u'.', later)
 
 	if later:
 		for i in dup_lists_by_ID:

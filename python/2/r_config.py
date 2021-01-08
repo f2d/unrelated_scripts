@@ -10,6 +10,11 @@ default_name_cut_length = 123
 
 ext_web = ['htm', 'html', 'maff', 'mht', 'mhtml']
 
+ext_web_index_file = {
+	'html': 'index.html'
+,	'maff': 'index.rdf'
+}
+
 dest_root = u'd:/_bak/_www/'
 dest_root_yt = u'd:/1_Video/other/_xz/YouTube/'
 
@@ -81,7 +86,8 @@ pat_by_ext_coub_DL_button = re.compile(r'^\d+_(ifunny|looped)_\d+\.\w+$', re.I)
 #--[ table of rule cases selected by filename ]--------------------------------
 
 dest_root_by_ext = {
-	'hathdl':	dest_root + '_img/_manga/e-hentai.org/_dl/_hath/' # 'd:/programs/!_net/HatH/hathdl'
+	'eml':		dest_root + '_web/_mail/'
+,	'hathdl':	dest_root + '_img/_manga/e-hentai.org/_dl/_hath/' # 'd:/programs/!_net/HatH/hathdl'
 ,	'torrent':	'd:/_bak/4torrent/_torrent_files,not_active/'
 ,	'zip':	[
 		{
