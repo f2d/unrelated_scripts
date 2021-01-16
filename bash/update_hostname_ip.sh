@@ -1,10 +1,32 @@
 #!/bin/bash
 
+source "/root/scripts/common_script_variables.sh"
+
+if [ -z "${start_date}"        ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
 if [ -z "${update_hosts_file}" ]; then update_hosts_file=true; fi
 if [ -z "${hosts_file_path}"   ]; then hosts_file_path=/etc/hosts; fi
-if [ -z "${target_hostname}"   ]; then target_hostname=ftp.example.com ; fi
+
+echo "- ${start_date} - Started hostname IP update script."
+
+target_hostname=$1
+
+if [ -z "${target_hostname}" ]
+then
+	echo "No target hostname argument given."
+	echo "Aborted."
+
+	exit 1
+fi
 
 ip_pattern="[0-9]+([.][0-9]+)*"
+
+if [[ "${target_hostname}" =~ ^${ip_pattern}$ ]]
+then
+	echo "Given hostname is an IP address."
+	echo "Aborted."
+
+	exit 2
+fi
 
 if [ "${update_hosts_file}" == "true" ]
 then
@@ -49,3 +71,5 @@ then
 else
 	echo "Warning: ${target_ip} is not a valid IP address. Using hostname instead."
 fi
+
+echo "- $(date '+%F_%H-%M-%S.%N') - Finished hostname IP update script."

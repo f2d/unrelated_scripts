@@ -1,14 +1,17 @@
 #!/bin/bash
 
+source "/root/scripts/common_script_variables.sh"
+
 if [ -z "${start_date}" ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
 if [ -z "${script_dir}" ]; then script_dir=/root/scripts; fi
+if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
+
+if [ -z "${ftp_protocol}" ]; then ftp_protocol=ftps ; fi
+if [ -z "${ftp_hostname}" ]; then ftp_hostname=ftp.example.com ; fi
+if [ -z "${ftp_username}" ]; then ftp_username=LOGIN ; fi
+if [ -z "${ftp_password}" ]; then ftp_password=PASSWORD ; fi
 
 echo "- ${start_date} - Started backup script."
-
-target_hostname=ftp.example.com
-target_username=LOGIN
-target_password=PASSWORD
 
 cmd_name=duplicity
 
@@ -75,13 +78,13 @@ else
 	)
 fi
 
-target_addr=${target_hostname}
+target_addr=${ftp_hostname}
 
-source "${script_dir}/update_hostname_ip.sh"
+source "${script_dir}/update_hostname_ip.sh" ${ftp_hostname}
 
-target_path=ftps://${target_username}@${target_addr}/${HOSTNAME}_${cmd_scope}/
+ftp_path=${ftp_protocol}://${ftp_username}@${target_addr}/${HOSTNAME}_${cmd_scope}/
 
-FTP_PASSWORD=${target_password}
+FTP_PASSWORD=${ftp_password}
 export FTP_PASSWORD
 
 for src_dir in "${src_dirs_arr[@]}"
@@ -106,7 +109,7 @@ do
 			"--log-file=${log_dir}/${cmd_name}/${cmd_name}_${start_date}_${name}_${src_dir_start_date}.log"
 			"--name=${name}"
 			"$src_dir"
-			"${target_path}${name}"
+			"${ftp_path}${name}"
 		)
 
 		if [ "$1" == "test" ]

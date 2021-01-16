@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# root_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/"
-# source "${root_dir}common-flock-variables.sh"
+source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}" ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
-if [ -z "${lock_dir}"   ]; then lock_dir=/run/lock; fi
-if [ -z "${script_dir}" ]; then script_dir=/root/scripts; fi
+if [ -z "${lock_dir}"       ]; then lock_dir=/run/lock; fi
+if [ -z "${lock_file_name}" ]; then lock_file_name=backup_cron_job; fi
 
 cmd_lock=(
 	flock
-	${lock_dir}/backup_cron_job.lock
+	"${lock_dir}/${lock_file_name}.lock"
 )
+
+# Call it like this:
+# "${cmd_lock[@]}" "${script_dir}/archive_logs_monthly.sh"

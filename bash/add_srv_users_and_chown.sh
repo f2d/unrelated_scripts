@@ -6,7 +6,8 @@ add_group_and_user_if_not_yet()
 	local user_name="${2?need a string}"
 
 	# https://superuser.com/a/336708
-	if [ ! -z "$(getent group "${group_name}")" ]; then
+	if [ ! -z "$(getent group "${group_name}")" ]
+	then
 		echo "Group exists: ${group_name}"
 	else
 		echo "Group does not exist, adding now: ${group_name}"
@@ -14,7 +15,8 @@ add_group_and_user_if_not_yet()
 		addgroup "${group_name}"
 	fi
 
-	if [ ! -z "$(getent passwd "${user_name}")" ]; then
+	if [ ! -z "$(getent passwd "${user_name}")" ]
+	then
 		echo "User exists: ${user_name}"
 	else
 		echo "User does not exist, adding now: ${user_name}"

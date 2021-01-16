@@ -1,8 +1,10 @@
 #!/bin/bash
 
+source "/root/scripts/common_script_variables.sh"
+
 if [ -z "${start_date}" ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
 if [ -z "${script_dir}" ]; then script_dir=/root/scripts; fi
+if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
 
 if [ "$1" == "full" ]
 then
@@ -19,7 +21,8 @@ cmd_args=(
 	"${start_date}"
 )
 
-if [ ! -d "${log_dir}/${cmd_name}" ]; then
+if [ ! -d "${log_dir}/${cmd_name}" ]
+then
 	mkdir "${log_dir}/${cmd_name}"
 fi
 

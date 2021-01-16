@@ -1,5 +1,0 @@
-connect ftps://LOGIN:PASSWORD@ftp.example.com/
-ls
-mput *.pem
-ls
-quit
