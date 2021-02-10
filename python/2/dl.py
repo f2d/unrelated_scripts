@@ -1655,7 +1655,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 			write_file(
 				log_completed
-			,	('%s%s\n\n%s\n' % (log_stamp(), '\n'.join(urls_to_log), headers))
+			,	('%s%s\n\nResponse code: %s\nResponse headers:\n%s\n' % (
+					log_stamp()
+				,	'\n'.join(urls_to_log)
+				,	response.code
+				,	headers
+				))
 			)
 
 			dest = url.rstrip('/')
@@ -1711,7 +1716,10 @@ def process_url(dest_root, url, utf='', prfx=''):
 						add_ext = 'htm'
 
 				elif media == 'video' or media == 'audio' or media == 'application':
-					if not ext_in_format:
+					if format == 'x-javascript':
+						add_ext = 'js'
+
+					elif format != 'octet-stream' and format[0 : 2] != 'x-' and not ext_in_format:
 						add_ext = format
 
 				elif media == 'image':
@@ -1861,6 +1869,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 					write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
 
 			print
+			try_print(colored('Response code:', 'yellow'), response.code)
 			try_print(colored('Response headers:', 'yellow'), headers)
 
 			# check new links found on the way:
