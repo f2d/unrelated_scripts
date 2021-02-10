@@ -7,8 +7,19 @@ import re
 default_print_encoding = 'unicode-escape'
 
 default_name_cut_length = 123
+default_read_bytes = 12345
 
 ext_web = ['htm', 'html', 'maff', 'mht', 'mhtml']
+
+ext_web_remap = {
+	'htm': 'html'
+,	'mhtml': 'mht'
+}
+
+ext_web_read_bytes = {
+	'html': 0	# <- read whole file
+# ,	'mht': 12345
+}
 
 ext_web_index_file = {
 	'html': 'index.html'

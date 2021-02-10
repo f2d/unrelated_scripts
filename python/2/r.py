@@ -14,9 +14,9 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint(*list_args, **keyword_args): print(list_args[0])
 
-from r_config import default_print_encoding, default_name_cut_length
+from r_config import default_print_encoding, default_name_cut_length, default_read_bytes
 from r_config import dest_root, dest_root_by_ext, dest_root_yt
-from r_config import ext_web, ext_web_index_file, sites
+from r_config import ext_web, ext_web_remap, ext_web_read_bytes, ext_web_index_file, sites
 
 arg_name_cut = 'cut'
 
@@ -115,10 +115,14 @@ pat_url = re.compile(r'''
 (?:^|[>\r\n]\s*)
 (?P<Meta>
 	(?:
+	# MHT:
 		(?:Snapshot-)?Content-Location:[^\r\n\w]*	# <- [skip quotes, whitespace, any garbage, etc]
-	|	<base\s+href=[^<>\w]*
+	# MAFF:
 	|	<MAF:originalurl\s+[^<>\s=]+=[^<>\w]*
+	# HTML:
 	|	<!--\s+Page\s+saved\s+with\s+SingleFileZ?\s+url:\s+
+	|	<a\s+id="savepage-pageinfo-bar-link"\s+href=[^<>\w]*
+	|	<base\s+href=[^<>\w]*
 	)
 )
 (?P<URL>
@@ -155,8 +159,7 @@ pat_url = re.compile(r'''
 		(?P<Fragment>\#[^"\r\n]*)?
 	)
 )
-'''
-, re.I | re.X)
+''', re.I | re.X)
 
 pat_ren = [
 	{
@@ -180,7 +183,7 @@ pat_ren = [
 	}
 ,	{
 		'type': 'filehosting'
-	,	'page': re.compile(ur'''^			# <- SyntaxError: invalid syntax in python3
+	,	'page': re.compile(r'''^			# <- ur'' gives "SyntaxError: invalid syntax" in python3
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
 				(?P<SiteName>[^{}\s]+)\s+
@@ -192,10 +195,12 @@ pat_ren = [
 			)
 			(?P<FileName>\S.*?)\s+[-\u2014\S]+\s+
 			(?P<Suffix>
-				RGhost(?:\s+\S\s+[^.]+)?
-			|	Yandex[.\S]Dis[ck]
-			|	Яндекс[.\S]Диск			# <- "yandex.disk"
-			|	\S+\s+Mail\.Ru			# <- "cloud mail.ru"
+			''' + '|'.join([
+				'RGhost(?:\s+\S\s+[^.]+)?'
+			,	'Yandex[.\S]Dis[ck]'
+			,	u'Яндекс[.\S]Диск		# <- "yandex.disk"'
+			,	'\S+\s+Mail\.Ru			# <- "cloud mail.ru"'
+			]) + r'''
 			)
 			(?P<PageName>\s+-\s+\S+?)?		# <- added by UnMHT
 			(?P<SaveDate>\{\d{4}(?:\D\d\d){5}\})?	# <- added by SavePageWE
@@ -286,7 +291,7 @@ pat_ren_yt_URL_ID = re.compile(r'[?&](?P<ID>v=[\w-]+)(?:[?&#]|$)', re.I)
 dup_lists_by_ID = {}
 not_existed = []
 n_i = n_matched = n_moved = n_fail = n_back = n_later = n_max_len = 0	# <- count iterations, etc
-ext_path_inside = ext_web if arg_move_web_pages else []				# <- understandable file format extensions
+ext_path_inside = ext_web if arg_move_web_pages else []			# <- understandable file format extensions
 
 a_type = type(pat_ren)
 d_type = type(dup_lists_by_ID)
@@ -595,7 +600,8 @@ def process_dir(path, later=0):
 
 					n_moved += 1
 
-		ext = get_file_ext(name)
+		ext = old_ext = get_file_ext(name)
+		ext = ext_web_remap.get(ext, ext)
 		d = ''
 
 		if arg_move_types_by_ext and ext in dest_root_by_ext:
@@ -628,7 +634,8 @@ def process_dir(path, later=0):
 
 		elif ext in ext_path_inside:
 			n_matched += 1
-			url = re.search(pat_url, read_file_or_part(src, 12345))
+			read_bytes = ext_web_read_bytes.get(ext, default_read_bytes)
+			url = re.search(pat_url, read_file_or_part(src, read_bytes))
 
 			if not url:
 				continue
@@ -829,9 +836,16 @@ def process_dir(path, later=0):
 						if not os.path.exists(d):
 							print msg_prfx, colored('Path not found, make dirs:', 'yellow'), d.encode(default_print_encoding)
 							os.makedirs(d)
-						d += '/'+(name[:-2] if ext == 'mhtml' else name)
+
+						d += '/'+(
+							name
+							if ext == old_ext
+							else name[ : -len(old_ext)] + ext
+						)
+
 						dq = get_unique_clean_path(src, d)
 						os.rename(src, dq)
+
 						if os.path.exists(d):		# <- check that new-moved and possible duplicate both exist
 							n_moved += 1
 							if arg_print_full_path:
