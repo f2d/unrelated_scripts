@@ -19,6 +19,8 @@ except ImportError:
 
 print_encoding = sys.getfilesystemencoding() or 'utf-8'
 
+empty_archive_max_size = 99
+
 flags_group_by_num_any_sep = '12.,'
 flags_group_by_num_dot = '12.'
 flags_all_solid_types = '7res'
@@ -530,6 +532,7 @@ def run_batch_archiving(argv):
 	+	rest
 	)
 
+	pat_whitespace = re.compile(r'\s+', re.S)
 	pat_inex = re.compile(r'^(?P<InEx>-[ix])(?P<Recurse>r[0-]*)?(?P<Value>[!@].*)$', re.I)
 	rest_winrar = []
 
@@ -664,25 +667,6 @@ def run_batch_archiving(argv):
 			if result_code:
 				error_count += 1
 
-			if os.path.exists(cmd_dest):
-				c = cmd_suffix if ((def_suffix_separator in flags) and cmd_suffix) else '.'
-				d = cmd_dest
-				j = (
-					datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
-					if 'm' in flags
-					else ''
-				) + def_suffix + c
-
-				if j != c:
-					d = j.join(d.rsplit(c, 1))
-					while os.path.exists(d):
-						d = '(2).'.join(d.rsplit('.', 1))
-
-					print(cmd_dest)
-					print(d)
-
-					os.rename(cmd_dest, d)
-
 			codes_of_type = exit_codes[cmd_type]
 			result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
 
@@ -690,6 +674,41 @@ def run_batch_archiving(argv):
 				'{}: {}'.format(result_code, result_text)
 			,	'red' if result_code != 0 else 'cyan'
 			)
+
+			if os.path.exists(cmd_dest):
+				if (
+					cmd_type == '7z'
+				and	os.path.getsize(cmd_dest) < empty_archive_max_size
+				and	'0 0 0 files' in re.sub(pat_whitespace, ' ', subprocess.check_output(
+						[
+							exe_paths[cmd_type].replace('7zG', '7z')
+						,	'l'
+						,	cmd_dest
+						]
+					,	startupinfo=minimized
+					).decode(print_encoding))
+				):
+					cprint('Warning: No files to archive, empty archive deleted.', 'red')
+
+					os.remove(cmd_dest)
+				else:
+					c = cmd_suffix if ((def_suffix_separator in flags) and cmd_suffix) else '.'
+					d = cmd_dest
+					j = (
+						datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
+						if 'm' in flags
+						else ''
+					) + def_suffix + c
+
+					if j != c:
+						d = j.join(d.rsplit(c, 1))
+						while os.path.exists(d):
+							d = '(2).'.join(d.rsplit('.', 1))
+
+						print(cmd_dest)
+						print(d)
+
+						os.rename(cmd_dest, d)
 
 			print('')
 
