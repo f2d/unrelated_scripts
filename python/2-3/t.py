@@ -19,8 +19,7 @@ except ImportError:
 
 read_encodings = 'utf_8|utf_16_le|utf_16_be|cp1251'.split('|')
 
-pat_time = re.compile(r'(?:^|[^a-z\d])(\d{10})', re.I)
-pat_date = re.compile(r'''
+pat_text_date = r'''
 	(?:^|\D)
 	(\d{4})\D
 	(\d\d)\D
@@ -33,9 +32,9 @@ pat_date = re.compile(r'''
 		)?
 	)?
 	(?:$|\D)
-''', re.I | re.X)
+'''
 
-pat_date_full_compact = re.compile(r'''
+pat_text_date_full_compact = r'''
 	(?:^|\D)
 	(\d{4})\D?
 	(\d{2})\D?
@@ -44,7 +43,16 @@ pat_date_full_compact = re.compile(r'''
 	(\d{2})\D?
 	(\d{2})
 	(?:$|\D)
-''', re.I | re.X)
+'''
+
+pat_time = re.compile(r'(?:^|[^a-z\d])(\d{10})', re.I)
+pat_date = re.compile(pat_text_date, re.I | re.X)
+pat_date_full_compact = re.compile(pat_text_date_full_compact, re.I | re.X)
+
+try:
+	pat_date_binary = re.compile(bytes(pat_text_date, 'utf_8'), re.I | re.X)
+except TypeError:
+	pat_date_binary = pat_date
 
 exp_date = [
 	r'\1-\2-\3 \4:\5:\6'
@@ -80,12 +88,13 @@ def print_help():
 	,	colored('<flags>', 'cyan') + ': string of letters in any order.'
 	,	'	a: Apply changes. Otherwise just show expected values.'
 	,	'	r: Recursively go into subfolders.'
-	,	'	q: Quiet, print only final sum.'
 	,	'	s: Silent, print nothing.'
+	,	'	q: Quiet, print only final sum.'
+	,	'	v: Verbose, print more intermediate information for debug.'
 	,	'	d: For each folder set its mod-time to latest file inside, before own.'
-	,	'	f: For each text file set its mod-time to latest timestamp inside.'
+	,	'	f: For each text file set its mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
 	,	'	u: Set each file modtime to 1st found Unix-time stamp (first 10 digits) in filename.'
-	,	'	y: Set each file modtime to 1st found date-time stamp (yyyy*mm*dd*HH*MM*SS) in filename.'
+	,	'	y: Set each file modtime to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in filename.'
 	# ,	'TODO ->	z: For each zip file set its mod-time to latest file inside.'
 	,	''
 	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for last time, if anything else exists.'
@@ -202,17 +211,36 @@ def run_batch_retime(argv):
 				def check_time_in(last_time, text, pat=None):
 					result = last_time
 
+					if arg_verbose_testing:
+						print('')
+						cprint('File size:', 'yellow')
+						print(len(text))
+
 					for match in re.finditer(pat or pat_date, text):
 						timestamp_text = ''
+
+						if arg_verbose_testing:
+							cprint('Timestamp match:', 'magenta')
+							print(match)
 
 						for partial_format in exp_date:
 							try:
 								timestamp_text = match.expand(partial_format)
 
-								break
+							except TypeError:
+								timestamp_text = match.expand(bytes(partial_format, 'utf_8')).decode('utf_8')
 
-							except:
+							except Exception as exception:
+								if arg_verbose:
+									print_exception('Error reading time text from file:', path_name)
+
 								continue
+
+							if arg_verbose_testing:
+								cprint('Timestamp text:', 'cyan')
+								print(timestamp_text)
+
+							break
 
 						if not timestamp_text:
 							timestamp_text = get_timestamp_text(int(match.group(1)))
@@ -224,10 +252,16 @@ def run_batch_retime(argv):
 				timestamp_value = 0
 				timestamp_text = ''
 
-				if arg_files_modtime_by_name_unixtime:	timestamp_text = check_time_in(timestamp_text, name, pat_time)
-				if arg_files_modtime_by_name_ymdhms:	timestamp_text = check_time_in(timestamp_text, name, pat_date)
-				if arg_files_modtime_by_name_ymdhms:	timestamp_text = check_time_in(timestamp_text, name, pat_date_full_compact)
-				if arg_files_modtime_by_content:	timestamp_text = check_time_in(timestamp_text, read_file(path_name))
+				if arg_files_modtime_by_name_unixtime:
+					timestamp_text = check_time_in(timestamp_text, name, pat_time)
+
+				if arg_files_modtime_by_name_ymdhms:
+					timestamp_text = check_time_in(timestamp_text, name, pat_date)
+					timestamp_text = check_time_in(timestamp_text, name, pat_date_full_compact)
+
+				if arg_files_modtime_by_content:
+					timestamp_text = check_time_in(timestamp_text, read_file(path_name, 'r'), pat_date)
+					timestamp_text = check_time_in(timestamp_text, read_file(path_name, 'rb'), pat_date_binary)
 
 				if timestamp_text:
 					try:
@@ -335,7 +369,8 @@ def run_batch_retime(argv):
 	arg_recurse = 'r' in flags
 	arg_silent = 's' in flags
 	arg_quiet = 'q' in flags
-	arg_verbose = not (arg_silent or arg_quiet)
+	arg_verbose_testing = 'v' in flags
+	arg_verbose = arg_verbose_testing or not (arg_silent or arg_quiet)
 	arg_folders_modtime_by_files = 'd' in flags
 	arg_files_modtime_by_content = 'f' in flags
 	arg_files_modtime_by_name_ymdhms = 'y' in flags
