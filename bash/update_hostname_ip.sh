@@ -2,13 +2,13 @@
 
 source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}"        ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${update_hosts_file}" ]; then update_hosts_file=true; fi
-if [ -z "${hosts_file_path}"   ]; then hosts_file_path=/etc/hosts; fi
+if [ -z "${start_date}"        ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
+if [ -z "${update_hosts_file}" ]; then update_hosts_file="true" ; fi
+if [ -z "${hosts_file_path}"   ]; then hosts_file_path="/etc/hosts" ; fi
 
 echo "- ${start_date} - Started hostname IP update script."
 
-target_hostname=$1
+target_hostname="$1"
 
 if [ -z "${target_hostname}" ]
 then
@@ -66,7 +66,7 @@ then
 	else
 		echo "Using IP ${target_ip} to connect instead of hostname."
 
-		target_addr=${target_ip}
+		target_addr="${target_ip}"
 	fi
 else
 	echo "Warning: ${target_ip} is not a valid IP address. Using hostname instead."

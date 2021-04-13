@@ -2,7 +2,7 @@
 
 if [ "${ftp_protocol}" == "ftps" ]
 then
-	ftp_protocol_cmd=set ftps:initial-prot P
+	ftp_protocol_cmd="set ftps:initial-prot P"
 else
 	ftp_protocol_cmd=
 fi

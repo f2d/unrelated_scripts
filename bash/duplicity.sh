@@ -2,18 +2,18 @@
 
 source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}" ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${script_dir}" ]; then script_dir=/root/scripts; fi
-if [ -z "${log_dir}"    ]; then log_dir=/var/log; fi
+if [ -z "${start_date}" ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
+if [ -z "${script_dir}" ]; then script_dir="/root/scripts" ; fi
+if [ -z "${log_dir}"    ]; then log_dir="/var/log" ; fi
 
 if [ -z "${ftp_protocol}" ]; then ftp_protocol=ftps ; fi
 if [ -z "${ftp_hostname}" ]; then ftp_hostname=ftp.example.com ; fi
-if [ -z "${ftp_username}" ]; then ftp_username=LOGIN ; fi
-if [ -z "${ftp_password}" ]; then ftp_password=PASSWORD ; fi
+if [ -z "${ftp_username}" ]; then ftp_username="LOGIN" ; fi
+if [ -z "${ftp_password}" ]; then ftp_password="PASSWORD" ; fi
 
 echo "- ${start_date} - Started backup script."
 
-cmd_name=duplicity
+cmd_name="duplicity"
 
 # https://stackoverflow.com/a/44811468
 sanitize()
@@ -28,18 +28,18 @@ sanitize()
 
 if [ "$1" == "test" ]
 then
-	cmd_test_or_run=test
+	cmd_test_or_run="test"
 else
-	cmd_test_or_run=run
+	cmd_test_or_run="run"
 fi
 
 if [ "$1" == "all" ]
 then
-	cmd_scope=all_${start_date}
+	cmd_scope="all_${start_date}"
 
 	cmd_args=(
 		"${cmd_name}"
-		full
+		"full"
 		'--exclude-device-files'
 		'--exclude=**.lock'
 	)
@@ -50,9 +50,9 @@ then
 else
 	if [ "$1" == "full" ]
 	then
-		cmd_scope=full
+		cmd_scope="full"
 	else
-		cmd_scope=incremental
+		cmd_scope="incremental"
 	fi
 
 	cmd_args=(
@@ -82,15 +82,15 @@ target_addr=${ftp_hostname}
 
 source "${script_dir}/update_hostname_ip.sh" ${ftp_hostname}
 
-ftp_path=${ftp_protocol}://${ftp_username}@${target_addr}/${HOSTNAME}_${cmd_scope}/
+ftp_path="${ftp_protocol}://${ftp_username}@${target_addr}/${HOSTNAME}_${cmd_scope}/"
 
-FTP_PASSWORD=${ftp_password}
+FTP_PASSWORD="${ftp_password}"
 export FTP_PASSWORD
 
 for src_dir in "${src_dirs_arr[@]}"
 do
 	# https://stackoverflow.com/a/17902999
-	src_dir_contents=$(shopt -s nullglob dotglob; echo $src_dir/*)
+	src_dir_contents=`shopt -s nullglob dotglob; echo $src_dir/*`
 
 	echo "- $(date '+%F_%H-%M-%S.%N') - Checking $src_dir: ${#src_dir_contents}"
 
@@ -101,10 +101,10 @@ do
 
 		if [ "${name//-/}" == "" ]
 		then
-			name=all
+			name="all"
 		fi
 
-		src_dir_start_date="$(date '+%F_%H-%M-%S.%N')"
+		src_dir_start_date=`date '+%F_%H-%M-%S.%N'`
 		cmd_vars=(
 			"--log-file=${log_dir}/${cmd_name}/${cmd_name}_${start_date}_${name}_${src_dir_start_date}.log"
 			"--name=${name}"

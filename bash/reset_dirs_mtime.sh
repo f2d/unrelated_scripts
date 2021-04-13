@@ -2,14 +2,14 @@
 
 source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}" ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${script_dir}" ]; then script_dir=/root/scripts; fi
-if [ -z "${log_dir}"    ]; then log_dir=/root; fi
+if [ -z "${start_date}" ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
+if [ -z "${script_dir}" ]; then script_dir="/root/scripts" ; fi
+if [ -z "${log_dir}"    ]; then log_dir="/root" ; fi
 
 echo "- ${start_date} - Started time reset script."
 
-cmd_name=python
-cmd_script_name=t.py
+cmd_name="python"
+cmd_script_name="t.py"
 
 dirs=(
 # root@example.com:~# du -sh /*

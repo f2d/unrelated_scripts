@@ -2,10 +2,10 @@
 
 source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}"   ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
+if [ -z "${start_date}"   ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
 if [ -z "${ftp_hostname}" ]; then ftp_hostname=ftp.example.com ; fi
-if [ -z "${script_dir}"   ]; then script_dir=/root/scripts; fi
-if [ -z "${cert_dir}"     ]; then cert_dir=/etc/letsencrypt/live/${HOSTNAME}/; fi
+if [ -z "${script_dir}"   ]; then script_dir="/root/scripts" ; fi
+if [ -z "${cert_dir}"     ]; then cert_dir="/etc/letsencrypt/live/${HOSTNAME}/" ; fi
 
 echo "- ${start_date} - Started SSL cert upload script."
 

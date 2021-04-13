@@ -4,10 +4,10 @@ echo "- $(date '+%F_%H-%M-%S.%N') - Started log archiving script."
 
 source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}"   ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
+if [ -z "${start_date}"   ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
 if [ -z "${ftp_hostname}" ]; then ftp_hostname=ftp.example.com ; fi
-if [ -z "${script_dir}"   ]; then script_dir=/root/scripts; fi
-if [ -z "${log_dir}"      ]; then log_dir=/var/log; fi
+if [ -z "${script_dir}"   ]; then script_dir="/root/scripts" ; fi
+if [ -z "${log_dir}"      ]; then log_dir="/var/log" ; fi
 
 # Only in this directory:
 # tar cf ${log_dir}/logs_${start_date}.gz.tar --remove-files ${log_dir}/*.gz
@@ -30,7 +30,7 @@ then
 
 	cmd_arch=(
 		tar cf
-		${log_dir}/var_logs_${start_date}.gz.tar
+		"${log_dir}/var_logs_${start_date}.gz.tar"
 		--remove-files -T -
 	)
 
@@ -38,16 +38,16 @@ then
 fi
 
 sub_dirs=(
-	chatbot
-	drawpile
-	drawpile-srv
-	duplicity
-	nginx
+	"chatbot"
+	"drawpile"
+	"drawpile-srv"
+	"duplicity"
+	"nginx"
 )
 
 for i in "${sub_dirs[@]}"
 do
-	sub_dir=${log_dir}/${i}
+	sub_dir="${log_dir}/${i}"
 
 	if [ -d "${sub_dir}" ]
 	then
@@ -63,7 +63,7 @@ do
 
 		cmd_arch=(
 			tar cfJ
-			${sub_dir}_logs_${start_date}.tar.xz
+			"${sub_dir}_logs_${start_date}.tar.xz"
 			--remove-files -T -
 		)
 
@@ -93,7 +93,7 @@ then
 	# Cleanup after upload:
 
 	# sub_dir=${log_dir}/delete_after_upload
-	sub_dir=/tmp/delete_after_upload
+	sub_dir="/tmp/delete_after_upload"
 
 	if [ ! -d "${sub_dir}" ]
 	then

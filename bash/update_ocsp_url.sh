@@ -2,9 +2,9 @@
 
 source "/root/scripts/common_script_variables.sh"
 
-if [ -z "${start_date}"          ]; then start_date="$(date '+%F_%H-%M-%S.%N')"; fi
-if [ -z "${cert_file_path}"      ]; then cert_file_path=/etc/letsencrypt/live/${HOSTNAME}/fullchain.pem; fi
-if [ -z "${ocsp_conf_file_path}" ]; then ocsp_conf_file_path=/etc/nginx/snippets/proxy-ocsp.conf; fi
+if [ -z "${start_date}"          ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
+if [ -z "${cert_file_path}"      ]; then cert_file_path="/etc/letsencrypt/live/${HOSTNAME}/fullchain.pem" ; fi
+if [ -z "${ocsp_conf_file_path}" ]; then ocsp_conf_file_path="/etc/nginx/snippets/proxy-ocsp.conf" ; fi
 
 echo "- ${start_date} - Started OCSP URL update script."
 
@@ -24,8 +24,8 @@ fi
 # Split 1 argument into 2:
 # https://stackoverflow.com/a/11416230
 
-ocsp_responder_protocol=${ocsp_responder_url%:\/\/*}
-ocsp_responder_hostname=${ocsp_responder_url#*:\/\/}
+ocsp_responder_protocol="${ocsp_responder_url%:\/\/*}"
+ocsp_responder_hostname="${ocsp_responder_url#*:\/\/}"
 
 # Overwrite conf part file using new values:
 
