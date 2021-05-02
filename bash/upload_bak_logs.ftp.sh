@@ -2,13 +2,13 @@
 
 if [ "${ftp_protocol}" == "ftps" ]
 then
-	ftp_protocol_cmd="set ftps:initial-prot P"
+	ftp_config_cmd="source ${script_dir}/common_lftp_ftps_config.sh"
 else
-	ftp_protocol_cmd=
+	ftp_config_cmd=
 fi
 
 echo -e "
-${ftp_protocol_cmd}
+${ftp_config_cmd}
 connect ${ftp_protocol}://${ftp_username}:${ftp_password}@${ftp_hostname}/
 ls
 mput *.gz.tar
