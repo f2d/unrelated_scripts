@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
-import datetime, glob, os, re, subprocess, sys, time
+import datetime, glob, io, os, re, subprocess, sys, time
 
 # Use colored text if available:
 try:
@@ -602,20 +602,38 @@ def run_batch_archiving(argv):
 				no_group = def_name or def_name_fallback
 				other_to_1 = '1' in foreach_ID
 				d = {}
+
 				for subj in names:
 					s = re.search(pat_ID, subj)
 					n = s.group(1) if s else no_group if other_to_1 else subj
+
 					if not n in d:
 						d[n] = []
 					d[n].append(subj)
+
 				names = []
+
 				for i in d.keys():
-					name = dest + '/' + i + '_list.txt'
-					names.append('@' + name)
+					listfile_path = dest + '/' + i + '_list.txt'
+					names.append('@' + listfile_path)
+
 					if not 'c' in flags:
-						f = open(name, 'wb')
-						r = f.write('\n'.join(d[i]))
-						f.close()
+						grouped_filenames = d[i]
+
+						try:
+							f = open(listfile_path, 'wb')
+							f.write(u'\n'.join(grouped_filenames))
+							f.close()
+
+						except TypeError:
+							if f: f.close()
+
+							f = io.open(listfile_path, 'w', encoding=print_encoding)
+							f.write(u'\n'.join(grouped_filenames))
+							f.close()
+
+						except (UnicodeEncodeError, UnicodeDecodeError):
+							if f: f.close()
 			else:
 				d = []
 				for subj in names:
