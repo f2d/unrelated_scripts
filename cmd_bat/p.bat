@@ -41,30 +41,41 @@ REM	--------	--------	Config:	--------	--------
 REM Note:
 REM	If locations of Python executables are in PATH env var,
 REM	it's possible to set hardlinks and simply call exe:
-REM		set python_exe_path=python%python_version%.exe
+REM
+REM		set "python_exe_path=python%python_version%.exe"
+REM
+REM	Another possible variant with 2 unquoted arguments:
+REM
+REM		set python_v2_exe_path=py -2
+REM		set python_v3_exe_path=py -3
 
-set python_v2_exe_path=d:\programs\_dev\Python\2\python.exe
-set python_v3_exe_path=d:\programs\_dev\Python\3\python.exe
+REM Comment the following lines to use global "python<version>.exe" from PATH:
+set "python_v2_exe_path=d:\programs\_dev\Python\2\python.exe"
+set "python_v3_exe_path=d:\programs\_dev\Python\3\python.exe"
 
-set scripts_common_path=d:\programs\_dev\Python\scripts\2-3
-set scripts_v2_path=d:\programs\_dev\Python\scripts\2
-set scripts_v3_path=d:\programs\_dev\Python\scripts\3
+set "scripts_common_path=d:\programs\_dev\Python\scripts\2-3"
+set "scripts_v2_path=d:\programs\_dev\Python\scripts\2"
+set "scripts_v3_path=d:\programs\_dev\Python\scripts\3"
+
+set "packages_v2_path=d:\programs\_dev\Python\2\Lib\site-packages"
+set "packages_v3_path=d:\programs\_dev\Python\3\Lib\site-packages"
+set "packages_main_filename=__main__.py"
 
 
 
 
 REM	--------	--------	Check meta parameters:	--------	--------
 
-set batch_name=%~n0
-set batch_name=%batch_name:"=%
+set "batch_name=%~n0"
+set "batch_name=%batch_name:"=%"
 
-set python_version=%batch_name:~1,1%
+set "python_version=%batch_name:~1,1%"
 if not "%python_version%" == "2" ^
 if not "%python_version%" == "3" ^
-set python_version=any
+set "python_version=any"
 
-set pause=%batch_name:~2,1%
-if not "%pause%" == "n" set pause=pause
+set "pause=%batch_name:~2,1%"
+if not "%pause%" == "n" set "pause=pause"
 
 
 
@@ -86,7 +97,7 @@ set "script_name_ext=%~x1%"
 
 if not "%script_name_ext%" == ".pyc" ^
 if not "%script_name_ext%" == ".py" ^
-set script_name_ext=
+set "script_name_ext="
 
 :check_version_start
 :check_version_3_start
@@ -95,22 +106,47 @@ if not "%python_version%" == "3" ^
 if not "%python_version%" == "any" ^
 goto check_version_3_end
 
+set "python_exe_path=python3.exe"
+
+if "%python_v3_exe_path%" == "" ^
+goto check_version_3_exe_path_end
+
 if not exist "%python_v3_exe_path%" (
- echo Error: program file not found: %python_v3_exe_path%
+ echo Error: program file not found: "%python_v3_exe_path%"
  goto check_version_3_end
 )
 
-set python_exe_path=%python_v3_exe_path%
+set "python_exe_path=%python_v3_exe_path%"
 
-if exist "%scripts_v3_path%\%script_name%.pyc"		set script_path=%scripts_v3_path%\%script_name%.pyc
-if exist "%scripts_v3_path%\%script_name%.py"		set script_path=%scripts_v3_path%\%script_name%.py
-if exist "%scripts_v3_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_v3_path%\%script_name%
-if exist "%scripts_common_path%\%script_name%.pyc"	set script_path=%scripts_common_path%\%script_name%.pyc
-if exist "%scripts_common_path%\%script_name%.py"	set script_path=%scripts_common_path%\%script_name%.py
-if exist "%scripts_common_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_common_path%\%script_name%
-if exist "%script_name%.pyc"				set script_path=%script_name%.pyc
-if exist "%script_name%.py"				set script_path=%script_name%.py
-if exist "%script_name%"				if not "%script_name_ext%" == "" set script_path=%script_name%
+:check_version_3_exe_path_end
+
+if "%script_name_ext%" == "" ^
+if exist "%packages_v3_path%\%script_name%\%packages_main_filename%" ^
+set "script_path=%packages_v3_path%\%script_name%\%packages_main_filename%"
+
+if not "%script_name_ext%" == "" ^
+if exist        "%scripts_v3_path%\%script_name%" ^
+set "script_path=%scripts_v3_path%\%script_name%"
+if exist        "%scripts_v3_path%\%script_name%.pyc" ^
+set "script_path=%scripts_v3_path%\%script_name%.pyc"
+if exist        "%scripts_v3_path%\%script_name%.py" ^
+set "script_path=%scripts_v3_path%\%script_name%.py"
+
+if not "%script_name_ext%" == "" ^
+if exist        "%scripts_common_path%\%script_name%" ^
+set "script_path=%scripts_common_path%\%script_name%"
+if exist        "%scripts_common_path%\%script_name%.pyc" ^
+set "script_path=%scripts_common_path%\%script_name%.pyc"
+if exist        "%scripts_common_path%\%script_name%.py" ^
+set "script_path=%scripts_common_path%\%script_name%.py"
+
+if not "%script_name_ext%" == "" ^
+if exist        "%script_name%" ^
+set "script_path=%script_name%"
+if exist        "%script_name%.pyc" ^
+set "script_path=%script_name%.pyc"
+if exist        "%script_name%.py" ^
+set "script_path=%script_name%.py"
 
 if not "%script_path%" == "" goto check_version_end
 
@@ -121,22 +157,47 @@ if not "%python_version%" == "2" ^
 if not "%python_version%" == "any" ^
 goto check_version_2_end
 
+set "python_exe_path=python2.exe"
+
+if "%python_v2_exe_path%" == "" ^
+goto check_version_2_exe_path_end
+
 if not exist "%python_v2_exe_path%" (
- echo Error: program file not found: %python_v2_exe_path%
+ echo Error: program file not found: "%python_v2_exe_path%"
  goto check_version_2_end
 )
 
-set python_exe_path=%python_v2_exe_path%
+set "python_exe_path=%python_v2_exe_path%"
 
-if exist "%scripts_v2_path%\%script_name%.pyc"		set script_path=%scripts_v2_path%\%script_name%.pyc
-if exist "%scripts_v2_path%\%script_name%.py"		set script_path=%scripts_v2_path%\%script_name%.py
-if exist "%scripts_v2_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_v2_path%\%script_name%
-if exist "%scripts_common_path%\%script_name%.pyc"	set script_path=%scripts_common_path%\%script_name%.pyc
-if exist "%scripts_common_path%\%script_name%.py"	set script_path=%scripts_common_path%\%script_name%.py
-if exist "%scripts_common_path%\%script_name%"		if not "%script_name_ext%" == "" set script_path=%scripts_common_path%\%script_name%
-if exist "%script_name%.pyc"				set script_path=%script_name%.pyc
-if exist "%script_name%.py"				set script_path=%script_name%.py
-if exist "%script_name%"				if not "%script_name_ext%" == "" set script_path=%script_name%
+:check_version_2_exe_path_end
+
+if "%script_name_ext%" == "" ^
+if exist        "%packages_v2_path%\%script_name%\%packages_main_filename%" ^
+set "script_path=%packages_v2_path%\%script_name%\%packages_main_filename%"
+
+if not "%script_name_ext%" == "" ^
+if exist        "%scripts_v2_path%\%script_name%" ^
+set "script_path=%scripts_v2_path%\%script_name%"
+if exist        "%scripts_v2_path%\%script_name%.pyc" ^
+set "script_path=%scripts_v2_path%\%script_name%.pyc"
+if exist        "%scripts_v2_path%\%script_name%.py" ^
+set "script_path=%scripts_v2_path%\%script_name%.py"
+
+if not "%script_name_ext%" == "" ^
+if exist        "%scripts_common_path%\%script_name%" ^
+set "script_path=%scripts_common_path%\%script_name%"
+if exist        "%scripts_common_path%\%script_name%.pyc" ^
+set "script_path=%scripts_common_path%\%script_name%.pyc"
+if exist        "%scripts_common_path%\%script_name%.py" ^
+set "script_path=%scripts_common_path%\%script_name%.py"
+
+if not "%script_name_ext%" == "" ^
+if exist        "%script_name%" ^
+set "script_path=%script_name%"
+if exist        "%script_name%.pyc" ^
+set "script_path=%script_name%.pyc"
+if exist        "%script_name%.py" ^
+set "script_path=%script_name%.py"
 
 if not "%script_path%" == "" goto check_version_end
 if not "%script_path%" == "" goto check_version_end
@@ -146,7 +207,7 @@ if not "%script_path%" == "" goto check_version_end
 
 if not "%python_exe_path%" == "" ^
 if "%script_path%" == "" (
- echo Error: script file not found: %script_name%
+ echo Error: script file not found: "%script_name%"
  goto done
 )
 
@@ -155,7 +216,7 @@ if "%script_path%" == "" (
 
 REM	--------	--------	Check arguments for target script:	--------	--------
 
-set all_args=%*
+set "all_args=%*"
 set fallback_args="%~2" "%~3" "%~4" "%~5" "%~6" "%~7" "%~8" "%~9"
 
 :test_loop_start
@@ -192,7 +253,7 @@ set "script_args=%all_args:* =%"
 set "script_args_unquoted=%script_args:"=%"
 set "all_args_unquoted=%all_args:"=%"
 
-if "%all_args_unquoted%" == "%script_args_unquoted%" set script_args=
+if "%all_args_unquoted%" == "%script_args_unquoted%" set "script_args="
 
 @echo Running: "%python_exe_path%" "%script_path%" %script_args%
 @echo on
