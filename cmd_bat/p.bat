@@ -216,7 +216,7 @@ if "%script_path%" == "" (
 
 REM	--------	--------	Check arguments for target script:	--------	--------
 
-set "all_args=%*"
+set all_args=%*
 set fallback_args="%~2" "%~3" "%~4" "%~5" "%~6" "%~7" "%~8" "%~9"
 
 :test_loop_start
