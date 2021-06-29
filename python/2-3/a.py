@@ -17,7 +17,8 @@ except ImportError:
 
 # - Configuration and defaults ------------------------------------------------
 
-print_encoding = sys.getfilesystemencoding() or 'utf-8'
+print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
+listfile_encoding = 'utf-8'
 
 empty_archive_max_size = 99
 
@@ -37,7 +38,7 @@ dest_name_replacements = ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']
 
 exit_codes = {
 
-# http://sevenzip.sourceforge.jp/chm/cmdline/exit_codes.htm
+# Source: http://sevenzip.sourceforge.jp/chm/cmdline/exit_codes.htm
 
 	'7z': {
 		0: 'No error'
@@ -48,7 +49,7 @@ exit_codes = {
 	,	255: 'User stopped the process'
 	}
 
-# http://en.helpdoc-online.com/winrar_4/source/html/helpexitcodes.htm
+# Source: http://en.helpdoc-online.com/winrar_4/source/html/helpexitcodes.htm
 
 ,	'rar': {
 		0: 'Successful operation.'
@@ -68,7 +69,7 @@ exit_codes = {
 
 # - Declare functions ---------------------------------------------------------
 
-# https://stackoverflow.com/a/189664/8352410
+# Source: https://stackoverflow.com/a/189664
 class GetOutOfLoop( Exception ):
 	pass
 
@@ -132,6 +133,9 @@ def get_exe_paths():
 			pass
 
 	return exe_paths_found
+
+def get_bytes_text(bytes_num):
+	return '{:,} bytes'.format(bytes_num).replace(',', ' ')
 
 def get_text_encoded_for_print(text):
 	return text.encode(print_encoding) if sys.version_info.major == 2 else text
@@ -336,6 +340,21 @@ def pad_list(a, minimum_len=2, pad_value=''):
 
 def run_batch_archiving(argv):
 
+	def get_archive_file_summary(file_path):
+		exe_path = exe_paths.get('test')
+
+		if not exe_path:
+			exe_path = exe_paths['test'] = exe_paths['7z'].replace('7zG', '7z')
+
+		return subprocess.check_output(
+			[
+				exe_path
+			,	'l'
+			,	file_path
+			]
+		,	startupinfo=minimized
+		).rsplit('--'.encode(print_encoding), 1)[1].decode(print_encoding).strip()
+
 	def queue(cmd_queue, dest, subj, foreach=False):
 
 		def append_cmd(cmd_queue, paths, suffix, opt_args=None):
@@ -494,6 +513,7 @@ def run_batch_archiving(argv):
 	rest = argv_rest or []
 
 	print('')
+	print_with_colored_prefix('print_encoding:', print_encoding)
 	print_with_colored_prefix('argc:', argc)
 	print_with_colored_prefix('flags:', get_text_encoded_for_print(flags))
 	print_with_colored_prefix('suffix:', get_text_encoded_for_print(def_suffix))
@@ -628,7 +648,7 @@ def run_batch_archiving(argv):
 						except TypeError:
 							if f: f.close()
 
-							f = io.open(listfile_path, 'w', encoding=print_encoding)
+							f = io.open(listfile_path, 'w', encoding=listfile_encoding)
 							f.write(u'\n'.join(grouped_filenames))
 							f.close()
 
@@ -680,7 +700,11 @@ def run_batch_archiving(argv):
 		print(cmd_args_to_text(cmd_args))
 
 		if not 'c' in flags:
+			time_before_start = datetime.datetime.now()
+
 			result_code = subprocess.call(cmd_args, startupinfo=minimized)
+
+			time_after_finish = datetime.datetime.now()
 
 			if result_code:
 				error_count += 1
@@ -694,17 +718,13 @@ def run_batch_archiving(argv):
 			)
 
 			if os.path.exists(cmd_dest):
+				archive_file_size = os.path.getsize(cmd_dest)
+				archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(cmd_dest))
+
 				if (
 					cmd_type == '7z'
-				and	os.path.getsize(cmd_dest) < empty_archive_max_size
-				and	'0 0 0 files' in re.sub(pat_whitespace, ' ', subprocess.check_output(
-						[
-							exe_paths[cmd_type].replace('7zG', '7z')
-						,	'l'
-						,	cmd_dest
-						]
-					,	startupinfo=minimized
-					).decode(print_encoding))
+				and	archive_file_size < empty_archive_max_size
+				and	'0 0 0 files' in archive_file_summary
 				):
 					cprint('Warning: No files to archive, empty archive deleted.', 'red')
 
@@ -727,6 +747,18 @@ def run_batch_archiving(argv):
 						print(d)
 
 						os.rename(cmd_dest, d)
+
+					summary_parts = archive_file_summary.split(' ', 4)
+					archive_size_text = get_bytes_text(archive_file_size)
+					content_size_text = get_bytes_text(int(summary_parts[2]))
+					content_counts_text = summary_parts[4]
+
+					# Format string with spaces as thousand separator:
+					# Source: https://stackoverflow.com/a/18891054
+
+					print_with_colored_prefix('Source total size:', '{}, {}'.format(content_size_text, content_counts_text))
+					print_with_colored_prefix('Archive file size:', archive_size_text)
+					print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
 
 			print('')
 
