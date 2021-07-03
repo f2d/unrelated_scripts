@@ -69,6 +69,7 @@ exit_codes = {
 
 # - Declare functions ---------------------------------------------------------
 
+# Nested loop breaker:
 # Source: https://stackoverflow.com/a/189664
 class GetOutOfLoop( Exception ):
 	pass
@@ -134,6 +135,8 @@ def get_exe_paths():
 
 	return exe_paths_found
 
+# Format string with spaces as thousand separator:
+# Source: https://stackoverflow.com/a/18891054
 def get_bytes_text(bytes_num):
 	return '{:,} bytes'.format(bytes_num).replace(',', ' ')
 
@@ -749,15 +752,15 @@ def run_batch_archiving(argv):
 						os.rename(cmd_dest, d)
 
 					summary_parts = archive_file_summary.split(' ', 4)
-					archive_size_text = get_bytes_text(archive_file_size)
-					content_size_text = get_bytes_text(int(summary_parts[2]))
+					content_sum_size = int(summary_parts[2])
 					content_counts_text = summary_parts[4]
+					compression_ratio = (archive_file_size / content_sum_size) * 100
 
-					# Format string with spaces as thousand separator:
-					# Source: https://stackoverflow.com/a/18891054
+					archive_size_text = get_bytes_text(archive_file_size)
+					content_size_text = get_bytes_text(content_sum_size)
 
 					print_with_colored_prefix('Source total size:', '{}, {}'.format(content_size_text, content_counts_text))
-					print_with_colored_prefix('Archive file size:', archive_size_text)
+					print_with_colored_prefix('Archive file size:', '{}, {:.2f}%'.format(archive_size_text, compression_ratio))
 					print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
 
 			print('')

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source "/root/scripts/common_script_variables.sh"
+source "/root/scripts/custom_bak_cert_variables.sh"
 
 if [ -z "${start_date}"   ]; then start_date=`date '+%F_%H-%M-%S.%N'` ; fi
 if [ -z "${ftp_hostname}" ]; then ftp_hostname=ftp.example.com ; fi
