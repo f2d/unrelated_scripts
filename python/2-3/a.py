@@ -87,13 +87,44 @@ def fix_slashes(path):
 	return path
 
 def get_exe_paths():
-	exe_paths_found = {}
-	exe_try_root_dirs = ['%ProgramW6432%', '%ProgramFiles%', '%ProgramFiles(x86)%', '%CommonProgramFiles%', 'C:/Program Files', '']
-	exe_try_subdir_suffixes = ['_x64', 'x64', '(x64)', '_(x64)', ' (x64)', '']
-	exe_try_filename_suffixes = ['.exe', '']
+
+	exe_try_root_dirs = [
+		'%ProgramW6432%'
+	,	'%ProgramFiles%'
+	,	'%ProgramFiles(x86)%'
+	,	'%CommonProgramFiles%'
+	,	'C:/Program Files'
+	,	'C:/Programs'
+	,	'D:/Program Files'
+	,	'D:/Programs'
+	,	''
+	]
+
+	exe_try_subdir_suffixes = [
+		'-x64'
+	,	'_x64'
+	,	' x64'
+	,	'x64'
+	,	'_(x64)'
+	,	' (x64)'
+	,	'(x64)'
+	,	''
+	]
+
 	exe_try_types = {
 		'7z': {
-			'subdirs': ['7-Zip', '7zip']
+			'subdirs': [
+				'7-Zip-ZS'
+			,	'7-Zip_ZS'
+			,	'7-Zip ZS'
+			,	'7_Zip_ZS'
+			,	'7zip-ZS'
+			,	'7zip_ZS'
+			,	'7zip ZS'
+			,	'7zipZS'
+			,	'7-Zip'
+			,	'7zip'
+			]
 		,	'filenames': ['7zG']
 		}
 	,	'rar': {
@@ -101,6 +132,9 @@ def get_exe_paths():
 		,	'filenames': ['WinRAR']
 		}
 	}
+
+	exe_try_filename_suffixes = ['.exe', '']
+	exe_paths_found = {}
 
 	for type_name, type_part in exe_try_types.items():
 		try:
@@ -201,6 +235,7 @@ def print_help():
 	,	'		(limits storage redundancy and archive editing)'
 	,	'	0: no compression (store file content as is, overrides "6").'
 	,	'	6: big data compression settings (256 MB dictionary, 256 B word size).'
+	,	'	9: use Zstandard compression method with 7-Zip (faster than LZMA/LZMA2).'
 	,	''
 	,	'	---- group subjects into separate archives:'
 	,	'	(each name is appended with comma to "=filename" from arguments)'
@@ -253,6 +288,11 @@ def print_help():
 	,	'	d: delete subjects (source files) when done.'
 	,	'		(only by WinRAR, or 7-Zip since v17)'
 	,	'		(if by WinRAR, last archive is tested before deleting subjects)'
+	,	''
+	,	'	|: split flags into combinations with common last part.'
+	,	'		("part_1|part_2|_last" -> "part_1_last" + "part_2_last")'
+	,	'		("c" in any part applies to all combinations)'
+	,	'		("d" in any part automatically moves to the last combination)'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} a'
@@ -341,7 +381,7 @@ def pad_list(a, minimum_len=2, pad_value=''):
 
 # - Main job function ---------------------------------------------------------
 
-def run_batch_archiving(argv):
+def run_batch_part(argv_flag, argv, argc, argv_subj, argv_dest, argv_rest):
 
 	def get_archive_file_summary(file_path):
 		exe_path = exe_paths.get('test')
@@ -371,6 +411,8 @@ def run_batch_archiving(argv):
 					lambda x: (
 						None if x[0 : 4] == '-mqs'
 					else	None if x[0 : 4] == '-md='
+					else	None if x[0 : 4] == '-m0='
+					else	('-mx=0' if '0' in flags else '-mx=9') if x[0 : 4] == '-mx='
 					else	(None if '0' in flags else '-mfb=256') if x[0 : 5] == '-mfb='
 					else	x
 					), cmd_args
@@ -425,14 +467,16 @@ def run_batch_archiving(argv):
 		dest_name_part_dedup		= ',dedup' if 'l' in flags else ''
 		dest_name_part_uncompressed	= ',store' if '0' in flags else ''
 		dest_name_part_dict_size	= ',d=256m' if '6' in flags else ''
+		dest_name_part_zstd		= ',zstd' if '9' in flags else ''
 
 		if '7' in flags:
-			ext = (dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
+			ext = (dest_name_part_uncompressed or dest_name_part_zstd or dest_name_part_dict_size) + '.7z'
+			solid_block_size = ('=256m' if '6' in flags else '=99m') if '9' in flags else ''
 			solid = 0
 
 			if is_subj_mass and not dest_name_part_uncompressed:
 				if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
-				if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-ms'])
+				if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + solid_block_size + ext, ['-ms' + solid_block_size])
 
 			if not solid or ('n' in flags): append_cmd(cmd_queue, paths, ext, ['-ms=off'])
 
@@ -472,27 +516,6 @@ def run_batch_archiving(argv):
 
 		return del_warn
 
-# - Check arguments -----------------------------------------------------------
-
-	argv = list(argv)
-	argc = len(argv)
-
-	argv_flag = argv.pop(0) if len(argv) else None
-	argv_subj = argv.pop(0) if len(argv) else None
-	argv_dest = argv.pop(0) if len(argv) else None
-	argv_rest = argv if len(argv) else None
-
-# - Show help and exit --------------------------------------------------------
-
-	if (
-		not argv_flag
-	or	argv_flag[0] == '-'
-	or	argv_flag[0] == '/'
-	):
-		print_help()
-
-		return 1
-
 # - Calculate params ----------------------------------------------------------
 
 	flags, def_name = pad_list((argv_flag.strip('"') or '').split(def_name_separator, 1))
@@ -503,7 +526,6 @@ def run_batch_archiving(argv):
 		.replace('8', flags_all_types)
 		.replace('a', flags_all_solid_types)
 		.replace('3', flags_group_by_num_dot)
-	# + '9'
 	)
 
 	if (def_suffix_separator in def_name) and not (def_suffix_separator in flags):
@@ -515,9 +537,6 @@ def run_batch_archiving(argv):
 	dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
 	rest = argv_rest or []
 
-	print('')
-	print_with_colored_prefix('print_encoding:', print_encoding)
-	print_with_colored_prefix('argc:', argc)
 	print_with_colored_prefix('flags:', get_text_encoded_for_print(flags))
 	print_with_colored_prefix('suffix:', get_text_encoded_for_print(def_suffix))
 	print_with_colored_prefix('subj:', get_text_encoded_for_print(subj))
@@ -534,7 +553,7 @@ def run_batch_archiving(argv):
 		minimized = None
 
 	is_subj_list = (subj[0] == '@')
-	foreach_date = flags.count('9')
+	# foreach_date = flags.count('9')
 	foreach_dir  = '4' in flags
 	foreach_file = 'f' in flags
 	foreach = (foreach_dir or foreach_file) and not is_subj_list
@@ -546,8 +565,9 @@ def run_batch_archiving(argv):
 	cmd_template['7z'] = (
 		[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
 	+	(
-			['-mx0', '-mmt=off'] if '0' in flags else
-			['-mx9', '-mmt=2'] + (
+			['-mx=0', '-mmt=off'] if '0' in flags else
+			['-m0=zstd', '-mx=17', '-mmt=on'] if '9' in flags else
+			['-m0=lzma2', '-mx=9', '-mmt=2'] + (
 				['-md=256m', '-mfb=256'] if '6' in flags else
 				['-md=64m', '-mfb=273']
 			)
@@ -794,6 +814,80 @@ def run_batch_archiving(argv):
 		cprint('----	----	Done {} archives.'.format(cmd_count), 'green')
 
 	return 0 if error_count == 0 and cmd_count > 0 else -1
+
+def run_batch_archiving(argv):
+
+# - Check arguments -----------------------------------------------------------
+
+	argv = list(argv)
+	argc = len(argv)
+
+	argv_flag = argv.pop(0) if len(argv) else ''
+	argv_subj = argv.pop(0) if len(argv) else None
+	argv_dest = argv.pop(0) if len(argv) else None
+	argv_rest = argv if len(argv) else None
+
+# - Show help and exit --------------------------------------------------------
+
+	flag_parts_left = list(filter(bool, argv_flag.split('|')))
+
+	if (
+		not len(argv_flag)
+	or	not len(flag_parts_left)
+	or	argv_flag[0] == '-'
+	or	argv_flag[0] == '/'
+	):
+		print_help()
+
+		return 1
+
+# - Fill batch queue and run --------------------------------------------------
+
+	print('')
+	print_with_colored_prefix('print_encoding:', print_encoding)
+	print_with_colored_prefix('argc:', argc)
+
+	common_flag_part = flag_parts_left.pop()
+
+	if len(flag_parts_left):
+		combos = [(combo_flag_part + common_flag_part) for combo_flag_part in flag_parts_left]
+
+		def is_flag_in_combo(flag, combo):
+			return (flag in combo.split(def_name_separator, 1)[0])
+
+		def is_flag_in_any_combo(flag, combos):
+			return any(is_flag_in_combo(flag, combo) for combo in combos)
+
+		def cleanup_combo(combo):
+			flags, name = pad_list(combo.split(def_name_separator, 1))
+			flags = flags.replace('c', '').replace('d', '')
+
+			return ('c' if is_only_check else '') + flags + def_name_separator + name
+
+		is_only_check = is_flag_in_any_combo('c', combos)
+		is_delete_enabled = is_flag_in_any_combo('d', combos)
+
+		if is_only_check or is_delete_enabled:
+			combos = list(map(cleanup_combo, combos))
+
+		if is_delete_enabled:
+			i = len(combos) - 1
+			combos[i] = 'd' + combos[i]
+
+		print_with_colored_prefix('flags_combos:', len(combos))
+
+		result_code = 0
+
+		for combo in combos:
+			print('')
+			result_code = run_batch_part(combo, argv, argc, argv_subj, argv_dest, argv_rest)
+
+			if result_code:
+				break
+
+		return result_code
+	else:
+		return run_batch_part(common_flag_part, argv, argc, argv_subj, argv_dest, argv_rest)
 
 # - Run from commandline, when not imported as module -------------------------
 
