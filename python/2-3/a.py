@@ -233,9 +233,10 @@ def print_help():
 	,	'	L: store identical files as references to one copy of content.'
 	,	'		(only by WinRAR since v5)'
 	,	'		(limits storage redundancy and archive editing)'
-	,	'	0: no compression (store file content as is, overrides "6").'
+	,	'	0: no compression (store file content as is).'
 	,	'	6: big data compression settings (256 MB dictionary, 256 B word size).'
 	,	'	9: use Zstandard compression method with 7-Zip (faster than LZMA/LZMA2).'
+	,	'	90: use Zstandard with lower and faster compression level.'
 	,	''
 	,	'	---- group subjects into separate archives:'
 	,	'	(each name is appended with comma to "=filename" from arguments)'
@@ -472,11 +473,11 @@ def run_batch_archiving(argv):
 			dest_name_part_zstd		= ',zstd' if '9' in flags else ''
 
 			if '7' in flags:
-				ext = (dest_name_part_uncompressed or dest_name_part_zstd or dest_name_part_dict_size) + '.7z'
+				ext = (dest_name_part_zstd or dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
 				solid_block_size = ('=256m' if '6' in flags else '=99m') if '9' in flags else ''
 				solid = 0
 
-				if is_subj_mass and not dest_name_part_uncompressed:
+				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
 					if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
 					if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + solid_block_size + ext, ['-ms' + solid_block_size])
 
@@ -567,8 +568,11 @@ def run_batch_archiving(argv):
 		cmd_template['7z'] = (
 			[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
 		+	(
+				['-m0=zstd', '-mmt=on', (
+					'-mx=3' if '0' in flags else
+					'-mx=17'
+				)] if '9' in flags else
 				['-mx=0', '-mmt=off'] if '0' in flags else
-				['-m0=zstd', '-mx=17', '-mmt=on'] if '9' in flags else
 				['-m0=lzma2', '-mx=9', '-mmt=2'] + (
 					['-md=256m', '-mfb=256'] if '6' in flags else
 					['-md=64m', '-mfb=273']
