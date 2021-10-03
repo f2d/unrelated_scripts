@@ -17,6 +17,9 @@ except ImportError:
 
 # - Configuration and defaults ------------------------------------------------
 
+zstd_levels = [3, 17]
+zstd_solid_block_sizes = [99, 256]
+
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 listfile_encoding = 'utf-8'
 
@@ -168,6 +171,12 @@ def get_exe_paths():
 			pass
 
 	return exe_paths_found
+
+def get_text_without_chars(text, chars):
+	for c in chars:
+		text = text.replace(c, '')
+
+	return text
 
 # Format string with spaces as thousand separator:
 # Source: https://stackoverflow.com/a/18891054
@@ -380,6 +389,9 @@ def pad_list(a, minimum_len=2, pad_value=''):
 
 	return (a + [pad_value] * diff) if diff > 0 else a
 
+def split_text_in_two(text, separator):
+	return pad_list((text or '').split(separator, 1))
+
 # - Main job function ---------------------------------------------------------
 
 def run_batch_archiving(argv):
@@ -441,7 +453,7 @@ def run_batch_archiving(argv):
 			is_subj_mask = ('*' in subj) or ('?' in subj)
 			is_subj_mass = is_subj_mask or is_subj_list or os.path.isdir(subj)
 
-			if len(name.replace('.', '')) > 0:
+			if len(get_text_without_chars(name, '.')) > 0:
 				if '/' in name:
 					name = name.rsplit('/', 1)[1]
 
@@ -449,7 +461,7 @@ def run_batch_archiving(argv):
 				if (
 					(
 						not argv_dest
-					or	not len(argv_dest)
+					or	not len(argv_dest) > 0
 					) and not (
 						is_subj_mask
 					or	subj == def_subj
@@ -470,11 +482,11 @@ def run_batch_archiving(argv):
 			dest_name_part_dedup		= ',dedup' if 'l' in flags else ''
 			dest_name_part_uncompressed	= ',store' if '0' in flags else ''
 			dest_name_part_dict_size	= ',d=256m' if '6' in flags else ''
-			dest_name_part_zstd		= ',zstd' if '9' in flags else ''
+			dest_name_part_zstd		= ',zstd={}'.format(zstd_levels[0 if '0' in flags else 1]) if '9' in flags else ''
 
 			if '7' in flags:
 				ext = (dest_name_part_zstd or dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
-				solid_block_size = ('=256m' if '6' in flags else '=99m') if '9' in flags else ''
+				solid_block_size = ('={}m'.format(zstd_solid_block_sizes[1 if '6' in flags else 0])) if '9' in flags else ''
 				solid = 0
 
 				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
@@ -521,7 +533,7 @@ def run_batch_archiving(argv):
 
 # - Calculate params ----------------------------------------------------------
 
-		flags, def_name = pad_list((argv_flag.strip('"') or '').split(def_name_separator, 1))
+		flags, def_name = split_text_in_two(argv_flag.strip('"'), def_name_separator)
 
 		flags = (
 			flags
@@ -534,7 +546,7 @@ def run_batch_archiving(argv):
 		if (def_suffix_separator in def_name) and not (def_suffix_separator in flags):
 			flags += def_suffix_separator
 
-		def_name, def_suffix = pad_list((def_name or '').split(def_suffix_separator, 1))
+		def_name, def_suffix = split_text_in_two(def_name, def_suffix_separator)
 
 		subj = normalize_slashes(argv_subj if argv_subj and len(argv_subj) > 0 else def_subj)
 		dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
@@ -568,10 +580,7 @@ def run_batch_archiving(argv):
 		cmd_template['7z'] = (
 			[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
 		+	(
-				['-m0=zstd', '-mmt=on', (
-					'-mx=3' if '0' in flags else
-					'-mx=17'
-				)] if '9' in flags else
+				['-m0=zstd', '-mmt=on', '-mx={}'.format(zstd_levels[0 if '0' in flags else 1])] if '9' in flags else
 				['-mx=0', '-mmt=off'] if '0' in flags else
 				['-m0=lzma2', '-mx=9', '-mmt=2'] + (
 					['-md=256m', '-mfb=256'] if '6' in flags else
@@ -826,18 +835,18 @@ def run_batch_archiving(argv):
 	argv = list(argv)
 	argc = len(argv)
 
-	argv_flag = argv.pop(0) if len(argv) else ''
-	argv_subj = argv.pop(0) if len(argv) else None
-	argv_dest = argv.pop(0) if len(argv) else None
-	argv_rest = argv if len(argv) else None
+	argv_flag = argv.pop(0) if len(argv) > 0 else ''
+	argv_subj = argv.pop(0) if len(argv) > 0 else None
+	argv_dest = argv.pop(0) if len(argv) > 0 else None
+	argv_rest = argv if len(argv) > 0 else None
 
 # - Show help and exit --------------------------------------------------------
 
 	flag_parts_left = list(filter(bool, argv_flag.split('|')))
 
 	if (
-		not len(argv_flag)
-	or	not len(flag_parts_left)
+		not len(argv_flag) > 0
+	or	not len(flag_parts_left) > 0
 	or	argv_flag[0] == '-'
 	or	argv_flag[0] == '/'
 	):
@@ -853,7 +862,7 @@ def run_batch_archiving(argv):
 
 	common_flag_part = flag_parts_left.pop()
 
-	if len(flag_parts_left):
+	if len(flag_parts_left) > 0:
 		combos = [(combo_flag_part + common_flag_part) for combo_flag_part in flag_parts_left]
 
 		def is_flag_in_combo(flag, combo):
@@ -863,10 +872,13 @@ def run_batch_archiving(argv):
 			return any(is_flag_in_combo(flag, combo) for combo in combos)
 
 		def cleanup_combo(combo):
-			flags, name = pad_list(combo.split(def_name_separator, 1))
-			flags = flags.replace('c', '').replace('d', '')
+			flags, name = split_text_in_two(combo, def_name_separator)
 
-			return ('c' if is_only_check else '') + flags + def_name_separator + name
+			return (
+				('c' if is_only_check else '')
+			+	get_text_without_chars(flags, 'cd')
+			+	(def_name_separator + name if len(name) > 0 else '')
+			)
 
 		is_only_check = is_flag_in_any_combo('c', combos)
 		is_delete_enabled = is_flag_in_any_combo('d', combos)
@@ -884,6 +896,7 @@ def run_batch_archiving(argv):
 
 		for combo in combos:
 			print('')
+
 			result_code = run_batch_part(combo)
 
 			if result_code:
