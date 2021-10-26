@@ -174,13 +174,13 @@ def read_file(path, mode='r'):
 
 def run_batch_retime(argv):
 
-	global arg_verbose
+	global arg_verbose, arg_verbose_testing
 	global count_dirs_checked, count_dirs_changed, count_dirs_errors
 	global count_files_checked, count_files_changed, count_files_errors, count_files_read
 
 	def process_folder(path):
 
-		global arg_verbose
+		global arg_verbose, arg_verbose_testing
 		global count_dirs_checked, count_dirs_changed, count_dirs_errors
 		global count_files_checked, count_files_changed, count_files_errors, count_files_read
 
@@ -230,15 +230,23 @@ def run_batch_retime(argv):
 							except TypeError:
 								timestamp_text = match.expand(bytes(partial_format, 'utf_8')).decode('utf_8')
 
+							except re.error:
+								if arg_verbose_testing:
+									print_exception(
+										'Text "{match}" does not match pattern "{pattern}" in file:'
+										.format(match=match.group(0), pattern=partial_format)
+									,	path_name
+									)
+
 							except Exception as exception:
 								if arg_verbose:
-									print_exception('Error reading time text from file:', path_name)
+									print_exception('Error matching time text from file:', path_name)
 
 								continue
 
 							if arg_verbose_testing:
 								cprint('Timestamp text:', 'cyan')
-								print(timestamp_text)
+								print(timestamp_text or None)
 
 							break
 
