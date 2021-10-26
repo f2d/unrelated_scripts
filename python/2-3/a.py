@@ -246,7 +246,8 @@ def print_help():
 	,	'	6: big data compression settings (256 MB dictionary, 256 B word size).'
 	,	'	9, ..., 999999: use Zstandard compression method with 7-Zip.'
 	,	'		(repeat the flag for slower and higher levels, {}-{})'.format(zstd_levels[1], zstd_levels[len(zstd_levels) - 1])
-	,	'		(faster than LZMA/LZMA2, but bigger files even at max level)'
+	,	'		(a lot faster than LZMA/LZMA2 at both compression and decompression)'
+	,	'		(in some rare cases can give smaller files at level 20 even than LZMA2)'
 	,	'	90: use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
 	,	'		(a fast alternative for no compression in 7z format)'
 	,	''
