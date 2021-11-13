@@ -449,7 +449,16 @@ def run_batch_archiving(argv):
 
 				dest = get_unique_clean_path(dest, suffix, t0)
 				path_args = (
-					[('-n' if rar else '-i') + subj, '--', dest] if is_subj_list else
+					[
+						(
+							'-n' if rar else
+							'-ir' if '-r' in cmd_args else
+							'-i'
+						) + subj
+					,	'--'
+					,	dest
+					]
+					if is_subj_list else
 					['--', dest, subj]
 				)
 
@@ -611,7 +620,12 @@ def run_batch_archiving(argv):
 		for arg in rest:
 			res = re.search(pat_inex, arg)
 			if res:
-				rest_winrar.append(res.group('InEx') + res.group('Value'))
+				inex = res.group('InEx')
+				rest_winrar.append(
+					(inex if inex == '-x' else '-n')
+				+	res.group('Value')
+				)
+
 				r = res.group('Recurse')
 				if r:
 					rest_winrar.append('-' + r)
