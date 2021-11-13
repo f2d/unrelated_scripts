@@ -14,6 +14,7 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint(*list_args, **keyword_args): print(list_args[0])
 
+from r_config import get_rei, re_ix, re_iux
 from r_config import default_print_encoding, default_name_cut_length, default_read_bytes
 from r_config import dest_root, dest_root_by_ext, dest_root_yt
 from r_config import ext_web, ext_web_remap, ext_web_read_bytes, ext_web_index_file, sites
@@ -40,6 +41,7 @@ if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	,	''
 	,	'<flags>: string of letters in any order as first argument.'
 	,	'	t: for test output only (don\'t apply changes)'
+	,	'	e: turn warnings (just printed) into exceptions (stop the script if uncatched) for debug'
 	,	'	f: when cutting, check length of full path instead of only name'
 	,	'	o: print full path instead of only name'
 	,	'	r: recurse into subfolders (default = stay in working folder)'
@@ -83,6 +85,7 @@ DO = not TEST
 arg_cut_full_path        = 'f' in arg_flags
 arg_print_full_path      = 'o' in arg_flags
 arg_recurse_into_subdirs = 'r' in arg_flags
+arg_warning_to_error     = 'e' in arg_flags
 
 arg_move_aib_by_threads = 'b' in arg_flags
 arg_move_cys_by_id      = 'y' in arg_flags
@@ -101,6 +104,11 @@ if 'm'   in other_args: arg_subdir_modtime_format += '/%m'
 if 'ymd' in other_args: arg_subdir_modtime_format += '/%Y-%m-%d'
 if 'd'   in other_args: arg_subdir_modtime_format += '/%d'
 
+if arg_warning_to_error:
+	# https://stackoverflow.com/a/17211698
+	import warnings
+	warnings.filterwarnings('error')
+
 j = len(arg_name_cut)
 if arg_name_cut in other_args:
 	arg_len = default_name_cut_length			# <- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
@@ -111,7 +119,7 @@ else:
 			arg_len = int(a[j:])
 			break
 
-pat_url = re.compile(r'''
+pat_url = get_rei(r'''
 (?:^|[>\r\n]\s*)
 (?P<Meta>
 	(?:
@@ -147,9 +155,9 @@ pat_url = re.compile(r'''
 						(?P<QueryValue>=[^"/?&\#\s]+)?
 					)
 					([/?&]+
+						(?P<IsArchived>arch[ive]*/+)?
 						(?P<ItemSelector>
-							(?P<IsArchived>arch[ive]*/)?
-							(?P<ItemContainer>prev|res|thread)/|\w+\.pl[/?]*
+							(?P<ItemContainer>prev|res|thread)/+|\w+\.pl[/?]*
 						)?
 					)?
 					(?P<ItemID>[^"\#\s]*)
@@ -159,12 +167,12 @@ pat_url = re.compile(r'''
 		(?P<Fragment>\#[^"\r\n]*)?
 	)
 )
-''', re.I | re.X)
+''')
 
 pat_ren = [
 	{
 		'type': 'booru'
-	,	'page': re.compile(r'''^
+	,	'page': get_rei(r'''^
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
 				(/dan|gel|r34|san|sfb)\s+
@@ -172,18 +180,18 @@ pat_ren = [
 			)
 			(\s+.*)?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.U | re.X)
-	,	'child': re.compile(r'''^	# image/video files:
+		$''', re_iux)
+	,	'child': get_rei(r'''^	# image/video files:
 			(?P<Prefix>\S+)?
 			(?P<ID>[0-9a-f]{32})
 			(?P<Suffix>\S+)?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.U | re.X)
-#	,	'child': re.compile(r'^([^_]\S*)?[0-9a-f]{32}\S*\.\w+$', re.I)
+		$''', re_iux)
+#	,	'child': get_rei(r'^([^_]\S*)?[0-9a-f]{32}\S*\.\w+$')
 	}
 ,	{
 		'type': 'filehosting'
-	,	'page': re.compile(r'''^			# <- ur'' gives "SyntaxError: invalid syntax" in python3
+	,	'page': get_rei(r'''^			# <- ur'' gives "SyntaxError: invalid syntax" in python3
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
 				(?P<SiteName>[^{}\s]+)\s+
@@ -206,11 +214,11 @@ pat_ren = [
 			(?P<SaveDate>\{\d{4}(?:\D\d\d){5}\})?	# <- added by SavePageWE
 			(?P<OpenDate>;?_\d{4}(?:\D\d\d){5})?	# <- added by UserJS
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.U | re.X)
+		$''', re_iux)
 	}
 ,	{
 		'type': 'youtube'
-	,	'page': re.compile(r'''^	# page files:
+	,	'page': get_rei(r'''^	# page files:
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
 				YouTube
@@ -222,18 +230,18 @@ pat_ren = [
 			(?P<SaveDate>\{\d{4}(?:\D\d\d){5}\})?	# <- added by SavePageWE
 			(?P<OpenDate>;?_\d{4}(?:\D\d\d){5})?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.U | re.X)
-	,	'child': re.compile(r'''^	# video files/folders:
+		$''', re_iux)
+	,	'child': get_rei(r'''^	# video files/folders:
 			(?:Youtube(?:,|\s+-\s+))?
 			(?P<ID>v=[\w-]+)(?:,|\s+-\s+)
 			(?P<Res>\d+p|\d+x\d+)?
 			(?P<FPS>\d+fps)?
 			(?P<TimeStamp>;?_\d{4}(?:\D\d\d){5})?
 			(?P<Ext>\.[^.]+)?
-		$''', re.I | re.U | re.X)
+		$''', re_iux)
 	,	'dest': dest_root_yt
 	} if arg_move_cys_by_id else None
-#,	['pixiv', re.compile(r',illust_id=(\d+).*\.\w+$', re.I)]
+#,	['pixiv', get_rei(r',illust_id=(\d+).*\.\w+$')]
 ]
 
 pat_sub = [
@@ -246,16 +254,16 @@ pat_sub = [
 #	optional match for the smallest value to leave one duplicate at old place (to delete others manually, etc)
 # ]
 	{
-		'match': re.compile(r'^.*?\b(\w+#\d+),\d+(, \d+ *\w+, \d+x\d+([.,].*)?)?\.\w+$', re.I)
+		'match': get_rei(r'^.*?\b(\w+#\d+),\d+(,\s+\d+\s+*\w+,\s+\d+x\d+([.,].*)?)?\.\w+$')
 	,	'subdir': r'\1'
 	} if arg_move_aib_by_threads else None
 ,	{
-		'match': re.compile(r'^(pxv\D+(\d+)\D*?_)p\d+(\D.*)$', re.I)
+		'match': get_rei(r'^(pxv\D+(\d+)\D*?_)p\d+(\D.*)$')
 	,	'next': r'\1p1\3'
 	,	'subdir': r'\2'
 	} if arg_move_pxv_by_id else None
 ,	{
-		'match': re.compile(r'''^
+		'match': get_rei(r'''^
 			(?:(?P<Site>\S+)\s-\s)
 			(?:(?P<ID>\S+)\s-\s)
 			(?P<Hash>\S+)
@@ -266,27 +274,27 @@ pat_sub = [
 				(?P<Etc>.*?)
 			)?
 			(?P<Ext>\.[^.]+)
-		$''', re.I | re.X)
+		$''')
 	,	'group_by': r'\g<Hash>'
 	,	'date': r'\g<TimeStamp>'
 	,	'subdir': '1'
 	} if arg_move_dups_by_md5 else None
 ,	{
-		'match_dir': re.compile(r'(^|[\\/])(_not|_animation|_frames|_gif|_flash|_video|_img)+([\\/]|$)', re.I)
+		'match_dir': get_rei(r'(^|[\\/])(_not|_animation|_frames|_gif|_flash|_video|_img)+([\\/]|$)')
 	,	'subdir': r'..'
 	} if arg_move_subtypes_up else None
 ] + ([
-	{'subdir': r'_animation_frames','match': re.compile(r'\.zip$', re.I)}
-,	{'subdir': r'_gif',		'match': re.compile(r'\.gif$', re.I)}
-,	{'subdir': r'_flash',		'match': re.compile(r'\.(swf|fws)$', re.I)}
-,	{'subdir': r'_video',		'match': re.compile(r'\.(mov|mp4|mkv|webm)$', re.I)}
-,	{'subdir': r'_not_img',		'match': re.compile(r'\.(?!(bmp|png|jp[eg]+|webp|gif|swf|fws|mov|mp4|mkv|webm|zip)$)\w+$', re.I)}
+	{'subdir': r'_animation_frames','match': get_rei(r'\.zip$')}
+,	{'subdir': r'_gif',		'match': get_rei(r'\.gif$')}
+,	{'subdir': r'_flash',		'match': get_rei(r'\.(swf|fws)$')}
+,	{'subdir': r'_video',		'match': get_rei(r'\.(mov|mp4|mkv|webm)$')}
+,	{'subdir': r'_not_img',		'match': get_rei(r'\.(?!(bmp|png|jp[eg]+|webp|gif|swf|fws|mov|mp4|mkv|webm|zip)$)\w+$')}
 ] if arg_move_subtypes else [])
 
-pat_idx = re.compile(r'<MAF:indexfilename\s+[^=>\s]+="([^">]+)', re.I)
-pat_ren_mht_linebreak = re.compile(r'=\s+')
-pat_ren_src_name = re.compile(r'([a-z0-9]*[^a-z0-9.]+)+', re.I)
-pat_ren_yt_URL_ID = re.compile(r'[?&](?P<ID>v=[\w-]+)(?:[?&#]|$)', re.I)
+pat_idx = get_rei(r'<MAF:indexfilename\s+[^=>\s]+="([^">]+)')
+pat_ren_mht_linebreak = get_rei(r'=\s+')
+pat_ren_src_name = get_rei(r'([a-z0-9]*[^a-z0-9.]+)+')
+pat_ren_yt_URL_ID = get_rei(r'[?&](?P<ID>v=[\w-]+)(?:[?&#]|$)')
 
 dup_lists_by_ID = {}
 not_existed = []
@@ -428,18 +436,26 @@ def rename_to_unique_clean_path(src_path, dest_path):
 	return os.rename(src_path, get_unique_clean_path(src_path, dest_path))
 
 def meet(obj, criteria):
-	return True if (
-		(obj is criteria) or
-		(obj == criteria) or (
-			(is_type_str(obj	) or obj	) and
-			(is_type_str(criteria	) or criteria	) and (
-				criteria.match(obj)		if isinstance(criteria, r_type) else
-				(obj in criteria)		if isinstance(criteria, a_type) else
-				(obj.find(criteria) >= 0)	if is_type_str(criteria) else
-				None
+	try:
+		return True if (
+			(obj is criteria) or
+			(obj == criteria) or (
+				(is_type_str(obj	) or obj	) and
+				(is_type_str(criteria	) or criteria	) and (
+					criteria.match(obj)		if isinstance(criteria, r_type) else
+					(obj in criteria)		if isinstance(criteria, a_type) else
+					(obj.find(criteria) >= 0)	if is_type_str(criteria) else
+					None
+				)
 			)
-		)
-	) else False
+		) else False
+
+	except UnicodeWarning as exception:
+		print msg_prfx, colored('Exception:', 'red'), exception
+		print msg_prfx, colored('While comparing:', 'yellow'), obj
+		print msg_prfx, colored('To criteria:', 'yellow'), criteria
+
+	return False
 
 def get_sub(subj, rules):
 	if not rules:
@@ -642,7 +658,7 @@ def process_dir(path, later=0):
 
 			ufull = url.group('URL')
 			board = url.group('QuerySelector')
-			thread = url.group('ItemSelector') and url.group('ItemID')
+			thread = (url.group('ItemSelector') or url.group('IsArchived')) and url.group('ItemID')
 
 			# define rule trying order:
 			meeting = [
@@ -798,9 +814,13 @@ def process_dir(path, later=0):
 								f = len(child_ext)+1
 								f = re.sub(pat_ren_src_name, '', child_name[:-f])
 							if f:
-								f = re.search(re.compile(r'''(?:^|[\r\n\t
-])(?:Content-Location: |<meta name="twitter:image:src" content=")\w+:/+[^\r\n\t
-]+[^w]/(preview|sample[_-]*)?'''+f+'|/'+f+'.'+child_ext+'(\?[^">]*)?">Save', re.I), page_content)	# <- [^w] to workaround /preview/ child post list
+								f = re.search(get_rei(
+	r'(?:^|[\r\n\t])(?:Content-Location:\s+|<meta\s+name="twitter:image:src"\s+content=")\w+:/+[^\r\n\t]+[^w]/(preview|sample[_-]*)?'
++	f + '|/'
++	f + '.'
++	child_ext
++	'(\?[^">]*)?">Save'
+								), page_content)	# <- [^w] to workaround /preview/ child post list
 								if f:
 									prfx = page_match.group('Prefix')+(' full,' if f.group(1) else ',')
 

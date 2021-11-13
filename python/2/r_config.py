@@ -3,6 +3,20 @@
 
 import re
 
+re_ix = re.I | re.X
+re_iux = re.I | re.U | re.X
+
+def get_rei(pattern, flags=None):
+	return re.compile(
+		pattern
+	,	flags or (
+			re_ix if (
+				'\n' in pattern
+			or	'\r' in pattern
+			) else re.I
+		)
+	)
+
 # default_print_encoding = 'utf-8'
 default_print_encoding = 'unicode-escape'
 
@@ -53,11 +67,11 @@ part_domain = r'''
 (?:[/?#]|$)
 '''
 
-pat_subdomain_inc_www = re.compile(part_protocol                   + part_domain, re.I | re.X)	# <- to treat "www" like a separate subdomain
-pat_subdomain_exc_www = re.compile(part_protocol + part_domain_www + part_domain, re.I | re.X)	# <- to discard "www", if any
+pat_subdomain_inc_www = get_rei(part_protocol                   + part_domain)	# <- to treat "www" like a separate subdomain
+pat_subdomain_exc_www = get_rei(part_protocol + part_domain_www + part_domain)	# <- to discard "www", if any
 
-pat_title_tail_dup = re.compile(r'(-\d+|\s*\(\d+\)|;_[\d,_-]+)?(\.[^.]+$)', re.I)
-pat_title_tail_g = re.compile(r'( - [^-]*?Google)([\s,(;-].*?)?(\.[^.]+$)', re.I)
+pat_title_tail_dup = get_rei(r'(-\d+|\s*\(\d+\)|;_[\d,_-]+)?(\.[^.]+$)')
+pat_title_tail_g = get_rei(r'( - [^-]*?Google)([\s,(;-].*?)?(\.[^.]+$)')
 
 part_g_search = r'(^/*|search)\?([^&]*&)*?'
 
@@ -65,10 +79,10 @@ subscrape = {'sub_threads': '_scrape'}
 unscrape = '!_unscrape,roots,etc'
 
 sub_a = [
-	[unscrape+'/_src'	,re.compile(r'^[^/?#]+(/+arch)?/+src/+[^/]+', re.I)]
-,	[unscrape+'/_arch'	,re.compile(r'^[^/?#]+/+arch/+res/+([?#]|$)', re.I)]
-,	[unscrape+'/_catalog'	,re.compile(r'^[^/?#]+/+catalog', re.I)]
-,	[unscrape+'/_rules'	,re.compile(r'^([^/?#]+/+)?rules', re.I)]
+	[unscrape+'/_src'	,get_rei(r'^[^/?#]+(/+arch)?/+src/+[^/]+')]
+,	[unscrape+'/_arch'	,get_rei(r'^[^/?#]+/+arch/+res/+([?#]|$)')]
+,	[unscrape+'/_catalog'	,get_rei(r'^[^/?#]+/+catalog')]
+,	[unscrape+'/_rules'	,get_rei(r'^([^/?#]+/+)?rules')]
 ]
 
 sub_b = [
@@ -88,8 +102,8 @@ sub_nyaa = [
 ,	'_browse'
 ]
 
-pat_by_ext_twMediaDownloader = re.compile(r'^\w+-\d+-\d+_\d+-(img|gif\d+)\.\w+$', re.I)
-pat_by_ext_coub_DL_button = re.compile(r'^\d+_(ifunny|looped)_\d+\.\w+$', re.I)
+pat_by_ext_twMediaDownloader = get_rei(r'^\w+-\d+-\d+_\d+-(img|gif\d+)\.\w+$')
+pat_by_ext_coub_DL_button = get_rei(r'^\d+_(ifunny|looped)_\d+\.\w+$')
 
 
 
@@ -133,10 +147,10 @@ sites = [
 
 #--[ local ]-------------------------------------------------------------------
 
-	[re.compile(r'^(192\.168\.(\d+\.)*9|127\.(0\.)*\d+|localhost|l|a)(:\d+)?\.$'		, re.I),'!_LAN,intranet/localhost']
-#,	[re.compile(r'^(192\.168\.(\d+\.)*1|r\d*|www\.asusnetwork\.net|router\.asus\.com)\.$'	, re.I),'!_LAN,intranet/router/ASUS_RT-AC58U']
-#,	[re.compile(r'^(r|d-?(link)?|dir-?(100|120)|192\.168\.[01]\.(1|100|120))$'		, re.I),'!_LAN,intranet/router/D-Link_DIR-120']
-#,	[['192.168.1.99'		],'!_LAN,intranet/printer/MG_3040']
+	[get_rei(r'^(192\.168\.(\d+\.)*9|127\.(0\.)*\d+|localhost|l|a)(:\d+)?\.$'		),'!_LAN,intranet/localhost']
+#,	[get_rei(r'^(192\.168\.(\d+\.)*1|r\d*|www\.asusnetwork\.net|router\.asus\.com)\.$'	),'!_LAN,intranet/router/ASUS_RT-AC58U']
+#,	[get_rei(r'^(r|d-?(link)?|dir-?(100|120)|192\.168\.[01]\.(1|100|120))$'			),'!_LAN,intranet/router/D-Link_DIR-120']
+#,	[['192.168.1.99'									],'!_LAN,intranet/printer/MG_3040']
 
 #--[ global ]------------------------------------------------------------------
 
@@ -146,24 +160,24 @@ sites = [
 #--[ chats ]-------------------------------------------------------------------
 
 ,	[['slack.com'						],'_conf/',{'sub': [[pat_subdomain_exc_www, r'_subdomain/\1']]}]
-,	[re.compile(r'(^|\.)slack(hq)?\.\w+$', re.I		),'_conf/slack.com/']
+,	[get_rei(r'(^|\.)slack(hq)?\.\w+$'			),'_conf/slack.com/']
 ,	[['discord.gg','discord.pw'				],'_conf/discordapp.com/']
 ,	[
 		['discordapp.com']
 	,	'_conf/'
 	,	{
 			'sub': [
-				[re.compile(r'^/+channels?/+(\d+)([/?#]|$)', re.I), r'_channels/\1']
+				[get_rei(r'^/+channels?/+(\d+)([/?#]|$)'), r'_channels/\1']
 			]
 		}
 	]
 
 #--[ stuff ]-------------------------------------------------------------------
 
-,	[re.compile(r'(^|\.)d(eposit)?files\.\w+$', re.I	),'_fileshares/depositfiles.com']
-,	[re.compile(r'(^|\.)freakshare\.\w+$', re.I		),'_fileshares/freakshare.com']
-,	[re.compile(r'(^|\.)rapidshare\.\w+$', re.I		),'_fileshares/rapidshare.com']
-,	[re.compile(r'(^|\.)rgho(st)?\.\w+$', re.I		),'_fileshares/rghost.ru']
+,	[get_rei(r'(^|\.)d(eposit)?files\.\w+$'		),'_fileshares/depositfiles.com']
+,	[get_rei(r'(^|\.)freakshare\.\w+$'		),'_fileshares/freakshare.com']
+,	[get_rei(r'(^|\.)rapidshare\.\w+$'		),'_fileshares/rapidshare.com']
+,	[get_rei(r'(^|\.)rgho(st)?\.\w+$'		),'_fileshares/rghost.ru']
 ,	[['dropbox.com','dropboxusercontent.com','db.tt'	],'_fileshares//']
 ,	[['ifolder.ru','rusfolder.com','rusfolder.net'		],'_fileshares//']
 ,	[['pomf.se','uguu.se','pomf.cat','pantsu.cat','1339.cf'	],'_fileshares//']
@@ -175,8 +189,8 @@ sites = [
 	,	'_fileshares//'
 	,	{
 			'sub': [
-				['_file'	,re.compile(r'^([^!#]*#+)?(!.+)$'	, re.I), r',#\2']
-			,	['_folder'	,re.compile(r'^([^!#]*#+)?(F!.+)$'	, re.I), r',#\2']
+				['_file'	,get_rei(r'^([^!#]*#+)?(!.+)$'	), r',#\2']
+			,	['_folder'	,get_rei(r'^([^!#]*#+)?(F!.+)$'	), r',#\2']
 			]
 		}
 	]
@@ -210,17 +224,17 @@ sites = [
 	,	'_img//'
 	,	{
 			'sub': [
-				['_mht/member/follow'	,re.compile(r'^/+bookmark\.php\?([^&]*&)*type=user&*([^&]*&)*(id=\d+)'	, re.I), r',u\3']
-			,	['_mht/member/bookmark'	,re.compile(r'^/+bookmark\.php\?([^&]*&)*(id=\d+)'		, re.I), r',u\2']
-			,	['_mht/bookmark/tag'	,re.compile(r'^/+bookmark\.php\?([^&]*&)*(tag=[^&]*)'		, re.I), r',\2']
-			,	['_mht/bookmark/add'	,re.compile(r'^/+bookmark_add\.php\?([^&]*&)*(id=\d+)'		, re.I), r',illust_\2,added']
-			,	['_mht/bookmark/add'	,re.compile(r'^/+bookmark_add\.php\?([^&]*&)*(illust_id=\d+)'	, re.I), r',\2,add']
-			,	['_mht/illust'		,re.compile(r'^/+member_illust\.php\?([^&]*&)*(illust_id=\d+)'	, re.I), r',\2']
-			,	['_mht/member/illust'	,re.compile(r'^/+member_illust\.php\?([^&]*&)*(id=\d+)'		, re.I), r',u\2']
-			,	['_mht/member/profile'	,re.compile(r'^/+member\.php\?([^&]*&)*(id=\d+)'		, re.I), r',u\2']
-			,	['_mht/mypage'		,re.compile(r'^/+mypage\.php\?([^&]*&)*(id=\d+)'		, re.I), r',u\2']
-			,	['_mht/member/novel'	,re.compile(r'^/+novel/member\.php\?([^&]*&)*(id=\d+)'		, re.I), r',u\2']
-			,	['_mht/novel'		,re.compile(r'^/+novel/([^?]*\?)+([^&]*&)*(id=\d+)'		, re.I), r',novel_\3']
+				['_mht/member/follow'	,get_rei(r'^/+bookmark\.php\?([^&]*&)*type=user&*([^&]*&)*(id=\d+)'	), r',u\3']
+			,	['_mht/member/bookmark'	,get_rei(r'^/+bookmark\.php\?([^&]*&)*(id=\d+)'				), r',u\2']
+			,	['_mht/bookmark/tag'	,get_rei(r'^/+bookmark\.php\?([^&]*&)*(tag=[^&]*)'			), r',\2']
+			,	['_mht/bookmark/add'	,get_rei(r'^/+bookmark_add\.php\?([^&]*&)*(id=\d+)'		), r',illust_\2,added']
+			,	['_mht/bookmark/add'	,get_rei(r'^/+bookmark_add\.php\?([^&]*&)*(illust_id=\d+)'	), r',\2,add']
+			,	['_mht/illust'		,get_rei(r'^/+member_illust\.php\?([^&]*&)*(illust_id=\d+)'	), r',\2']
+			,	['_mht/member/illust'	,get_rei(r'^/+member_illust\.php\?([^&]*&)*(id=\d+)'		), r',u\2']
+			,	['_mht/member/profile'	,get_rei(r'^/+member\.php\?([^&]*&)*(id=\d+)'			), r',u\2']
+			,	['_mht/mypage'		,get_rei(r'^/+mypage\.php\?([^&]*&)*(id=\d+)'			), r',u\2']
+			,	['_mht/member/novel'	,get_rei(r'^/+novel/member\.php\?([^&]*&)*(id=\d+)'		), r',u\2']
+			,	['_mht/novel'		,get_rei(r'^/+novel/([^?]*\?)+([^&]*&)*(id=\d+)'		), r',novel_\3']
 			,	['_mht/bookmark'	,['bookmark.php','bookmark_add.php','bookmark_detail.php']]
 			,	['_mht/member/by_tag'	,['personal_tags.php']]
 			,	['_mht/msg'		,['msg_view.php']]
@@ -255,22 +269,22 @@ sites = [
 	,	'_img/_board/4chan.org/_etc_archive/'
 	]
 ,	[
-		re.compile(r'((^|\.)410chan\.\w+|^95\.211\.122\.44)$', re.I)
+		get_rei(r'((^|\.)410chan\.\w+|^95\.211\.122\.44)$')
 	,	'_img/_board/410chan.ru'
 	,	{
 			'sub_threads': [
-			#	[None		,['d','errors']]
-				[None		,['errors']]
+			#	[None, ['d','errors']]
+				[None, ['errors']]
 			,	'_scrape'
 			]
 		,	'sub': sub_a+[
-				[unscrape	,re.compile(r'^err(or(s)?)?/|^[^/?#]+/arch/res/+([?#]|$)|^\.[\w-]+(/|$)|^[\w-]+\.\w+([?#]|$)', re.I)]
+				[unscrape, get_rei(r'^err(or(s)?)?/|^[^/?#]+/arch/res/+([?#]|$)|^\.[\w-]+(/|$)|^[\w-]+\.\w+([?#]|$)')]
 			]
 			# +sub_d
 			+sub_b
 		}
 	]
-,	[re.compile(r'(^|\.)dobrochan\.\w+$', re.I		),'_img/_board/dobrochan.ru',{'sub_threads': '_scrape', 'sub': sub_a+sub_b}]
+,	[get_rei(r'(^|\.)dobrochan\.\w+$'),'_img/_board/dobrochan.ru',{'sub_threads': '_scrape', 'sub': sub_a+sub_b}]
 ,	[
 		['hiichan.org','hiichan.ru','hii.pm']
 	,	'_img/_board/iichan.ru'
@@ -290,8 +304,8 @@ sites = [
 	,	'_img/_board//'
 	,	{
 			'sub_threads': [
-				[None				,re.compile(r'^/+(cgi-bin|d|err)/|^/+[^/?#]+/arch/res/+([?#]|$)', re.I)]
-			,	[re.compile(r'^[^#]*#(.*[^/.])[/.]*$'), r'!_tar,thread_archives/\1']
+				[None, get_rei(r'^/+(cgi-bin|d|err)/|^/+[^/?#]+/arch/res/+([?#]|$)')]
+			,	[get_rei(r'^[^#]*#(.*[^/.])[/.]*$'), r'!_tar,thread_archives/\1']
 			,	['_scrape/_a_ - Anime'			,['a','aa','abe','azu','c','dn','fi','hau','ls','me','rm','sos']]
 			,	['_scrape/_b_ - Bred'			,['b']]
 			,	['_scrape/_h_ - Hentai'			,['g','h']]
@@ -302,10 +316,10 @@ sites = [
 			,	'_scrape/_etc'
 			]
 		,	'sub': sub_a+[
-			#	[unscrape+'/_h'			,re.compile(r'(^|\w+\.)hii(chan)?\.\w+/', re.I)]
-				[unscrape+'/_n'			,['n','index','index.html','']]
-			,	[unscrape			,['cgi-bin','err']]
-			,	[unscrape			,re.compile(r'^/+[^/?#]+([?#]|$)', re.I)]
+			#	[unscrape+'/_h'	,get_rei(r'(^|\w+\.)hii(chan)?\.\w+/')]
+				[unscrape+'/_n'	,['n','index','index.html','']]
+			,	[unscrape	,['cgi-bin','err']]
+			,	[unscrape	,get_rei(r'^/+[^/?#]+([?#]|$)')]
 			]+sub_d
 		}
 	]
@@ -314,7 +328,7 @@ sites = [
 	,	'_img/_booru//'
 	,	{
 			'sub': [
-				['posts'		, re.compile(r'^(/+mobile)?/+posts?/(show[/?]+)?(\d+)', re.I)]
+				['posts'		,get_rei(r'^(/+mobile)?/+posts?/(show[/?]+)?(\d+)')]
 			,	['posts/comments'	,['comment','comments']]
 			,	['posts/pools'		,['pool','pools']]
 			,	['posts/search'		,['post','posts']]
@@ -341,12 +355,12 @@ sites = [
 ,	[['poll-maker.com','pollcode.com','roi.ru','rupoll.com','simpoll.ru','strawpoll.me'],'_poll/']
 
 ,	[
-		re.compile(r'(^|\.)blogspot(\.com?)?\.\w+$', re.I)
+		get_rei(r'(^|\.)blogspot(\.com?)?\.\w+$')
 	,	'_soc/blogspot.com'
 	,	{
 			'sub': [
-				[re.compile(r'^(?:\w+:/+)?\d+\.bp\.[^/?#]+(?:/|$)'				, re.I), r'_pix']
-			,	[re.compile(r'^(?:\w+:/+)?([^/?#]+\.)?([^/.]+)\.blogspot(\.com?)?\.\w+(?:/|$)'	, re.I), r'_personal/\2']
+				[get_rei(r'^(?:\w+:/+)?\d+\.bp\.[^/?#]+(?:/|$)'					), r'_pix']
+			,	[get_rei(r'^(?:\w+:/+)?([^/?#]+\.)?([^/.]+)\.blogspot(\.com?)?\.\w+(?:/|$)'	), r'_personal/\2']
 			]
 		}
 	]
@@ -356,9 +370,9 @@ sites = [
 	,	'_soc/'
 	,	{
 			'sub': [
-				[re.compile(r'^(?:\w+:/+)?(?:[^/?#]+\.)twitter\.com/', re.I), '_mht']
-			,	[re.compile(r'^(?:\w+:/+)?(?:www\.)?twitter\.com/+([^/?#]+)/+status/', re.I), r'_mht/_personal/\1/_posts']
-			,	[re.compile(r'^(?:\w+:/+)?(?:www\.)?twitter\.com/+([^/?#]+)([/?#]|$)', re.I), r'_mht/_personal/\1']
+				[get_rei(r'^(?:\w+:/+)?(?:[^/?#]+\.)twitter\.com/'			), r'_mht']
+			,	[get_rei(r'^(?:\w+:/+)?(?:www\.)?twitter\.com/+([^/?#]+)/+status/'	), r'_mht/_personal/\1/_posts']
+			,	[get_rei(r'^(?:\w+:/+)?(?:www\.)?twitter\.com/+([^/?#]+)([/?#]|$)'	), r'_mht/_personal/\1']
 			,	'_mht'
 			]
 		}
@@ -376,83 +390,87 @@ sites = [
 			]
 		}
 	]
-,	[['diveintopython.net','py-my.ru','pygame.org','pypi.org','python.su','pythonware.com'		],'_software/_prog/Python/']
-,	[['ghtorrent.org','github.io','githubuniverse.com','githubusercontent.com'			],'_software/github.com/']
+,	[['diveintopython.net','py-my.ru','pygame.org','pypi.org','python.su','pythonware.com'	],'_software/_prog/Python/']
+,	[['ghtorrent.org','github.io','githubuniverse.com','githubusercontent.com'		],'_software/github.com/']
 ,	[
-		re.compile(r'(^|\.)github\.\w+$', re.I)
+		get_rei(r'(^|\.)github\.\w+$')
 	,	'_software/github.com'
 	,	{
 			'sub': [
-				[pat_subdomain_exc_www			, r'_subdomain/\3']
-			,	['_blog'				, ['blog']]
-			,	['_settings,etc'			, ['login','settings','signup']]
+				[pat_subdomain_exc_www	, r'_subdomain/\3']
+			,	['_blog'		, ['blog']]
+			,	['_settings,etc'	, ['login','settings','signup']]
 			,	['_users/_repositories'
-				,	re.compile(r'[^?#]*\?([^&]*&)*tab=repos'			, re.I)
-				,	re.compile(r'(\s+\S\s+GitHub( - \w+)?([\s,(;-].*)?)?(\.[^.]+$)'	, re.I)
+				,	get_rei(r'[^?#]*\?([^&]*&)*tab=repos')
+				,	get_rei(r'(\s+\S\s+GitHub( - \w+)?([\s,(;-].*)?)?(\.[^.]+$)')
 				,	r' - GitHub Repositories\4'
 				]
-			,	[re.compile(r'^/+[^/?#]+/([^/?#]+)/+(commit|issue|label|pull)s?', re.I), r'_projects/\1/\2']
-			,	[re.compile(r'^/+[^/?#]+/([^/?#]+)(/|$)'			, re.I), r'_projects/\1']
-			,	[re.compile(r'^/+[^/?#]+/*([?#]|$)'				, re.I), r'_users']
+			,	[get_rei(r'^/+[^/?#]+/([^/?#]+)/+(commit|issue|label|pull)s?'	), r'_projects/\1/\2']
+			,	[get_rei(r'^/+[^/?#]+/([^/?#]+)(/|$)'				), r'_projects/\1']
+			,	[get_rei(r'^/+[^/?#]+/*([?#]|$)'				), r'_users']
 			]
 		}
 	]
 ,	[
-		re.compile(r'(^|\.)osdn\.\w+$', re.I)
+		get_rei(r'(^|\.)osdn\.\w+$')
 	,	'_software/osdn.net'
 	,	{
 			'sub': [
-				[re.compile(r'^/+projects?/([^/?#]+)', re.I)	, r'_projects/\1']
-			,	[pat_subdomain_exc_www				, r'_projects/\3']
+				[get_rei(r'^/+projects?/([^/?#]+)')	, r'_projects/\1']
+			,	[pat_subdomain_exc_www			, r'_projects/\3']
 			]
 		}
 	]
 ,	[
-		re.compile(r'(^|\.)(sourceforge\.\w+|sf.net)$', re.I)
+		get_rei(r'(^|\.)(sourceforge\.\w+|sf.net)$')
 	,	'_software/sf.net'
 	,	{
 			'sub': [
-				['_accounts'							, re.compile(r'^/+(auth|u|user)/', re.I)]
-			,	[re.compile(r'^/+(p|projects?|apps?/\w+)/([^/?#]+)', re.I)	, r'_projects/\2']
-			,	[pat_subdomain_exc_www						, r'_projects/\3']
+				['_accounts'						, get_rei(r'^/+(auth|u|user)/')]
+			,	[get_rei(r'^/+(p|projects?|apps?/\w+)/([^/?#]+)')	, r'_projects/\2']
+			,	[pat_subdomain_exc_www					, r'_projects/\3']
 			]
 		}
 	]
 
 #--[ more stuff ]--------------------------------------------------------------
 
-,	[re.compile(r'(^|\.)anidex\.\w+$', re.I			),'_torrents/anidex.info']
-,	[re.compile(r'(^|\.)bakabt\.\w+$', re.I			),'_torrents/bakabt.me']
-,	[re.compile(r'(^|\.)isohunt\.\w+$', re.I		),'_torrents/isohunt.to']
-,	[re.compile(r'(^|\.)nnm-club\.\w+$', re.I		),'_torrents/nnm-club.ru']
-,	[re.compile(r'sukebei?\.nyaa\.si$', re.I		),'_torrents/nyaa.si/hentai'	,{'sub': sub_nyaa}]
-,	[re.compile(r'(^|\.)nyaa\.si$', re.I			),'_torrents/nyaa.si'		,{'sub': sub_nyaa}]
-,	[re.compile(r'files?\.nyaa(torrents)?\.\w+$', re.I	),'_torrents/nyaa.se/static_files']
-,	[re.compile(r'forums?\.nyaa(torrents)?\.\w+$', re.I	),'_torrents/nyaa.se/forums']
-,	[re.compile(r'sukebei?\.nyaa(torrents)?\.\w+$', re.I	),'_torrents/nyaa.se/hentai'	,{'sub': sub_nyaa}]
-,	[re.compile(r'(^|\.)nyaa(torrents)?\.\w+$', re.I	),'_torrents/nyaa.se'		,{'sub': sub_nyaa}]
-,	[re.compile(r'(^|\.)(the|old)piratebay\.\w+$', re.I	),'_torrents/thepiratebay.org']
-,	[re.compile(r'(^|\.)tokyo-?tosho\.\w+$', re.I		),'_torrents/tokyotosho.info']
+,	[get_rei(r'(^|\.)anidex\.\w+$'			),'_torrents/anidex.info']
+,	[get_rei(r'(^|\.)bakabt\.\w+$'			),'_torrents/bakabt.me']
+,	[get_rei(r'(^|\.)isohunt\.\w+$'			),'_torrents/isohunt.to']
+,	[get_rei(r'(^|\.)nnm-club\.\w+$'		),'_torrents/nnm-club.ru']
+,	[get_rei(r'sukebei?\.nyaa\.si$'			),'_torrents/nyaa.si/hentai'	,{'sub': sub_nyaa}]
+,	[get_rei(r'(^|\.)nyaa\.si$'			),'_torrents/nyaa.si'		,{'sub': sub_nyaa}]
+,	[get_rei(r'files?\.nyaa(torrents)?\.\w+$'	),'_torrents/nyaa.se/static_files']
+,	[get_rei(r'forums?\.nyaa(torrents)?\.\w+$'	),'_torrents/nyaa.se/forums']
+,	[get_rei(r'sukebei?\.nyaa(torrents)?\.\w+$'	),'_torrents/nyaa.se/hentai'	,{'sub': sub_nyaa}]
+,	[get_rei(r'(^|\.)nyaa(torrents)?\.\w+$'		),'_torrents/nyaa.se'		,{'sub': sub_nyaa}]
+,	[get_rei(r'(^|\.)(the|old)piratebay\.\w+$'	),'_torrents/thepiratebay.org']
+,	[get_rei(r'(^|\.)tokyo-?tosho\.\w+$'		),'_torrents/tokyotosho.info']
 
 #--[ wiki ]--------------------------------------------------------------------
 
 ,	[['boltwire.com','dokuwiki.org','foswiki.org','ikiwiki.info','pmwiki.org','trac.edgewall.org','wikimatrix.org'],'_wiki/_soft/']
-,	[re.compile(r'(^|\.)encyclopediadramatica\.\w+$', re.I	),'_wiki/encyclopediadramatica.com']
+,	[get_rei(r'(^|\.)encyclopediadramatica\.\w+$'		),'_wiki/encyclopediadramatica.com']
+,	[get_rei(r'(^|\.)lurkmo(re|ar|)\.\w+(:\d+)?$'		),'_wiki/lurkmore.ru']
 ,	[['mrakopedia.ru','mrakopedia.org','barelybreathing.ru'	],'_wiki//']
 ,	[['scpfoundation.net','scpfoundation.ru'		],'_wiki//']
 ,	[['traditio.ru','traditio-ru.org'			],'_wiki//']
 ,	[['wikia.nocookie.net'					],'_wiki/wikia.com/_img']
-,	[['fandom.com','wikia.com'			],'_wiki/',{'sub': [[pat_subdomain_exc_www, [
+,	[['fandom.com','wikia.com'				],'_wiki/',{'sub': [[pat_subdomain_exc_www, [
 		r'_subdomain/\g<NotLastOver2>/\g<LastOver2>'
 	,	r'_subdomain/\g<LastOver2>'
 	]]]}]
-,	[['wikipedia.org'				],'_wiki/',{'sub': [[pat_subdomain_exc_www, r'_subdomain/\g<LastOver2>']]}]
+,	[['wikipedia.org'					],'_wiki/',{'sub': [[pat_subdomain_exc_www, r'_subdomain/\g<LastOver2>']]}]
 ,	[
 		[	'mediawiki.org','wikidata.org','wikimedia.org','wikitravel.org','wikimediafoundation.org','wiktionary.org','wikiquote.org'
 		]
 	,	'_wiki/wikipedia.org/'
 	]
-,	[re.compile(r'(^|\.)lurkmo(re|ar|)\.\w+(:\d+)?$', re.I	),'_wiki/lurkmore.ru']
+
+#--[ unsorted, etc ]-----------------------------------------------------------
+
+,	[['world-art.ru'],'/']
 
 #--[ internal ]----------------------------------------------------------------
 
