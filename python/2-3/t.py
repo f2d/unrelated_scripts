@@ -21,14 +21,16 @@ read_encodings = 'utf_8|utf_16_le|utf_16_be|cp1251'.split('|')
 
 pat_text_date = r'''
 	(?:^|\D)
-	(\d{4})\D
-	(\d\d)\D
-	(\d\d)
-	(?:\D
-		(\d\d)\D
-		(\d\d)
-		(?:\D
-			(\d\d)
+	(?P<Year>\d{4})		[^a-z\d]
+	(?P<Month>\d\d)		[^a-z\d]
+	(?P<Day>\d\d)
+	(?:
+				\D
+		(?P<Hours>\d\d)	[^a-z\d]
+		(?P<Minutes>\d\d)
+		(?:
+				[^a-z\d]
+			(?P<Seconds>\d\d)
 		)?
 	)?
 	(?:$|\D)
@@ -36,16 +38,25 @@ pat_text_date = r'''
 
 pat_text_date_full_compact = r'''
 	(?:^|\D)
-	(\d{4})\D?
-	(\d{2})\D?
-	(\d{2})\D?
-	(\d{2})\D?
-	(\d{2})\D?
-	(\d{2})
+	(?P<Year>\d{4})		[^a-z\d]?
+	(?P<Month>\d{2})	[^a-z\d]?
+	(?P<Day>\d{2})		\D?
+	(?P<Hours>\d{2})	[^a-z\d]?
+	(?P<Minutes>\d{2})	[^a-z\d]?
+	(?P<Seconds>\d{2})
 	(?:$|\D)
 '''
 
-pat_time = re.compile(r'(?:^|[^a-z\d])(\d{10})', re.I)
+pat_text_time_epoch = r'''
+#	(?:^|\D)
+	(?:^|[^a-z\d])
+	(?P<Epoch>\d{10})
+	(?P<Milliseconds>\d{3})?
+	(?:$|[^a-z\d])
+#	(?:$|\D)
+'''
+
+pat_time = re.compile(pat_text_time_epoch, re.I | re.X)
 pat_date = re.compile(pat_text_date, re.I | re.X)
 pat_date_full_compact = re.compile(pat_text_date_full_compact, re.I | re.X)
 
@@ -55,9 +66,12 @@ except TypeError:
 	pat_date_binary = pat_date
 
 exp_date = [
-	r'\1-\2-\3 \4:\5:\6'
-,	r'\1-\2-\3 \4:\5:00'
-,	r'\1-\2-\3 00:00:00'
+	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:\g<Seconds>'
+,	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:00'
+,	r'\g<Year>-\g<Month>-\g<Day> 00:00:00'
+# ,	r'\1-\2-\3 \4:\5:\6'
+# ,	r'\1-\2-\3 \4:\5:00'
+# ,	r'\1-\2-\3 00:00:00'
 ]
 
 fmt_date = r'%Y-%m-%d %H:%M:%S'
@@ -95,6 +109,9 @@ def print_help():
 	,	'	f: For each text file set its mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
 	,	'	u: Set each file modtime to 1st found Unix-time stamp (first 10 digits) in filename.'
 	,	'	y: Set each file modtime to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in filename.'
+	,	'	l: Set file modtime to last found time in filename.'
+	,	'	m: Set file modtime to max found time in filename.'
+	,	'	n: Set file modtime to min found time in filename.'
 	# ,	'TODO ->	z: For each zip file set its mod-time to latest file inside.'
 	,	''
 	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for last time, if anything else exists.'
@@ -230,11 +247,17 @@ def run_batch_retime(argv):
 							except TypeError:
 								timestamp_text = match.expand(bytes(partial_format, 'utf_8')).decode('utf_8')
 
+							except (KeyError, IndexError):
+								continue
+
 							except re.error:
 								if arg_verbose_testing:
 									print_exception(
 										'Text "{match}" does not match pattern "{pattern}" in file:'
-										.format(match=match.group(0), pattern=partial_format)
+										.format(
+											match=match.group(0)
+										,	pattern=partial_format
+										)
 									,	path_name
 									)
 
@@ -251,9 +274,22 @@ def run_batch_retime(argv):
 							break
 
 						if not timestamp_text:
-							timestamp_text = get_timestamp_text(int(match.group(1)))
+							timestamp_text = get_timestamp_text(int(
+								match.group('Epoch')
+							or	match.group(1)
+							or	match.group(0)
+							))
 
-						if result < timestamp_text and timestamp_text < t_now:
+						if (
+							timestamp_text
+						and	timestamp_text < t_now
+						and	(
+								not result
+							or	arg_files_modtime_last
+							or	(arg_files_modtime_max and result < timestamp_text)
+							or	(arg_files_modtime_min and result > timestamp_text)
+							)
+						):
 							result = timestamp_text
 					return result
 
@@ -383,6 +419,9 @@ def run_batch_retime(argv):
 	arg_files_modtime_by_content = 'f' in flags
 	arg_files_modtime_by_name_ymdhms = 'y' in flags
 	arg_files_modtime_by_name_unixtime = 'u' in flags
+	arg_files_modtime_last = 'l' in flags
+	arg_files_modtime_max = 'm' in flags
+	arg_files_modtime_min = 'n' in flags
 	# arg_zip_by_files_inside = 'z' in flags
 
 	count_dirs_checked = count_dirs_changed = count_dirs_errors = 0
