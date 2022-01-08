@@ -23,7 +23,13 @@ default_print_encoding = 'unicode-escape'
 default_name_cut_length = 123
 default_read_bytes = 12345
 
-ext_web = ['htm', 'html', 'maff', 'mht', 'mhtml']
+ext_web = [
+	'htm'
+,	'html'
+,	'maff'
+,	'mht'
+,	'mhtml'
+]
 
 ext_web_remap = {
 	'htm': 'html'
@@ -45,44 +51,64 @@ dest_root_yt = u'd:/1_Video/other/_xz/YouTube/'
 
 #--[ reusable rule parts ]-----------------------------------------------------
 
-part_protocol = r'^(?:\w+:/+)?'
-part_domain_www = r'(?:www\.|(?!www\.))'
+part_protocol = r'^(?P<Scheme>(?P<Protocol>\w+):/+)?'
+part_domain_www = r'(?P<OptionalSubDomain>www[.]|(?!www[.]))'
 part_domain = r'''
 (?P<All>
-	(?P<AllOver2>
-		(?P<LastOver2>[^/?#\s.]+)
-		(?P<DotNotLastOver2>
-			[.]+
-			(?P<NotLastOver2>
-				[^/?#\s.]
-				(?:[.]+[^/?#\s.]+)*
+	(?P<AllOverTop2>
+		(?P<LastOverTop2>		[^:/?#\s.]+)
+		(?P<DotNotLastOverTop2>
+					[.]+
+			(?P<NotLastOverTop2>
+						[^:/?#\s.]
+				(?:	[.]+	[^:/?#\s.]+)*
 			)
 		)?
 	)
-	(?P<TopBoth>
-		(?P<Top2nd>[.]+[^/?#\s.]+)
-		(?P<Top>[.]+[^/?#\s.]+)
+	(?P<Top2>
+		(?P<Top2nd>		[.]+	[^:/?#\s.]+)
+		(?P<Top>		[.]+	[^:/?#\s.]+)
 	)
 )
-(?:[/?#]|$)
+(?:[:](?P<Port>\d+))?
+(?=$|[/?#])
 '''
 
 pat_subdomain_inc_www = get_rei(part_protocol                   + part_domain)	# <- to treat "www" like a separate subdomain
 pat_subdomain_exc_www = get_rei(part_protocol + part_domain_www + part_domain)	# <- to discard "www", if any
+pat_subdomain_forum   = get_rei(part_protocol + part_domain_www + part_domain + r'/+(?P<Folder>forum)/+')
 
-pat_title_tail_dup = get_rei(r'(-\d+|\s*\(\d+\)|;_[\d,_-]+)?(\.[^.]+$)')
-pat_title_tail_g = get_rei(r'( - [^-]*?Google)([\s,(;-].*?)?(\.[^.]+$)')
+part_ext_etc = r'(?P<ExtEtc>(?P<Date>\{[^.\{\}]+\})?(?P<Ext>\.[^.]+))$'
 
-part_g_search = r'(^/*|search)\?([^&]*&)*?'
+pat_title_tail_dup = get_rei(r'(?P<Remove>-\d+|\s*\(\d+\)|;_[\d,_-]+)?' + part_ext_etc)
+pat_title_tail_g = get_rei(r'(?P<SiteName> - [^-]*?Google)(?P<Remove>[\s,(;-].*?)?' + part_ext_etc)
+
+part_g_search = r'^(/*|search)[?]([^&]*[&])*?'
 
 subscrape = {'sub_threads': '_scrape'}
 unscrape = '!_unscrape,roots,etc'
 
+sub_domain_exc_www_directly = [
+	[pat_subdomain_exc_www, r'\g<All>']
+]
+
+sub_domain_exc_www = [
+	[pat_subdomain_exc_www, r'_subdomain/\g<All>']
+]
+
+sub_domain_last_over_top2_exc_www = [
+	[pat_subdomain_exc_www, r'_subdomain/\g<LastOverTop2>']
+]
+
+sub_domain_last_over_top2_forum = [
+	[pat_subdomain_forum, r'_subdomain/\g<LastOverTop2>/\g<Folder>']
+]
+
 sub_a = [
-	[unscrape+'/_src'	,get_rei(r'^[^/?#]+(/+arch)?/+src/+[^/]+')]
-,	[unscrape+'/_arch'	,get_rei(r'^[^/?#]+/+arch/+res/+([?#]|$)')]
-,	[unscrape+'/_catalog'	,get_rei(r'^[^/?#]+/+catalog')]
-,	[unscrape+'/_rules'	,get_rei(r'^([^/?#]+/+)?rules')]
+	[unscrape+'/_src'	, get_rei(r'^[^/?#]+(/+arch)?/+src/+[^/]+')]
+,	[unscrape+'/_arch'	, get_rei(r'^[^/?#]+/+arch/+(res|\d+)/+([?#]|$)')]
+,	[unscrape+'/_catalog'	, get_rei(r'^[^/?#]+/+catalog')]
+,	[unscrape+'/_rules'	, get_rei(r'^([^/?#]+/+)?rules')]
 ]
 
 sub_b = [
@@ -95,11 +121,22 @@ sub_d = [
 ]+sub_b
 
 sub_nyaa = [
-	['_search'	,['?','page=search']]
-,	['_torrent_info',['view','page=view','page=torrentinfo']]
-,	['_browse'	,['user','page=separate','page=torrents']]
-,	[pat_subdomain_inc_www, r'_browse/\3']
+	['_search'		, ['?','page=search']]
+,	['_torrent_info'	, ['view','page=view','page=torrentinfo']]
+,	['_browse'		, ['user','page=separate','page=torrents']]
+,	[pat_subdomain_inc_www	, r'_browse/\g<LastOverTop2>']
 ,	'_browse'
+]
+
+sub_git = [
+	['_blog'		, ['blog']]
+,	['_settings,etc'	, ['login','settings','signup']]
+]+sub_domain_last_over_top2_exc_www
+
+sub_git_projects = [
+	[get_rei(r'^/+[^/?#]+/([^/?#]+)/+(commit|issue|label|pull)s?'	), r'_projects/\1/\2']
+,	[get_rei(r'^/+[^/?#]+/([^/?#]+)(/|$)'				), r'_projects/\1']
+,	[get_rei(r'^/+[^/?#]+/*([?#]|$)'				), r'_users']
 ]
 
 pat_by_ext_twMediaDownloader = get_rei(r'^\w+-\d+-\d+_\d+-(img|gif\d+)\.\w+$')
@@ -159,7 +196,7 @@ sites = [
 
 #--[ chats ]-------------------------------------------------------------------
 
-,	[['slack.com'						],'_conf/',{'sub': [[pat_subdomain_exc_www, r'_subdomain/\1']]}]
+,	[['slack.com'						],'_conf/',{'sub': sub_domain_exc_www}]
 ,	[get_rei(r'(^|\.)slack(hq)?\.\w+$'			),'_conf/slack.com/']
 ,	[['discord.gg','discord.pw'				],'_conf/discordapp.com/']
 ,	[
@@ -213,7 +250,7 @@ sites = [
 	,	'_img//'
 	,	{
 			'sub': [
-				[pat_subdomain_exc_www, r'_mht/_personal/\3']
+				[pat_subdomain_exc_www, r'_mht/_personal/\g<LastOverTop2>']
 			,	'_mht'
 			]
 		}
@@ -345,7 +382,7 @@ sites = [
 			]
 		}
 	]
-,	[['booru.org'			],'_img/_booru/',{'sub': [[pat_subdomain_exc_www, r'_subdomain/\3']]}]
+,	[['booru.org'			],'_img/_booru/',{'sub': sub_domain_last_over_top2_exc_www}]
 
 ,	[['whatanime.ga','trace.moe'						],'_img/_search//']
 ,	[['everypixel.com','iqdb.org','saucenao.com','tineye.com'		],'_img/_search/']
@@ -390,25 +427,38 @@ sites = [
 			]
 		}
 	]
-,	[['diveintopython.net','py-my.ru','pygame.org','pypi.org','python.su','pythonware.com'	],'_software/_prog/Python/']
-,	[['ghtorrent.org','github.io','githubuniverse.com','githubusercontent.com'		],'_software/github.com/']
 ,	[
-		get_rei(r'(^|\.)github\.\w+$')
+		[	'diveintopython.net','mpmath.org','py-my.ru','pygame.org','pypa.io','pypi.org'
+		,	'python.su','python-future.org','python3statement.org','pythonanywhere.com','pythonware.com'
+		,	'tensorflow.org'
+		]
+	,	'_software/_prog/Python/'
+	]
+,	[
+		[	'ghtorrent.org','gitee.com','github.blog','github.io'
+		,	'githubsatellite.com','githubstatus.com','githubuniverse.com','githubusercontent.com'
+		]
+	,	'_software/github.com/'
+	]
+,	[
+		get_rei(r'^github\.\w+$')
 	,	'_software/github.com'
 	,	{
-			'sub': [
-				[pat_subdomain_exc_www	, r'_subdomain/\3']
-			,	['_blog'		, ['blog']]
-			,	['_settings,etc'	, ['login','settings','signup']]
-			,	['_users/_repositories'
+			'sub': sub_git + [
+				['_users/_repositories'
 				,	get_rei(r'[^?#]*\?([^&]*&)*tab=repos')
 				,	get_rei(r'(\s+\S\s+GitHub( - \w+)?([\s,(;-].*)?)?(\.[^.]+$)')
 				,	r' - GitHub Repositories\4'
 				]
-			,	[get_rei(r'^/+[^/?#]+/([^/?#]+)/+(commit|issue|label|pull)s?'	), r'_projects/\1/\2']
-			,	[get_rei(r'^/+[^/?#]+/([^/?#]+)(/|$)'				), r'_projects/\1']
-			,	[get_rei(r'^/+[^/?#]+/*([?#]|$)'				), r'_users']
-			]
+			] + sub_git_projects
+		}
+	]
+,	[['gitlab.io'					],'_software/gitlab.com/']
+,	[
+		get_rei(r'^gitlab\.\w+$')
+	,	'_software/gitlab.com'
+	,	{
+			'sub': sub_git + sub_git_projects
 		}
 	]
 ,	[
@@ -417,7 +467,7 @@ sites = [
 	,	{
 			'sub': [
 				[get_rei(r'^/+projects?/([^/?#]+)')	, r'_projects/\1']
-			,	[pat_subdomain_exc_www			, r'_projects/\3']
+			,	[pat_subdomain_exc_www			, r'_projects/\g<LastOverTop2>']
 			]
 		}
 	]
@@ -428,7 +478,7 @@ sites = [
 			'sub': [
 				['_accounts'						, get_rei(r'^/+(auth|u|user)/')]
 			,	[get_rei(r'^/+(p|projects?|apps?/\w+)/([^/?#]+)')	, r'_projects/\2']
-			,	[pat_subdomain_exc_www					, r'_projects/\3']
+			,	[pat_subdomain_exc_www					, r'_projects/\g<LastOverTop2>']
 			]
 		}
 	]
@@ -457,13 +507,17 @@ sites = [
 ,	[['scpfoundation.net','scpfoundation.ru'		],'_wiki//']
 ,	[['traditio.ru','traditio-ru.org'			],'_wiki//']
 ,	[['wikia.nocookie.net'					],'_wiki/wikia.com/_img']
-,	[['fandom.com','wikia.com'				],'_wiki/',{'sub': [[pat_subdomain_exc_www, [
-		r'_subdomain/\g<NotLastOver2>/\g<LastOver2>'
-	,	r'_subdomain/\g<LastOver2>'
+,	[['fandom.com','wikia.com','wikia.org'			],'_wiki/',{'sub': [[pat_subdomain_exc_www, [
+		r'_subdomain/\g<NotLastOverTop2>/\g<LastOverTop2>'
+	,	r'_subdomain/\g<LastOverTop2>'
 	]]]}]
-,	[['wikipedia.org'					],'_wiki/',{'sub': [[pat_subdomain_exc_www, r'_subdomain/\g<LastOver2>']]}]
+,	[['scpfoundation.ru','scpfoundation.net'	],'_wiki/wikidot.com/_subdomain/scp-ru',{'sub': [['forum',['forum']]]}]
+,	[['wdfiles.com'					],'_wiki/wikidot.com/']
+,	[['wikidot.com'					],'_wiki/',{'sub': sub_domain_last_over_top2_forum + sub_domain_last_over_top2_exc_www}]
+,	[['wikipedia.org'				],'_wiki/',{'sub': sub_domain_last_over_top2_exc_www}]
 ,	[
-		[	'mediawiki.org','wikidata.org','wikimedia.org','wikitravel.org','wikimediafoundation.org','wiktionary.org','wikiquote.org'
+		[	'mediawiki.org','wikibooks.org','wikidata.org','wikimedia.org','wikimediafoundation.org'
+		,	'wikiquote.org','wikitravel.org','wikivoyage.org','wikivoyage.ru','wiktionary.org'
 		]
 	,	'_wiki/wikipedia.org/'
 	]

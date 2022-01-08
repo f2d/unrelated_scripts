@@ -1,7 +1,7 @@
 ﻿#!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
-import datetime, os, re, sys, zipfile
+import datetime, json, os, re, sys, zipfile
 
 # Use colored text if available:
 try:
@@ -119,48 +119,65 @@ else:
 			arg_len = int(a[j:])
 			break
 
+print_duplicate_count=True
+unprinted_duplicate_count=0
+
 pat_url = get_rei(r'''
 (?:^|[>\r\n]\s*)
 (?P<Meta>
 	(?:
 	# MHT:
-		(?:Snapshot-)?Content-Location:[^\r\n\w]*	# <- [skip quotes, whitespace, any garbage, etc]
+		(?:Snapshot-)?Content-Location:[^\w\r\n]*	# <- [skip quotes, whitespace, any garbage, etc]
 	# MAFF:
-	|	<MAF:originalurl\s+[^<>\s=]+=[^<>\w]*
+	|	<MAF:originalurl\s+[^<>\s=\r\n]+=[^<>\w\r\n]*
 	# HTML:
 	|	<!--\s+Page\s+saved\s+with\s+SingleFileZ?\s+url:\s+
-	|	<a\s+id="savepage-pageinfo-bar-link"\s+href=[^<>\w]*
-	|	<base\s+href=[^<>\w]*
+	|	<a\s+id="savepage-pageinfo-bar-link"\s+href=[^<>\w\r\n]*
+	|	<base\s+href=[^<>\w\r\n]*
 	)
 )
 (?P<URL>
-	(?P<Protocol>[\w-]+:)/*
+	(?P<Protocol>[\w-]+)
+	:+/*
 	(?P<Proxy>
 		u
-		(?P<ProxyPort>:[^:/?#]+)?
+	#	(?P<ProxyPort>:[^:/?#\r\n]+)?
+		(?:[:](?P<ProxyPort>\d+))?
 		/+[?]*
-		(?P<ProxyProtocol>ftp|https?)
+		(?P<ProxyProtocol>ftps?|https?)
 		:*/+
 	)?
 	(?P<DomainPath>
 		(?P<DomainPort>
-			(?P<Domain>[^":/?&=\#\s]+)?
-			(?P<Port>:\d+)?
+			(?P<Domain>[^"':/?&=\#\s\r\n]+)?
+		#	(?P<Port>:\d+)?
+			(?:[:](?P<Port>\d+))?
 		)
-		(?P<Path>/+
-			(?P<Query>\??
+		(?P<Path>
+			/+
+		#	(?:
+		#		(?P<PathBeforeQuery>[^"?\#\s\r\n]*)
+		#		[?]
+		#	)?
+			(?P<Query>
+				[?]?
 				(?P<QueryPath>
 					(?P<QuerySelector>
-						(?P<QueryKey>[^"/?&=\#\s]+)?
-						(?P<QueryValue>=[^"/?&\#\s]+)?
+						(?P<QueryKey>[^"/?&=\#\s\r\n]+)?
+						(?:
+							[=]
+							(?P<QueryValue>[^"/?&\#\s\r\n]+)
+						)?
 					)
-					([/?&]+
+					(
+						[/?&]+
 						(?P<IsArchived>arch[ive]*/+)?
 						(?P<ItemSelector>
-							(?P<ItemContainer>prev|res|thread)/+|\w+\.pl[/?]*
+							(?P<ItemContainer>prev|res|thread)/+
+						|	\w+\.pl[/?]*
 						)?
 					)?
-					(?P<ItemID>[^"\#\s]*)
+					(?P<ItemID>[^"\#\s\r\n]*)
 				)
 			)
 		)?
@@ -327,6 +344,11 @@ def dumpclean(obj):
 			else: print v
 	else: print obj
 
+def print_url_groups(match, prefix_color='red'):
+	# print colored('URL:', prefix_color), url.group('URL')
+	print colored('Match groups:', prefix_color), match.groups()
+	print colored('Named groups:', prefix_color), json.dumps(match.groupdict(), indent=4, sort_keys=True)
+
 def normalize_slashes(path):
 	return path.replace('\\', '/')
 
@@ -412,7 +434,9 @@ def remove_trailing_dots_in_path_parts(path):
 		for part in normalize_slashes(path).split('/')
 	)
 
-def get_unique_clean_path(src_path, dest_path):
+def get_unique_clean_path(src_path, dest_path, print_duplicate_count=True):
+	global unprinted_duplicate_count
+
 	try_count = 0
 	dest_path = remove_trailing_dots_in_path_parts(dest_path)
 
@@ -428,7 +452,12 @@ def get_unique_clean_path(src_path, dest_path):
 			dest_path = '({}).'.format(try_count).join(dest_path_parts)
 
 	if try_count:
-		cprint('+ %d duplicate(s)' % try_count, 'yellow')
+		if print_duplicate_count:
+			try_count += unprinted_duplicate_count
+			cprint('+ %d %s' % (try_count, 'duplicate' if try_count == 1 else 'duplicates'), 'yellow')
+			unprinted_duplicate_count = 0
+		else:
+			unprinted_duplicate_count += 1
 
 	return dest_path
 
@@ -567,7 +596,9 @@ def move_processed_target(src, path, name, dest_dir=None):
 				print exception
 
 def process_dir(path, later=0):
-	global n_i, n_fail, n_matched, n_moved, n_back, n_later, n_max_len, not_existed, dup_lists_by_ID
+	global n_i, n_fail, n_matched, n_moved, n_back, n_later, n_max_len
+	global not_existed, dup_lists_by_ID
+	global print_duplicate_count
 
 	names = os.listdir(path)
 
@@ -651,9 +682,28 @@ def process_dir(path, later=0):
 		elif ext in ext_path_inside:
 			n_matched += 1
 			read_bytes = ext_web_read_bytes.get(ext, default_read_bytes)
-			url = re.search(pat_url, read_file_or_part(src, read_bytes))
 
-			if not url:
+			if ext == 'html':
+				url = None
+				max_found_url_length = 0
+
+				for each_found_url in re.finditer(pat_url, read_file_or_part(src, read_bytes)):
+					url_length = len(each_found_url.group('URL'))
+
+					if max_found_url_length < url_length:
+						max_found_url_length = url_length
+
+						url = each_found_url
+			else:
+				url = re.search(pat_url, read_file_or_part(src, read_bytes))
+
+			if url:
+				if TEST:
+					print_url_groups(url, 'yellow')
+			else:
+				if TEST:
+					print info_prfx, colored('No URL in file:', 'yellow'), src.encode(default_print_encoding)
+
 				continue
 
 			ufull = url.group('URL')
@@ -705,10 +755,10 @@ def process_dir(path, later=0):
 					test[0]
 					if (isinstance(test, a_type) and dest[-2:] == '//')
 					else
-					domain.strip(':.')
+					domain
 					if (dest[-1:] == '/')
 					else ''
-				)+'/'
+				).strip('/:.')+'/'
 
 				if len(s) > 2:
 					x = [name, meeting, True if board else False]
@@ -815,11 +865,17 @@ def process_dir(path, later=0):
 								f = re.sub(pat_ren_src_name, '', child_name[:-f])
 							if f:
 								f = re.search(get_rei(
-	r'(?:^|[\r\n\t])(?:Content-Location:\s+|<meta\s+name="twitter:image:src"\s+content=")\w+:/+[^\r\n\t]+[^w]/(preview|sample[_-]*)?'
-+	f + '|/'
-+	f + '.'
-+	child_ext
-+	'(\?[^">]*)?">Save'
+									r'(?:^|[\r\n\t])'
+								+	r'(?:'
+								+	r'Content-Location:\s+'
+								+	r'|<meta\s+name="twitter:image:src"\s+content="'
+								+	r')'
+								+	r'\w+:/+[^\r\n\t]+[^w]/'
+								+	r'(preview|sample[_-]*)?'
+								+	f + '|/'
+								+	f + '.'
+								+	child_ext
+								+	'(\?[^">]*)?">Save'
 								), page_content)	# <- [^w] to workaround /preview/ child post list
 								if f:
 									prfx = page_match.group('Prefix')+(' full,' if f.group(1) else ',')
@@ -863,7 +919,7 @@ def process_dir(path, later=0):
 							else name[ : -len(old_ext)] + ext
 						)
 
-						dq = get_unique_clean_path(src, d)
+						dq = get_unique_clean_path(src, d, print_duplicate_count=print_duplicate_count)
 						os.rename(src, dq)
 
 						if os.path.exists(d):		# <- check that new-moved and possible duplicate both exist
@@ -871,12 +927,17 @@ def process_dir(path, later=0):
 							if arg_print_full_path:
 								print info_prfx, src.encode(default_print_encoding)
 							print dest, colored('<-', 'yellow'), ufull
+
+							print_duplicate_count=True
 						else:
 							n_back += 1		# <- if renamed "path/name" to the same "path/name(2)", revert
 							os.rename(dq, d)	# <- this is simpler than checking equality, symlinks and stuff
 
+							print_duplicate_count=False
+
 					except Exception as exception:
 						print msg_prfx, colored('Error renaming:', 'red'), exception
+						print_url_groups(url, 'red')
 
 						n_fail += 1
 						d_len = len(d)
