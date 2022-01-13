@@ -40,9 +40,9 @@ if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	,	'	%s <flags> [<other options>] ...'
 	,	''
 	,	'<flags>: string of letters in any order as first argument.'
-	,	'	t: for test output only (don\'t apply changes)'
-	,	'	e: turn warnings (just printed) into exceptions (stop the script if uncatched) for debug'
-	,	'	f: when cutting, check length of full path instead of only name'
+	,	'	t: for test, output only (don\'t apply changes)'
+	,	'	e: for debug, turn warnings (just printed) into exceptions (stop the script if uncatched)'
+	,	'	f: for name cutting, check length of full path instead of only name'
 	,	'	o: print full path instead of only name'
 	,	'	r: recurse into subfolders (default = stay in working folder)'
 	,	''
@@ -465,7 +465,7 @@ def get_unique_clean_path(src_path, dest_path, print_duplicate_count=True):
 def rename_to_unique_clean_path(src_path, dest_path):
 	return os.rename(src_path, get_unique_clean_path(src_path, dest_path))
 
-def meet(obj, criteria):
+def meet(obj, criteria, file_path_or_name=None):
 	try:
 		return True if (
 			(obj is criteria) or
@@ -482,8 +482,11 @@ def meet(obj, criteria):
 
 	except UnicodeWarning as exception:
 		print msg_prfx, colored('Exception:', 'red'), exception
-		print msg_prfx, colored('While comparing:', 'yellow'), obj
-		print msg_prfx, colored('To criteria:', 'yellow'), criteria
+		print info_prfx, colored('While comparing:', 'yellow'), obj
+		print info_prfx, colored('To criteria:', 'yellow'), criteria
+
+		if file_path_or_name:
+			print info_prfx, colored('In file:', 'yellow'), file_path_or_name.encode(default_print_encoding)
 
 	return False
 
@@ -494,7 +497,7 @@ def get_sub(subj, rules):
 	if is_type_str(rules):
 		return [rules, '']
 
-	name, meeting, board = subj
+	name, meeting, board, file_path_or_name = subj
 
 	for r in rules:
 		if not r:
@@ -509,7 +512,7 @@ def get_sub(subj, rules):
 				pattern = r[0 if r0 else 1]
 				met = None
 				for me in meeting:
-					if meet(me, pattern):
+					if meet(me, pattern, file_path_or_name):
 						met = me
 						break
 				if met is not None:
@@ -606,6 +609,8 @@ def process_dir(path, later=0):
 	for name in names:
 		n_i += 1
 		src = path+'/'+name
+		src_path_or_name = (src if arg_print_full_path else name)
+
 		if os.path.isdir(src):
 			if arg_recurse_into_subdirs:
 				if TEST and arg_print_full_path:
@@ -635,9 +640,10 @@ def process_dir(path, later=0):
 				dest_path = src_path[:arg_len - len(ext)].rstrip() + ext
 				dest_path = get_unique_clean_path(src_path, dest_path)
 				dest_show = (dest_path if arg_print_full_path else get_file_name(dest_path))
+				src_show = (src_path if arg_print_full_path else name)
 
 				print
-				print colored('Cut from', 'yellow'), src_len, (src_path if arg_print_full_path else name).encode(default_print_encoding)
+				print colored('Cut from', 'yellow'), src_len, src_show.encode(default_print_encoding)
 				print colored('Cut to', 'yellow'), len(dest_show), dest_show.encode(default_print_encoding)
 
 				if DO:
@@ -662,7 +668,7 @@ def process_dir(path, later=0):
 					for d_i in d:
 						if isinstance(d_i, d_type):
 							test = d_i.get('match_name')
-							if test and not meet(name, test):
+							if test and not meet(name, test, src_path_or_name):
 								continue
 
 							d = d_i.get('dest_path') or dest_root
@@ -730,7 +736,7 @@ def process_dir(path, later=0):
 				domain = ''
 				test = s[0]
 
-				if meet(d, test):
+				if meet(d, test, src_path_or_name):
 					domain = d
 				else:
 					d = url.group('Domain')
@@ -738,14 +744,14 @@ def process_dir(path, later=0):
 						continue
 
 					dp = url.group('DomainPort')
-					if meet(dp+'.', test):	# <- "name." or "name:port." to match exact full name
+					if meet(dp+'.', test, src_path_or_name):	# <- "name." or "name:port." to match exact full name
 						domain = d
 					else:
 						words = reversed(dp.split('.'))
 						d = ''
 						for i in words:
 							d = (i+'.'+d) if d else i
-							if meet(d, test):
+							if meet(d, test, src_path_or_name):
 								domain = d
 								break
 				if not domain:
@@ -762,7 +768,7 @@ def process_dir(path, later=0):
 				).strip('/:.')+'/'
 
 				if len(s) > 2:
-					x = [name, meeting, True if board else False]
+					x = [name, meeting, True if board else False, src_path_or_name]
 					z = s[2]
 					dsub, rename = (
 				# board threads (to scrape by other scripts):
