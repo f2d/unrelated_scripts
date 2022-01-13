@@ -131,34 +131,35 @@ pat_url = get_rei(r'''
 	# MAFF:
 	|	<MAF:originalurl\s+[^<>\s=\r\n]+=[^<>\w\r\n]*
 	# HTML:
+	|	<!--\s+saved\s+from\s+url=(?:\(\d+\))?
 	|	<!--\s+Page\s+saved\s+with\s+SingleFileZ?\s+url:\s+
 	|	<a\s+id="savepage-pageinfo-bar-link"\s+href=[^<>\w\r\n]*
 	|	<base\s+href=[^<>\w\r\n]*
 	)
 )
 (?P<URL>
-	(?P<Protocol>[\w-]+)
-	:+/*
+	(?P<Scheme>
+		(?P<Protocol>[\w-]+)
+		:+
+	)
+	/*
 	(?P<Proxy>
 		u
-	#	(?P<ProxyPort>:[^:/?#\r\n]+)?
 		(?:[:](?P<ProxyPort>\d+))?
 		/+[?]*
-		(?P<ProxyProtocol>ftps?|https?)
-		:*/+
+		(?P<ProxyScheme>
+			(?P<ProxyProtocol>ftps?|https?)
+			:*
+		)
+		/+
 	)?
 	(?P<DomainPath>
 		(?P<DomainPort>
 			(?P<Domain>[^"':/?&=\#\s\r\n]+)?
-		#	(?P<Port>:\d+)?
 			(?:[:](?P<Port>\d+))?
 		)
 		(?P<Path>
 			/+
-		#	(?:
-		#		(?P<PathBeforeQuery>[^"?\#\s\r\n]*)
-		#		[?]
-		#	)?
 			(?P<Query>
 				[?]?
 				(?P<QueryPath>
@@ -725,7 +726,7 @@ def process_dir(path, later=0):
 				if not s or not len(s):
 					break
 
-				d = url.group('Protocol')
+				d = url.group('Scheme') or url.group('Protocol')
 				domain = ''
 				test = s[0]
 
