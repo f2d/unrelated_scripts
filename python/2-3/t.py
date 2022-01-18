@@ -101,20 +101,24 @@ def print_help():
 	,	''
 	,	colored('<flags>', 'cyan') + ': string of letters in any order.'
 	,	'	a: Apply changes. Otherwise just show expected values.'
-	,	'	r: Recursively go into subfolders.'
 	,	'	s: Silent, print nothing.'
 	,	'	q: Quiet, print only final sum.'
 	,	'	v: Verbose, print more intermediate information for debug.'
-	,	'	d: For each folder set its mod-time to latest file inside, before own.'
-	,	'	f: For each text file set its mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
-	,	'	u: Set each file modtime to 1st found Unix-time stamp (first 10 digits) in filename.'
-	,	'	y: Set each file modtime to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in filename.'
-	,	'	l: Set file modtime to last found time in filename.'
-	,	'	m: Set file modtime to max found time in filename.'
-	,	'	n: Set file modtime to min found time in filename.'
+	,	''
+	,	'	r: Recursively go into subfolders.'
+	,	'	e: Delete empty folders.'
+	,	''
+	,	'	d: Set each folder mod-time to latest file inside, before own.'
+	,	'	f: Set each text file mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
+	,	''
+	,	'	u: Set each file mod-time to 1st found Unix-time stamp (first 10 digits) in filename.'
+	,	'	y: Set each file mod-time to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in filename.'
+	,	'	l: Set each file mod-time to last found time in filename.'
+	,	'	m: Set each file mod-time to latest found time in filename.'
+	,	'	n: Set each file mod-time to earliest found time in filename.'
 	# ,	'TODO ->	z: For each zip file set its mod-time to latest file inside.'
 	,	''
-	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for last time, if anything else exists.'
+	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for time checking, if anything else exists.'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} drf'
@@ -192,16 +196,17 @@ def read_file(path, mode='r'):
 def run_batch_retime(argv):
 
 	global arg_verbose, arg_verbose_testing
-	global count_dirs_checked, count_dirs_changed, count_dirs_errors
-	global count_files_checked, count_files_changed, count_files_errors, count_files_read
+	global count_dirs_checked, count_dirs_changed, count_dirs_deleted, count_dirs_errors
+	global count_files_checked, count_files_changed, count_files_read, count_files_errors
 
 	def process_folder(path):
 
 		global arg_verbose, arg_verbose_testing
-		global count_dirs_checked, count_dirs_changed, count_dirs_errors
-		global count_files_checked, count_files_changed, count_files_errors, count_files_read
+		global count_dirs_checked, count_dirs_changed, count_dirs_deleted, count_dirs_errors
+		global count_files_checked, count_files_changed, count_files_read, count_files_errors
 
-		last_file_time_of_included = last_file_time = 0
+		modtime_value = empty_folders_inside_to_delete = 0
+		last_file_time = last_file_time_of_included = 0
 
 		try:
 			names = os.listdir(path)
@@ -219,7 +224,16 @@ def run_batch_retime(argv):
 				if arg_recurse:
 					modtime_value = process_folder(path_name)
 
-					if last_file_time < modtime_value:
+					if (
+						modtime_value
+					and	modtime_value < 0
+					):
+						empty_folders_inside_to_delete += 1
+					elif (
+						modtime_value
+					and	modtime_value > 0
+					and	modtime_value > last_file_time
+					):
 						last_file_time = modtime_value
 
 			elif os.path.isfile(path_name):
@@ -338,7 +352,11 @@ def run_batch_retime(argv):
 				if arg_folders_modtime_by_files:
 					modtime_value = os.path.getmtime(path_name)
 
-					if last_file_time < modtime_value:
+					if (
+						modtime_value
+					and	modtime_value > 0
+					and	modtime_value > last_file_time
+					):
 						last_file_time = modtime_value
 
 					included = True
@@ -352,16 +370,48 @@ def run_batch_retime(argv):
 					if included and last_file_time_of_included < modtime_value:
 						last_file_time_of_included = modtime_value
 
-		timestamp_value = last_file_time_of_included or last_file_time
-		modtime_value = 0
+		if arg_delete_empty_folders and	(
+			not names
+		or	len(names) == empty_folders_inside_to_delete
+		):
+			if arg_verbose_testing:
+				path = os.path.abspath(path)
+
+			try:
+				if arg_apply:
+					os.rmdir(path)
+
+				count_dirs_deleted += 1
+
+				if arg_verbose:
+					print(' '.join([
+						str(count_dirs_deleted)
+					,	colored(
+							'empty folder deleted:' if arg_apply else
+							'empty folder found:'
+						,	'yellow'
+						)
+					,	path
+					]))
+			except:
+				if arg_verbose:
+					print_exception('Error deleting empty folder:', path)
+
+				count_dirs_errors += 1
+
+			return -1
 
 		if arg_folders_modtime_by_files:
+
+			timestamp_value = last_file_time_of_included or last_file_time
 			modtime_value = os.path.getmtime(path)
 
 			if (
-				timestamp_value > t_min_valid
+				modtime_value
+			and	timestamp_value
+			and	timestamp_value > t_min_valid
 			and	(
-					timestamp_value < modtime_value
+					modtime_value > timestamp_value
 				or	modtime_value < t_min_valid
 				)
 			):
@@ -390,7 +440,7 @@ def run_batch_retime(argv):
 
 					os.utime(path, (timestamp_value, timestamp_value))
 
-		return timestamp_value or modtime_value
+			return timestamp_value or modtime_value
 
 # - Check arguments -----------------------------------------------------------
 
@@ -415,6 +465,8 @@ def run_batch_retime(argv):
 	arg_quiet = 'q' in flags
 	arg_verbose_testing = 'v' in flags
 	arg_verbose = arg_verbose_testing or not (arg_silent or arg_quiet)
+
+	arg_delete_empty_folders = 'e' in flags
 	arg_folders_modtime_by_files = 'd' in flags
 	arg_files_modtime_by_content = 'f' in flags
 	arg_files_modtime_by_name_ymdhms = 'y' in flags
@@ -424,8 +476,8 @@ def run_batch_retime(argv):
 	arg_files_modtime_min = 'n' in flags
 	# arg_zip_by_files_inside = 'z' in flags
 
-	count_dirs_checked = count_dirs_changed = count_dirs_errors = 0
-	count_files_checked = count_files_changed = count_files_errors = count_files_read = 0
+	count_dirs_checked = count_dirs_changed = count_dirs_deleted = count_dirs_errors = 0
+	count_files_checked = count_files_changed = count_files_read = count_files_errors = 0
 
 	t_now = str(datetime.datetime.now())	# <- '2011-05-03 17:45:35.177000', from http://stackoverflow.com/a/5877368
 
@@ -448,6 +500,13 @@ def run_batch_retime(argv):
 
 		if count_dirs_changed:	print_with_colored_suffix(count_dirs_changed,	'folders changed.',		'green')
 		if count_files_changed:	print_with_colored_suffix(count_files_changed,	'files changed.',		'green')
+
+		if count_dirs_deleted:	print_with_colored_suffix(
+			count_dirs_deleted
+		,	'empty folders deleted.' if arg_apply else
+			'empty folders to delete.'
+		,	'magenta'
+		)
 
 	return 0 if result_value else -1
 
