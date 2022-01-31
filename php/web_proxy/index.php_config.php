@@ -30,6 +30,8 @@ $allowed_cookies = array(
 
 
 
+//* Folder to store cookies given by target servers, etc:
+
 $data_dirs = array(
 	'linux' => '/srv/www/data/web_proxy'
 ,	'windows' => 'w:/home/localhost/cgi/data/web_proxy'

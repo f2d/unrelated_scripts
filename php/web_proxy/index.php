@@ -1,12 +1,23 @@
 <?php
 
-require(basename($_SERVER['PHP_SELF']).'_config.php');
+//* About this script:
+//* It allows to simply pass a HTTP GET request to a web page or file and get the result.
+//* It may be simpler to set up for some read-only use cases than a SOCKS proxy, etc.
+//* It may work on a shared hosting with PHP and no way to setup custom executables, which was the reason to create this script.
+//* It works best from web root folder and with all paths autoredirected to it on a separate (sub)domain name dedicated to it.
+//* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url".
 
-$date_format = 'Y-m-d H:i:s';
-$gmdate_format = 'D, d M Y H:i:s \G\M\T';	//* <- 'r' format gives "+0000" instead of "GMT"
+require(basename($_SERVER['PHP_SELF']).'_config.php');
 
 define('NL', "\n");
 define('IS_LOCALHOST', ($_SERVER['SERVER_ADDR'] === $_SERVER['REMOTE_ADDR']));
+
+if (!(
+	IS_LOCALHOST
+||	in_array($_SERVER['HTTP_HOST'], $allowed_hostnames)
+)) {
+	die(date('>Y'));
+}
 
 //* Wrapper to avoid PHP 8 Warning: Undefined array key:
 
@@ -14,25 +25,71 @@ function get_value_or_empty($array, $key) {
 	if (array_key_exists($key, $array)) {
 		if (is_array($array[$key])) {
 			foreach ($array[$key] as $item) if ($item) {
+
 				return $item;
 			}
 		} else {
 			return $array[$key];
 		}
 	}
+
 	return '';
 }
 
 function is_prefix($text, $part) { return (strpos($text, $part) === 0); }
-// function is_postfix($text, $part) { return (strrpos($text, $part) === (strlen($text) - strlen($part))); }
-// function is_prefix($text, $part) { return substr($text, 0, strlen($part)) === $part; }
-// function is_postfix($text, $part) { return substr($text, -strlen($part)) === $part; }
+function get_path_after_prefix($path, $prefix, $trim_chars = ':/.?') { return ltrim(substr($path, strlen($prefix)), $trim_chars); }
+function get_last_domain_part_from_url($url, $number_of_parts = 2) {
 
-if (!(
-	IS_LOCALHOST
-||	in_array($_SERVER['HTTP_HOST'], $allowed_hostnames)
-)) {
-	die(date('>Y'));
+	if (preg_match('~^
+		(?P<Prefix>
+			(?P<Protocol>[^:/?#]+:)?
+		//+)?
+		(?P<Domain>[^:/?#]+)
+		(?P<Path>/.*)?
+	$~ux', $url, $match)) {
+
+		$domain = $match['Domain'];
+		$domain_parts = explode('.', $domain);
+		$last_parts = array_slice($domain_parts, -$number_of_parts);
+
+		return implode('.', $last_parts);
+	}
+}
+
+function get_path_dir_from_url($path) {
+
+	if ($i = strpos ($path, '?')) $path = substr($path, 0, $i);
+	if ($i = strrpos($path, '/')) $path = substr($path, 0, $i+1);
+
+	return $path;
+}
+
+function get_self() {
+	return (
+		get_value_or_empty($_SERVER, 'PHP_SELF')
+	?:	get_value_or_empty($_SERVER, 'SCRIPT_NAME')
+	?:	get_value_or_empty($_SERVER, 'DOCUMENT_URI')
+	);
+}
+
+function get_self_root() {
+	$url = $_SERVER['REQUEST_URI'];
+	$path = get_self();
+
+	if (is_prefix($url, $path_with_query = "$path/?")) return $path_with_query;
+	if (is_prefix($url, $path_with_query = "$path?")) return $path_with_query;
+	if (is_prefix($url, $path)) return $path;
+
+	$path = get_path_dir_from_url($path);
+	$path = '/'.trim($path, '/');
+
+	if (is_prefix($url, $path_with_query = "$path/?")) return $path_with_query;
+	if (is_prefix($url, $path_with_query = "$path?")) return $path_with_query;
+	if (is_prefix($url, $path)) return $path;
+
+	if (is_prefix($url, $path_with_query = "/?")) return $path_with_query;
+
+	return '';
 }
 
 if (
@@ -54,102 +111,118 @@ if (
 	}
 }
 
+define('DATE_FORMAT', 'Y-m-d H:i:s');
+define('GMDATE_FORMAT', 'D, d M Y H:i:s \G\M\T');	//* <- 'r' format gives "+0000" instead of "GMT"
 
 $is_relative_to_request =
 $is_relative_to_referer = false;
 
+$self_root = get_self_root();
 $self_hostname = get_value_or_empty($_SERVER, 'HTTP_HOST') ?: $default_hostname;
 $self_protocol = get_value_or_empty($_SERVER, 'REQUEST_SCHEME') ?: $default_protocol;
-$referer = get_value_or_empty($_SERVER, 'HTTP_REFERER') ?: '';
+$referer = get_value_or_empty($_SERVER, 'HTTP_REFERER');
+$target_url = get_path_after_prefix($_SERVER['REQUEST_URI'], $self_root);
+$try_protocol_prefixes = array('', 'raw/');
 
-foreach (array(true, false) as $is_raw_prefix)
-foreach ($proxified_protocols as $target_protocol => $substitute_target_server) {
+$target_root_prefix =
+$target_path =
+$target_server =
+$target_protocol =
+$target_protocol_folder = '';
 
-	$self_root_folder = (
-		($must_get_raw_content = $is_raw_prefix)
-		? 'raw/'
-		: ''
-	).$target_protocol;
+foreach ($try_protocol_prefixes as $must_get_raw_content => $raw_prefix)
+foreach ($proxified_protocols as $target_protocol => $target_server_substitute) {
+
+	$target_protocol_folder = "$raw_prefix$target_protocol";
+
+//* Redirect "?/protocol://url/" to "/protocol/url/":
 
 	if (
-		!$substitute_target_server
+		!$target_server_substitute
 	&&	is_prefix(
-			$target_url = $_SERVER['REQUEST_URI']
-		,	$self_root_prefix = "/$self_root_folder:"
+			$target_url
+		,	"$target_protocol_folder://"
 		)
 	) {
-		$target_url = ltrim(substr($target_url, strlen($self_root_prefix)), '/');
+		$target_url = get_path_after_prefix($target_url, $target_protocol_folder);
 
-		header("Location: /$self_root_folder/$target_url");
+		header("Location: $self_root/$target_protocol_folder/$target_url");
 
 		die();
 	}
 
-	if ((
-		$is_relative_to_request = (
+	$target_root_prefix = "$self_root/$target_protocol_folder/";
+
+//* Target server stated in URL, explicit or substitute:
+
+	if (
+
+		$is_relative_to_request = ((
 			is_prefix(
-				$target_url = $_SERVER['REQUEST_URI']
-			,	$self_root_prefix = "/$self_root_folder/"
-			)		//* <- root sub/folder here (nonexistent)
-		||	is_prefix(
-				$target_url = $_SERVER['QUERY_STRING']
-			,	$self_root_prefix
-			)		//* <- file.ext?/url/ syntax, if possible
-		)
-	) || (
+				$target_url
+			,	"$target_protocol_folder/"
+			)
+		) || (
+			$target_server_substitute
+		&&	is_prefix(
+				$target_url
+			,	"$target_server_substitute/"
+			)
+		))
+	) {
+		if ($target_server = $target_server_substitute) {
+			$target_path = get_path_after_prefix($target_url, $target_protocol_folder, '/.');
+		} else {
+			list($target_server, $target_path) = explode('/', get_path_after_prefix($target_url, $target_protocol_folder), 2);
+			$target_path = ltrim($target_path, '/.');
+			$target_root_prefix .= "$target_server/";
+			$target_server = "$target_protocol://$target_server/";
+		}
+
+		goto got_target;
+	}
+}
+
+$self_root_prefix = "$self_protocol://$self_hostname/$self_root";
+
+foreach ($try_protocol_prefixes as $must_get_raw_content => $raw_prefix)
+foreach ($proxified_protocols as $target_protocol => $target_server_substitute) {
+
+	$target_protocol_folder = "$raw_prefix$target_protocol";
+	$target_root_prefix = "$self_root/$target_protocol_folder/";
+
+//* Get server from referer instead of fixing relative links in proxified pages, CSS, etc:
+
+	if (
 		$is_relative_to_referer = ((
 			is_prefix(
 				$referer
-			,	"$self_protocol://$self_hostname/$self_root_folder/"
+			,	$target_server_prefix = "$self_root_prefix/$target_protocol_folder/"
 			)
 		) || (
-			$substitute_target_server
+			$target_server_substitute
 		&&	is_prefix(
 				$referer
-			,	"$self_protocol://$self_hostname/$substitute_target_server"
+			,	$target_server_prefix = "$self_root_prefix/$target_server_substitute/"
 			)
 		))
-	)) {
-		$self_root_length = strlen($self_root_prefix);
+	) {
+		$target_path = ltrim($_SERVER['REQUEST_URI'], '/.');
 
-		if ($substitute_target_server) {
-			$target_path = substr(
-				$target_server = $substitute_target_server
-			,	0
-			,	strpos($substitute_target_server, ':')
-			);
-
-			if ($is_relative_to_request) {
-				$target_url = substr(
-					$target_url
-				,	strpos($target_url, $self_root_prefix) + $self_root_length
-				);
-			}
+		if ($target_server = $target_server_substitute) {
+			;
 		} else {
-			$self_root_prefix .= $target_server = substr(
-				$target_url
-			,	$self_root_length
-			,	strpos($target_url, '/', $self_root_length) - $self_root_length + 1
-			);
-
-			if ($is_relative_to_request) {
-				$target_url = substr(
-					$target_url
-				,	strlen($target_server) + $self_root_length
-				);
-			}
-
-			$target_server = "$target_protocol://$target_server";
-			$target_path = substr(
-				$substitute_target_server = ltrim($self_root_prefix, '/')
-			,	0
-			,	strpos($substitute_target_server, '/')
-			);
+			$target_url = get_path_after_prefix($referer, $target_server_prefix);
+			$target_server = explode('/', get_path_after_prefix($target_url, $target_protocol_folder), 2)[0];
+			$target_root_prefix .= "$target_server/";
+			$target_server = "$target_protocol://$target_server/";
 		}
 
-		break 2;
+		goto got_target;
 	}
 }
+
+got_target:
 
 $response_headers = array();
 $response_headers_text = '';
@@ -207,6 +280,8 @@ function mkdir_if_none($file_path) {
 
 //* Prepare request to target server:
 
+if ($target_request_url = "$target_server$target_path")
+// if (0)
 if (
 	$is_relative_to_request
 ||	$is_relative_to_referer
@@ -228,7 +303,7 @@ if (
 
 	$t0 = microtime();
 
-	$curl_handle = curl_init($request_url = "$target_server$target_url");
+	$curl_handle = curl_init($target_request_url);
 
 	curl_setopt($curl_handle, CURLOPT_HEADER, 0);
 	curl_setopt($curl_handle, CURLOPT_USERAGENT, $default_useragent);
@@ -287,7 +362,7 @@ if (
 	?:	get_value_or_empty($response_headers, 'last-modified')
 	);
 
-	$file_time_text = gmdate($gmdate_format, $file_time);
+	$file_time_text = gmdate(GMDATE_FORMAT, $file_time);
 
 	if (
 		($file_time !== -1)
@@ -338,17 +413,20 @@ if (
 		if ($file_type && $file_type !== -1) header('Content-Type: '.$file_type);
 		if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);
 
+//* The file is intended for download, not view:
+
 		if ($save_name && $save_name !== -1) header('Content-Disposition: '.$save_name);
 		else
 
 //* Redefine filename for saving:
 
-		if (substr($file_type, 0, 5) == 'image') {
-			$save_name = explode('?', $request_url, 2)[0];
-			// if ($save_name !== $request_url) {
-				$save_name = strtr($save_name, ':/\\?*<>', ';,,&___');
-				header('Content-Disposition: attachment; filename="'.$save_name.'"');
-			// }
+		if (
+			!$must_get_raw_content
+		&&	is_prefix($file_type, 'image')
+		) {
+			$save_name = explode('?', $target_request_url, 2)[0];
+			$save_name = strtr($save_name, ':/\\?*<>', ';,,&___');
+			header('Content-Disposition: attachment; filename="'.$save_name.'"');
 		} else
 
 //* Autoreplace target site-related URLs in HTML to proxify its images, CSS, JS, etc:
@@ -356,23 +434,155 @@ if (
 		if (
 			!$must_get_raw_content
 		&&	$file_type
-		// &&	strtolower(substr(explode('?', $request_url, 2)[0], -3)) != '.js'
 		&&	(
 				false !== strpos($file_type, 'html')
 			||	false !== strpos($file_type, 'xml')
 			// ||	false !== strpos($file_type, 'text')
-			// ||	false !== strpos($response_content, '<html')
-			// ||	false !== strpos($response_content, '<head')
-			// ||	false !== strpos($response_content, '<body')
 			// ||	preg_match('~[<](html|head|body)[\r\n\s/>]~isu', $response_content)
 			)
 		) {
 			ksort($response_info);
 
-			$target_path = "/$target_path/";
-			$domain_parts = explode('.', preg_replace('~^([^/]*/+)?([^:/]+)(/.*)?$~u', '$2', $target_server));
-			$domain_level_2 = implode('.', array_slice($domain_parts, -2));
-			$response_content = '
+			$default_target_protocol = (
+				$target_server_substitute
+				? $raw_prefix.explode(':', $target_server, 2)[0]
+				: $target_protocol_folder
+			);
+			$target_domain_last_part = get_last_domain_part_from_url($target_server);
+			$target_folder = get_path_dir_from_url($target_path);
+			// $target_path = "/$target_path/";
+
+			if (1) {
+
+//* Use callback replacement:
+//* (?J) modifier for duplicate names for subpatterns: https://www.php.net/manual/en/reference.pcre.pattern.modifiers.php#121546
+
+				$pat_url = '~
+				(?P<Before>
+					\s
+					[\w-]*
+					(src|href)
+					[\w-]*
+					=
+				)(?J)(?:
+					(?P<Quote>")	(?P<URL>	[^"]+			)(?=$|	"	)
+				|	(?P<Quote>\')	(?P<URL>	[^\']+			)(?=$|	\'	)
+				|			(?P<URL>	[^\'"\s>][^\s>]*	)(?=$|	[\s>]	)
+				)~ux';
+
+				function get_replaced_url($match) {
+					global $self_root, $default_target_protocol, $proxified_protocols;
+					global $target_server, $target_domain_last_part;
+					global $target_folder, $target_protocol_folder, $target_root_prefix;
+
+					$url = "$match[URL]";
+					$len = strlen($url);
+
+					if ($len > 0) {
+
+				//* Link relative to root folder:
+
+						if ($url[0] === '/') {
+							$url_trim = ltrim($url, '/');
+
+				//* Server name given, protocol omitted:
+
+							if (
+								$len > 1
+							&&	$url[1] === '/'
+							) {
+								$url = "$self_root/$default_target_protocol/$url_trim";
+							} else {
+
+				//* Server name omitted:
+
+								$url = "$target_root_prefix$url_trim";
+							}
+						} else {
+							$url_path = explode('?', $url, 2)[0];
+
+				//* Link to another server, protocol and name given:
+
+							if (false !== strpos($url_path, '://')) {
+								$url_domain_last_part = get_last_domain_part_from_url($url_path);
+
+								if ($url_domain_last_part === $target_domain_last_part) {
+									list($url_protocol, $url_target) = explode('://', $url_path, 2);
+
+									if (array_key_exists($url_protocol, $proxified_protocols)) {
+										$url = "$self_root/$url_protocol/$url_target";
+									}
+								}
+							} else
+
+				//* Link relative to current folder, but skip unslashed URLs like "mailto:":
+
+							if (false === strpos(explode('/', $url_path, 2)[0], ':')) {
+								$url = "$target_root_prefix$target_folder$url";
+							}
+						}
+					}
+
+					return "$match[Before]$match[Quote]$url";
+				}
+
+				function get_replaced_content($content) {
+					global $pat_url;
+
+					return preg_replace_callback($pat_url, 'get_replaced_url', $content);
+				}
+
+			} else {
+
+//* Use multiple replacements:
+
+				$replacements = array(
+					array('~(\s\w+=[\'"])([^?#\'">]+/+)?\.+/+~u', '$1$2')
+				,	array('~(\s\w+=[\'"])/([^/])|\b'.$target_server.'\b~iu', '$1'.$self_root.'/$2')
+				,	array('~(\s\w+=[\'"])//+([^>])~iu', '$1'.$self_root.'/'.$default_target_protocol.'/$2')
+				// ,	array('~(\s\w+=[\'"])/([^/>])|\b'.$target_server.'\b~iu', '$1'.$target_root_prefix.'$2')
+				// ,	array('~(\s\w+=[\'"])//([^>])~iu', '$1'.$target_path.'$2')
+				,	array('~(\s\w+=[\'"])([?]|[^:/?#\'">]+[/?#\'">])~u', '$1'.$self_root.'/'.$target_folder.'$2')
+				,	array('~(\s\w+=[\'"])([htps]+)://(([^=\'"/>]+\.)?'.$target_domain_last_part.')~iu', '$1'.$self_root.'/$2/$3')
+				);
+
+				function get_replaced_content($content) {
+					global $replacements;
+
+					$replaced = $content;
+
+					foreach ($replacements as $replace) {
+						$replaced = preg_replace($replace[0], $replace[1], $replaced);
+					}
+
+					return $replaced;
+				}
+			}
+
+//* Autoreplace line by line, may be faster or eat less memory, may be not:
+
+			if (1) {
+				$replaced_content = implode(NL, array_map('get_replaced_content', explode(NL, $response_content)));
+			} else {
+
+//* Autoreplace all content at once:
+
+				$replaced_content = get_replaced_content($response_content);
+			}
+
+			$t2 = microtime();
+			$response_content = '<!--
+t_start	= '.date(DATE_FORMAT, ($t0 = explode(' ', $t0))[1]).', '.sprintf('%.6f', $t0 = $t0[1] + $t0[0]).'
+t_end	= '.date(DATE_FORMAT, ($t1 = explode(' ', $t1))[1]).', '.sprintf('%.6f', $t1 = $t1[1] + $t1[0]).'
+t_out	= '.date(DATE_FORMAT, ($t2 = explode(' ', $t2))[1]).', '.sprintf('%.6f', $t2 = $t2[1] + $t2[0]).'
+request = '.($t1 - $t0).'
+process	= '.($t2 - $t1).'
+source size	= '.strlen($response_content).'
+processed size	= '.strlen($replaced_content).(isset($replacements) ? '
+
+replacements:
+
+'.trim_info(print_r($replacements, true)) : '').'
 
 request info:
 
@@ -383,19 +593,8 @@ response headers:
 '.trim_info($response_headers_text).'
 
 -->
-'.
-preg_replace('~(\s\w+=[\'"])([htps]+):/(/([^=\'"/]+\.)?'.$domain_level_2.')~iu', '$1/$2$3',
-preg_replace('~(\s\w+=[\'"])//([^>])~iu', '$1'.$target_path.'$2',
-preg_replace('~'.$target_server.'|(\s\w+=[\'"])/([^/>])~iu', '$1'.$self_root_prefix.'$2',
-preg_replace('~([^/]+/+)?\.\./+~u', '',
-$response_content))));
-			$t2 = microtime();
-			$response_content = '<!--
-t_start	= '.date($date_format, ($t0 = explode(' ', $t0))[1]).', '.sprintf('%.6f', $t0 = $t0[1] + $t0[0]).'
-t_end	= '.date($date_format, ($t1 = explode(' ', $t1))[1]).', '.sprintf('%.6f', $t1 = $t1[1] + $t1[0]).'
-t_out	= '.date($date_format, ($t2 = explode(' ', $t2))[1]).', '.sprintf('%.6f', $t2 = $t2[1] + $t2[0]).'
-request = '.($t1 - $t0).'
-process	= '.($t2 - $t1).$response_content;
+'.trim($replaced_content);
+			header('Content-Length: '.strlen($response_content));
 		}
 
 		die($response_content);
@@ -403,10 +602,39 @@ process	= '.($t2 - $t1).$response_content;
 		header('HTTP/1.1 404 NO');
 
 		die(
-			'Error 404: <a href="'.$request_url.'">'.$request_url.'</a> is empty.'
+			'Error 404: <a href="'.$target_request_url.'">'.$target_request_url.'</a> is empty.'
+		.NL.	"<br>Headers:<br>$response_headers_text"
+		.NL.	"<br>Content:<br>$response_content"
 		.NL.	'<!-- and this is for IE: -->'
 		.NL.	str_repeat(' ', 500)
 		);
 	}
+}
+
+no_target:
+
+if (IS_LOCALHOST) {
+	var_dump($_SERVER);
+
+	die("
+		Debug info:
+	<br>	self			= [ $_SERVER[PHP_SELF]		]
+	<br>	self_script_name	= [ $_SERVER[SCRIPT_NAME]	]
+	<br>	self_document_uri	= [ $_SERVER[DOCUMENT_URI]	]
+	<br>	self_request_url	= [ $_SERVER[REQUEST_URI]	]
+	<br>	self_protocol		= [ $self_protocol		]
+	<br>	self_hostname		= [ $self_hostname		]
+	<br>	self_root		= [ $self_root			]
+	<br>	referer			= [ $referer			]
+	<br>	is_relative_to_referer	= [ $is_relative_to_referer	]
+	<br>	is_relative_to_request	= [ $is_relative_to_request	]
+	<br>	must_get_raw_content	= [ $must_get_raw_content	]
+	<br>	target_root_prefix	= [ $target_root_prefix		]
+	<br>	target_url		= [ $target_url			]
+	<br>	target_protocol		= [ $target_protocol		]
+	<br>	target_server		= [ $target_server		]
+	<br>	target_path		= [ $target_path		]
+	<br>	target_request_url	= [ $target_request_url		]
+	");
 }
 ?>dummy
