@@ -38,11 +38,13 @@ function get_value_or_empty($array, $key) {
 
 function is_prefix($text, $part) { return (strpos($text, $part) === 0); }
 function get_path_after_prefix($path, $prefix, $trim_chars = ':/.?') { return ltrim(substr($path, strlen($prefix)), $trim_chars); }
-function get_last_domain_part_from_url($url, $number_of_parts = 2) {
+function get_domain_and_last_part_from_url($url, $number_of_parts = 2) {
 
 	if (preg_match('~^
-		(?P<Prefix>
-			(?P<Protocol>[^:/?#]+:)?
+		(?P<BeforeDomain>
+			(?:
+				(?P<Protocol>[^:/?#]+)
+			:)?
 		//+)?
 		(?P<Domain>[^:/?#]+)
 		(?P<Path>/.*)?
@@ -52,7 +54,12 @@ function get_last_domain_part_from_url($url, $number_of_parts = 2) {
 		$domain_parts = explode('.', $domain);
 		$last_parts = array_slice($domain_parts, -$number_of_parts);
 
-		return implode('.', $last_parts);
+		return array(
+			$domain
+		,	implode('.', $last_parts)
+		,	$match['Protocol']
+		,	$match['Path']
+		);
 	}
 }
 
@@ -448,7 +455,15 @@ if (
 				? $raw_prefix.explode(':', $target_server, 2)[0]
 				: $target_protocol_folder
 			);
-			$target_domain_last_part = get_last_domain_part_from_url($target_server);
+
+			list(
+				$target_domain
+			,	$target_domain_last_part
+			,	$request_protocol
+			// ,	$request_path
+			) =
+			get_domain_and_last_part_from_url($target_server);
+
 			$target_folder = get_path_dir_from_url($target_path);
 			// $target_path = "/$target_path/";
 
@@ -472,20 +487,18 @@ if (
 
 				function get_replaced_url($match) {
 					global $self_root, $default_target_protocol, $proxified_protocols;
-					global $target_server, $target_domain_last_part;
-					global $target_folder, $target_protocol_folder, $target_root_prefix;
+					global $target_server, $target_server_substitute;
+					global $target_domain, $target_domain_last_part, $request_protocol;
+					global $target_folder, $target_root_prefix;
 
 					$url = "$match[URL]";
 					$len = strlen($url);
 
 					if ($len > 0) {
-
-				//* Link relative to root folder:
-
 						if ($url[0] === '/') {
 							$url_trim = ltrim($url, '/');
 
-				//* Server name given, protocol omitted:
+				//* Proxify link to a server with given name and omitted protocol:
 
 							if (
 								$len > 1
@@ -494,30 +507,50 @@ if (
 								$url = "$self_root/$default_target_protocol/$url_trim";
 							} else {
 
-				//* Server name omitted:
+				//* Proxify link on current server with omitted name, relative to root folder:
 
 								$url = "$target_root_prefix$url_trim";
 							}
 						} else {
-							$url_path = explode('?', $url, 2)[0];
+							$url_without_query = explode('?', $url, 2)[0];
 
-				//* Link to another server, protocol and name given:
+				//* Link to a server with given name and protocol:
 
-							if (false !== strpos($url_path, '://')) {
-								$url_domain_last_part = get_last_domain_part_from_url($url_path);
+							if (false !== strpos($url_without_query, '://')) {
+								list(
+									$url_domain
+								,	$url_domain_last_part
+								,	$url_protocol
+								,	$url_path
+								) =
+								get_domain_and_last_part_from_url($url_without_query);
 
 								if ($url_domain_last_part === $target_domain_last_part) {
-									list($url_protocol, $url_target) = explode('://', $url_path, 2);
+									$url_path = ltrim($url_path, '/');
 
 									if (array_key_exists($url_protocol, $proxified_protocols)) {
-										$url = "$self_root/$url_protocol/$url_target";
+										$url = (
+
+				//* Proxify link to current server with given name and protocol,
+				//* replace it with substitute prefix subfolder,
+				//* conflate HTTP and HTTPS, but keep apart HTTP and FTP:
+
+											$target_server_substitute
+										&&	$url_domain === $target_domain
+										&&	$url_protocol[0] === $request_protocol[0]
+											? "$target_root_prefix$url_path"
+
+				//* Proxify link to sibling domain, but keep its protocol and name:
+
+											: "$self_root/$url_protocol/$url_domain/$url_path"
+										);
 									}
 								}
 							} else
 
-				//* Link relative to current folder, but skip unslashed URLs like "mailto:":
+				//* Proxify link relative to current folder, but skip unslashed URLs like "mailto:":
 
-							if (false === strpos(explode('/', $url_path, 2)[0], ':')) {
+							if (false === strpos(explode('/', $url_without_query, 2)[0], ':')) {
 								$url = "$target_root_prefix$target_folder$url";
 							}
 						}
