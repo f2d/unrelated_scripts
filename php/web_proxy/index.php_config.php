@@ -43,6 +43,7 @@ $data_dirs = array(
 
 $ssl_certs_dirs = array(
 	'linux' => '/etc/ssl/certs'
+,	'windows' => 'w:/ssl/curl.se/ca'
 );
 
 

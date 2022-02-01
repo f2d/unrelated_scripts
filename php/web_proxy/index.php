@@ -340,6 +340,8 @@ if (
 
 	if ($ssl_certs_dir) {
 		curl_setopt($curl_handle, CURLOPT_CAPATH, $ssl_certs_dir);
+		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYHOST, 2);
+		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 1);
 	} else {
 		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
 		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
