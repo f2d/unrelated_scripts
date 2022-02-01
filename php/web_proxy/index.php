@@ -10,7 +10,7 @@
 require(basename($_SERVER['PHP_SELF']).'_config.php');
 
 define('NL', "\n");
-define('IS_LOCALHOST', ($_SERVER['SERVER_ADDR'] === $_SERVER['REMOTE_ADDR']));
+define('IS_LOCALHOST', $_ENV['LOCAL_CLIENT'] ?? ($_SERVER['SERVER_ADDR'] === $_SERVER['REMOTE_ADDR']));
 
 if (!(
 	IS_LOCALHOST
@@ -306,24 +306,33 @@ if (
 	$lock_file = mkdir_if_none("$data_dir/lock_files/$target_server_hash.lock");
 	$cookie_file = mkdir_if_none("$data_dir/cookie_files/$target_server_hash.txt");
 
-//* To support persistent cookie storage, use cURL instead of file_get_contents:
+//* To support persistent cookie storage, use cURL instead of file_get_contents.
+//* See manual for available options:
+//* http://php.net/manual/en/function.curl-getinfo.php
+//* http://php.net/manual/en/function.curl-setopt.php
 
 	$t0 = microtime();
 
 	$curl_handle = curl_init($target_request_url);
 
-	curl_setopt($curl_handle, CURLOPT_HEADER, 0);
-	curl_setopt($curl_handle, CURLOPT_USERAGENT, $default_useragent);
-	curl_setopt($curl_handle, CURLOPT_COOKIEFILE, $cookie_file);		//* http://php.net/manual/en/function.curl-setopt.php
-	curl_setopt($curl_handle, CURLOPT_COOKIEJAR, $cookie_file);
-	curl_setopt($curl_handle, CURLOPT_FOLLOWLOCATION, 1);
-	curl_setopt($curl_handle, CURLOPT_MAXREDIRS, 10);
-	curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 10);
-	curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
-	curl_setopt($curl_handle, CURLOPT_AUTOREFERER, 1);
-	curl_setopt($curl_handle, CURLOPT_FILETIME, 1);				//* http://php.net/manual/en/function.curl-getinfo.php
-	curl_setopt($curl_handle, CURLOPT_HEADERFUNCTION, 'get_header_line');	//* https://stackoverflow.com/a/9183272
 	curl_setopt($curl_handle, CURLINFO_HEADER_OUT, 1);
+	curl_setopt($curl_handle, CURLOPT_AUTOREFERER, 1);
+	curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 10);
+	curl_setopt($curl_handle, CURLOPT_COOKIEFILE, $cookie_file);
+	curl_setopt($curl_handle, CURLOPT_COOKIEJAR, $cookie_file);
+	curl_setopt($curl_handle, CURLOPT_FILETIME, 1);
+	curl_setopt($curl_handle, CURLOPT_FOLLOWLOCATION, 1);
+	curl_setopt($curl_handle, CURLOPT_HEADER, 0);
+	curl_setopt($curl_handle, CURLOPT_HEADERFUNCTION, 'get_header_line');	//* https://stackoverflow.com/a/9183272
+	curl_setopt($curl_handle, CURLOPT_MAXREDIRS, 10);
+	curl_setopt($curl_handle, CURLOPT_POST, 0);
+	curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
+	curl_setopt($curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
+	curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
+	curl_setopt($curl_handle, CURLOPT_TIMEOUT, 120);
+	curl_setopt($curl_handle, CURLOPT_USERAGENT, $default_useragent);
+	// curl_setopt($curl_handle, CURLOPT_USERAGENT, IS_LOCALHOST ? "$default_useragent $_SERVER[PHP_SELF]" : $default_useragent);
+	// curl_setopt($curl_handle, CURLOPT_VERBOSE, 1);
 
 	if ($if_time_text = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE')) {
 		curl_setopt($curl_handle, CURLOPT_TIMEVALUE, strtotime($if_time_text));
@@ -336,8 +345,9 @@ if (
 	}
 
 	$response_content = curl_exec($curl_handle);
-
+	$response_error = curl_errno($curl_handle);
 	$response_info = curl_getinfo($curl_handle);
+
 	curl_close($curl_handle);
 
 	if ($lock) {
@@ -635,9 +645,10 @@ response headers:
 		header('HTTP/1.1 404 NO');
 
 		die(
-			'Error 404: <a href="'.$target_request_url.'">'.$target_request_url.'</a> is empty.'
-		.NL.	"<br>Headers:<br>$response_headers_text"
-		.NL.	"<br>Content:<br>$response_content"
+			'<a href="'.$target_request_url.'">'.$target_request_url.'</a> is empty.'
+		.NL.	"<br><br>cURL ErrNo:<br>$response_error"
+		.NL.	"<br><br>Headers:<br>$response_headers_text"
+		.NL.	"<br><br>Content:<br>$response_content"
 		.NL.	'<!-- and this is for IE: -->'
 		.NL.	str_repeat(' ', 500)
 		);
