@@ -294,6 +294,7 @@ if (
 ||	$is_relative_to_referer
 ) {
 	$data_dir = '';
+	$ssl_certs_dir = '';
 
 	foreach ($data_dirs as $check_path) if (is_dir($check_path)) {
 
@@ -302,9 +303,11 @@ if (
 		break;
 	}
 
-	$target_server_hash = md5("$target_server");
-	$lock_file = mkdir_if_none("$data_dir/lock_files/$target_server_hash.lock");
-	$cookie_file = mkdir_if_none("$data_dir/cookie_files/$target_server_hash.txt");
+	if ($data_dir) {
+		$target_server_hash = md5("$target_server");
+		$lock_file = mkdir_if_none("$data_dir/lock_files/$target_server_hash.lock");
+		$cookie_file = mkdir_if_none("$data_dir/cookie_files/$target_server_hash.txt");
+	}
 
 //* To support persistent cookie storage, use cURL instead of file_get_contents.
 //* See manual for available options:
@@ -318,8 +321,6 @@ if (
 	curl_setopt($curl_handle, CURLINFO_HEADER_OUT, 1);
 	curl_setopt($curl_handle, CURLOPT_AUTOREFERER, 1);
 	curl_setopt($curl_handle, CURLOPT_CONNECTTIMEOUT, 10);
-	curl_setopt($curl_handle, CURLOPT_COOKIEFILE, $cookie_file);
-	curl_setopt($curl_handle, CURLOPT_COOKIEJAR, $cookie_file);
 	curl_setopt($curl_handle, CURLOPT_FILETIME, 1);
 	curl_setopt($curl_handle, CURLOPT_FOLLOWLOCATION, 1);
 	curl_setopt($curl_handle, CURLOPT_HEADER, 0);
@@ -327,12 +328,22 @@ if (
 	curl_setopt($curl_handle, CURLOPT_MAXREDIRS, 10);
 	curl_setopt($curl_handle, CURLOPT_POST, 0);
 	curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
-	curl_setopt($curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
-	curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
 	curl_setopt($curl_handle, CURLOPT_TIMEOUT, 120);
 	curl_setopt($curl_handle, CURLOPT_USERAGENT, $default_useragent);
 	// curl_setopt($curl_handle, CURLOPT_USERAGENT, IS_LOCALHOST ? "$default_useragent $_SERVER[PHP_SELF]" : $default_useragent);
 	// curl_setopt($curl_handle, CURLOPT_VERBOSE, 1);
+
+	if ($data_dir) {
+		curl_setopt($curl_handle, CURLOPT_COOKIEFILE, $cookie_file);
+		curl_setopt($curl_handle, CURLOPT_COOKIEJAR, $cookie_file);
+	}
+
+	if ($ssl_certs_dir) {
+		curl_setopt($curl_handle, CURLOPT_CAPATH, $ssl_certs_dir);
+	} else {
+		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYHOST, 0);
+		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
+	}
 
 	if ($if_time_text = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE')) {
 		curl_setopt($curl_handle, CURLOPT_TIMEVALUE, strtotime($if_time_text));
@@ -340,7 +351,7 @@ if (
 
 //* Run request:
 
-	if ($lock = fopen($lock_file, 'a')) {
+	if ($data_dir && ($lock = fopen($lock_file, 'a'))) {
 		flock($lock, LOCK_EX);
 	}
 
@@ -350,7 +361,7 @@ if (
 
 	curl_close($curl_handle);
 
-	if ($lock) {
+	if ($data_dir && $lock) {
 		flock($lock, LOCK_UN);
 		fclose($lock);
 		unset($lock);

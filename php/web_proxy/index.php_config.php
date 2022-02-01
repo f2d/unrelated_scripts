@@ -39,6 +39,14 @@ $data_dirs = array(
 
 
 
+//* Folder to check trusted certificates:
+
+$ssl_certs_dirs = array(
+	'linux' => '/etc/ssl/certs'
+);
+
+
+
 $proxified_protocols = array(
 
 //* Proxified protocols used as subfolder before target site name:
