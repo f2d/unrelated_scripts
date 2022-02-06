@@ -653,9 +653,11 @@ response headers:
 			header('Content-Length: '.strlen($response_content));
 		}
 
+		header('HTTP/1.1 203 Transformed content, original status '.$http_code);
+
 		die($response_content);
 	} else {
-		header('HTTP/1.1 404 NO');
+		header('HTTP/1.1 404 Nothing to show, original status '.$http_code);
 
 		die(
 			'<a href="'.$target_request_url.'">'.$target_request_url.'</a> is empty.'
