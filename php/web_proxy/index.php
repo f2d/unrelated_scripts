@@ -650,10 +650,10 @@ response headers:
 
 -->
 '.trim($replaced_content);
-			header('Content-Length: '.strlen($response_content));
-		}
 
-		header('HTTP/1.1 203 Transformed content, original status '.$http_code);
+			header('Content-Length: '.strlen($response_content));
+			header('HTTP/1.1 203 Transformed content, original status '.$http_code);
+		}
 
 		die($response_content);
 	} else {
