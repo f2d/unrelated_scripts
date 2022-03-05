@@ -80,7 +80,7 @@ pat_part_png = (br'''
 ''')
 
 # WEBP magic bytes:
-# start	RIFF ??? NUL WEBPVP8
+# start	RIFF (3 bytes vary) NUL WEBPVP8
 
 pat_part_webp = (br'''
 	(?P<Content>
@@ -94,7 +94,7 @@ pat_part_webp = (br'''
 ''')
 
 # MOV magic bytes:
-# start	NUL NUL NUL (14) ftypqt SPACE SPACE
+# start	NUL NUL NUL 0x14 ftypqt SPACE SPACE
 
 pat_part_mov = (br'''
 	(?P<Content>
@@ -107,7 +107,7 @@ pat_part_mov = (br'''
 ''')
 
 # MP4 magic bytes:
-# start	NUL NUL NUL (18) ftypmp42
+# start	NUL NUL NUL 0x18 ftypmp42
 
 pat_part_mp4 = (br'''
 	(?P<Content>
@@ -120,7 +120,7 @@ pat_part_mp4 = (br'''
 ''')
 
 # M4V magic bytes:
-# start	NUL NUL NUL (20) ftypM4V SPACE
+# start	NUL NUL NUL 0x20 ftypM4V SPACE
 
 pat_part_m4v = (br'''
 	(?P<Content>
@@ -134,12 +134,16 @@ pat_part_m4v = (br'''
 
 # MKV magic bytes:
 # start	SUB EЯЈ
+# end	м† (only in webm?)
 
 pat_part_mkv = (br'''
 	(?P<Content>
 		(?P<Start>
 			\x1A\x45\xDF\xA3
-		)(?P<Vary>.*?)
+		)(?P<Vary>.*?
+		)(?P<End>
+			\xEC\x86
+		)
 	)
 ''')
 
@@ -209,6 +213,8 @@ def print_help():
 	,	colored('<dest>', 'cyan') + '   : path to folder to save extracted files. If "TEST", do not save.'
 	,	''
 	,	colored(' -t --test', 'magenta') + '     : do not save or change any files.'
+	,	colored(' -q --quiet', 'magenta') + '    : print only changes and final summary.'
+	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
 	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
 	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content (added to bypass duplicate file checks), and add them to saved file name.'
 	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
@@ -251,8 +257,8 @@ def print_help():
 	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
 	,	'	{0} "/read/from/folder/" --in-folder --recurse --test --video'
 	,	'	{0} "/read/from/file.dat" . --truncate --remove-old --picture'
-	,	'	{0} "/read/from/file.dat" . d e f r t ".jpeg" ".mkv"'
-	,	'	{0} "/read/from/file.dat" TEST'
+	,	'	{0} "/read/from/file.dat" d e f r t --quiet ".jpeg" ".mkv"'
+	,	'	{0} "/read/from/file.dat" TEST --verbose'
 	]
 
 	print(u'\n'.join(help_text_lines).format(self_name))
@@ -272,16 +278,19 @@ def run_batch_extract(argv):
 		src_file = open(src_file_path, 'rb')
 
 		if not src_file:
-			print_with_colored_prefix_line('Error: Could not open source file:', src_file_path, 'red')
+			if not arg_quiet:
+				print_with_colored_prefix_line('Error: Could not open source file:', src_file_path, 'red')
 
 			return False
 
-		print_with_colored_prefix_line('Read file:', src_file_path)
+		if not arg_quiet:
+			print_with_colored_prefix_line('Read file:', src_file_path)
 
 		content = src_file.read()
 		src_file.close()
 
-		print_with_colored_prefix('Size:', '{} bytes'.format(len(content)))
+		if not arg_quiet:
+			print_with_colored_prefix('Size:', '{} bytes'.format(len(content)))
 
 		return content
 
@@ -304,7 +313,7 @@ def run_batch_extract(argv):
 		if process_only_exts and not file_type in process_only_exts:
 			return 0
 
-		found_count_total = 0
+		found_count_total = dest_file_size = 0
 		content = None
 
 		for ext, pat in pat_file_content.items():
@@ -346,10 +355,11 @@ def run_batch_extract(argv):
 				dest_file_exists = os.path.exists(dest_file_path)
 				found_files_to_save.append(dest_file_path)
 
-				print_with_colored_prefix_line('Save file:', dest_file_path)
-				print_with_colored_prefix('Size:', '{} bytes'.format(len(found_content_part)))
+				if not arg_quiet or not arg_readonly_test:
+					print_with_colored_prefix_line('Save file:', dest_file_path)
+					print_with_colored_prefix('Size:', '{} bytes'.format(len(found_content_part)))
 
-				if dest_file_exists:
+				if not arg_quiet and dest_file_exists:
 					cprint('Warning: file already exists at destination path.', 'yellow')
 
 				if (
@@ -366,7 +376,13 @@ def run_batch_extract(argv):
 					dest_file.write(found_content_part)
 					dest_file.close()
 
-					cprint('Saved, overwritten.' if dest_file_exists else 'Saved.', 'green')
+					dest_file_size = os.path.getsize(dest_file_path)
+
+					print_with_colored_prefix(
+						'Saved file, overwritten:' if dest_file_exists else 'Saved file:'
+					,	'{} bytes'.format(dest_file_size)
+					,	'green'
+					)
 
 			if found_count > 0:
 				print('')
@@ -382,15 +398,19 @@ def run_batch_extract(argv):
 		and	not arg_in_place
 		and	os.path.isfile(src_file_path)
 		):
-			print_with_colored_prefix_line('Delete file:', src_file_path)
+			if arg_readonly_test or dest_file_size > 0:
+				print_with_colored_prefix_line('Delete file:', src_file_path)
 
-			if not arg_readonly_test:
-				os.remove(src_file_path)
+				if not arg_readonly_test:
+					os.remove(src_file_path)
 
-				cprint('Deleted.', 'red')
+					cprint('Deleted.', 'red')
+			elif not arg_quiet:
+				print_with_colored_prefix_line('Skip deleting file, because nothing was saved.')
 
-		print('')
-		print('	--------' * 4)
+		if not arg_quiet:
+			print('')
+			print('	--------' * 4)
 
 		return found_count_total
 
@@ -426,6 +446,8 @@ def run_batch_extract(argv):
 	arg_recurse    = ('recurse'   in optional_args or 'r' in optional_args)
 	arg_remove_old = ('removeold' in optional_args or 'd' in optional_args)
 	arg_truncate   = ('truncate'  in optional_args or 'e' in optional_args)
+	arg_verbose    = ('verbose'   in optional_args or 'b' in optional_args)
+	arg_quiet      = ('quiet'     in optional_args or 'q' in optional_args)
 
 	arg_readonly_test = (
 		'TEST' == dest_path
@@ -433,10 +455,11 @@ def run_batch_extract(argv):
 	or	't' in optional_args
 	)
 
-	print_with_colored_prefix('Read only:', arg_readonly_test)
-	print_with_colored_prefix('Read path:', src_path)
-	print_with_colored_prefix('Save path:', dest_path)
-	print_with_colored_prefix('Optional args:', optional_args)
+	if not arg_quiet:
+		print_with_colored_prefix('Read only:', arg_readonly_test)
+		print_with_colored_prefix('Read path:', src_path)
+		print_with_colored_prefix('Save path:', dest_path)
+		print_with_colored_prefix('Optional args:', optional_args)
 
 	if arg_in_folder:
 		dest_path = src_path
@@ -455,7 +478,8 @@ def run_batch_extract(argv):
 	if len(process_only_exts) > 0:
 		process_only_exts = sorted(set(process_only_exts))
 
-		print_with_colored_prefix('Processing only files of types:', process_only_exts)
+		if not arg_quiet:
+			print_with_colored_prefix('Processing only files of types:', process_only_exts)
 	else:
 		process_only_exts = None
 
@@ -482,7 +506,7 @@ def run_batch_extract(argv):
 
 		pat_file_content[ext] = regex = re.compile(pattern, re.X | re.DOTALL)
 
-		if arg_readonly_test:
+		if not arg_quiet and arg_verbose:
 			print('')
 			print_with_colored_prefix('File type:', ext)
 			print_with_colored_prefix('Pattern:', pattern.decode(print_encoding))	# <- decode bytes to string
@@ -527,12 +551,14 @@ def run_batch_extract(argv):
 		found_count_total += extract_from_file(src_path, dest_path)
 
 	if found_count_total > 0:
+		print('')
+
 		if arg_readonly_test:
-			print_with_colored_prefix_line('Files to save:', found_count_total, 'cyan')
+			print_with_colored_prefix('Files to save:', found_count_total, 'cyan')
 			print('')
 			print(u'\n'.join(found_files_to_save))
 		else:
-			print_with_colored_prefix_line('Files saved:', found_count_total, 'green')
+			print_with_colored_prefix('Files saved:', found_count_total, 'green')
 	else:
 		print('')
 		cprint('Known files not found.', 'cyan')
