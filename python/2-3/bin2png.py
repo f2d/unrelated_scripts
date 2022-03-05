@@ -17,13 +17,19 @@ except ImportError:
 
 # - Configuration and defaults ------------------------------------------------
 
+print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
+
+pat_part_start       = br'(?P<Start>'
+pat_part_vary_start  = br'(?P<Vary>.(?!'
+pat_part_vary_end    = br')*'
+pat_part_extra_vary  = br'(?P<Vary>.*?)'
 pat_part_extra_start = br'^'
-pat_part_extra_end   = br'(?P<Extra>\d+)?$'
+pat_part_extra_end   = br'(?P<Extra>\d{4,})?$'
 
 # GIF magic bytes:
 # start	GIF87a
 # or	GIF89a
-# end	;
+# end	NUL ;
 
 pat_part_gif = (br'''
 	(?P<Content>
@@ -73,17 +79,99 @@ pat_part_png = (br'''
 	)
 ''')
 
+# WEBP magic bytes:
+# start	RIFF ??? NUL WEBPVP8
+
+pat_part_webp = (br'''
+	(?P<Content>
+		(?P<Start>
+			\x89\x50\x4E\x47
+			...\x00
+			\x57\x45\x42\x50
+			\x56\x50\x38
+		)(?P<Vary>.*?)
+	)
+''')
+
+# MOV magic bytes:
+# start	NUL NUL NUL (14) ftypqt SPACE SPACE
+
+pat_part_mov = (br'''
+	(?P<Content>
+		(?P<Start>
+			\x00\x00\x00\x14
+			\x66\x74\x79\x70
+			\x71\x74\x20\x20
+		)(?P<Vary>.*?)
+	)
+''')
+
+# MP4 magic bytes:
+# start	NUL NUL NUL (18) ftypmp42
+
+pat_part_mp4 = (br'''
+	(?P<Content>
+		(?P<Start>
+			\x00\x00\x00\x18
+			\x66\x74\x79\x70
+			\x6D\x70\x34\x32
+		)(?P<Vary>.*?)
+	)
+''')
+
+# M4V magic bytes:
+# start	NUL NUL NUL (20) ftypM4V SPACE
+
+pat_part_m4v = (br'''
+	(?P<Content>
+		(?P<Start>
+			\x00\x00\x00\x20
+			\x66\x74\x79\x70
+			\x4D\x34\x56\x20
+		)(?P<Vary>.*?)
+	)
+''')
+
+# MKV magic bytes:
+# start	SUB EЯЈ
+
+pat_part_mkv = (br'''
+	(?P<Content>
+		(?P<Start>
+			\x1A\x45\xDF\xA3
+		)(?P<Vary>.*?)
+	)
+''')
+
 pat_part_by_ext = {
-	'png': pat_part_png
-,	'gif': pat_part_gif
-,	'jpg': pat_part_jpg
-# ,	'jpeg': pat_part_jpg
+	'gif' : pat_part_gif
+,	'jpg' : pat_part_jpg
+,	'png' : pat_part_png
+,	'webp' : pat_part_webp
+
+,	'm4v' : pat_part_m4v
+,	'mkv' : pat_part_mkv
+,	'mov' : pat_part_mov
+,	'mp4' : pat_part_mp4
+}
+
+file_ext_aliases_by_ext = {
+	'jpg' : ['jpe', 'jpeg']
+,	'mkv' : ['mka', 'mks', 'webm']
+}
+
+file_exts_by_type = {
+	'picture' : ['gif', 'jpg', 'png', 'webp']
+,	'video'   : ['m4v', 'mkv', 'mov', 'mp4']
 }
 
 pat_file_content = {}
 pat_conseq_slashes = re.compile(r'[\\/]+')
 
 # - Declare functions ---------------------------------------------------------
+
+def get_sorted_text_from_items(items, separator=', '):
+	return separator.join(sorted(set(items)))
 
 def print_with_colored_prefix_line(comment, value, color=None):
 	print('')
@@ -95,6 +183,13 @@ def print_with_colored_prefix(prefix, value, color=None):
 
 def print_help():
 	self_name = os.path.basename(__file__)
+	max_file_type_length = 0
+
+	for type in file_exts_by_type.keys():
+		type_length = len(type)
+
+		if max_file_type_length < type_length:
+			max_file_type_length = type_length
 
 	help_text_lines = [
 		''
@@ -103,35 +198,64 @@ def print_help():
 	,	'	Or truncate extraneous digits at the end of files of known formats (for deduplication).'
 	,	''
 	,	colored('* Known file formats:', 'yellow')
-	,	'	' + ', '.join(sorted(set(pat_part_by_ext.keys())))
+	,	'	' + get_sorted_text_from_items(pat_part_by_ext.keys())
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
 		+	colored(' <source> <dest>', 'cyan')
 		+	colored(' <optional args> <...>', 'magenta')
 	,	''
-	,	colored('<source>', 'cyan') + ': path to binary data file or folder with files to read.'
-	,	colored('<dest>', 'cyan') + ': path to folder to save extracted files. If "TEST", do not save.'
+	,	colored('<source>', 'cyan') + ' : path to binary data file or folder with files to read.'
+	,	colored('<dest>', 'cyan') + '   : path to folder to save extracted files. If "TEST", do not save.'
 	,	''
-	,	colored('-t --test', 'magenta') + ': do not save or change any files.'
-	,	colored('-r --recurse', 'magenta') + ': go into subfolders, if given source path is a folder.'
-	,	colored('-e --truncate', 'magenta') + ': cut extra digits from content (added to bypass duplicate file checks), and add them to saved file name.'
-	,	colored('-d --remove-old', 'magenta') + ': delete original file after cutting extraneous data.'
-	,	colored('-i --in-place', 'magenta') + ': save to original file after cutting extraneous data.'
-	,	colored('-f --in-folder', 'magenta') + ': save extracted files to original folder.'
+	,	colored(' -t --test', 'magenta') + '     : do not save or change any files.'
+	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
+	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content (added to bypass duplicate file checks), and add them to saved file name.'
+	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
+	,	colored(' -i --in-place', 'magenta') + '   : save to original file after cutting extraneous data.'
+	,	colored(' -f --in-folder', 'magenta') + '  : save extracted files to original folder. '
+		+	colored('<dest>', 'cyan')
+		+	' argument is not needed.'
+	]+[
+		(
+			colored(
+				' -' + type[0 : 1]
+			+	' --' + type + (' ' * (max_file_type_length - len(type)))
+			,	'magenta'
+			)
+			+	' : process only ' + type + ' files ('
+			+	get_sorted_text_from_items(
+					(
+						colored(ext, 'yellow')
+					+	' ['
+					+	get_sorted_text_from_items(
+							colored(alias, 'green')
+							for alias in file_ext_aliases_by_ext[ext]
+						)
+					+	']'
+						if file_ext_aliases_by_ext.get(ext)
+						else
+						colored(ext, 'yellow')
+					) for ext in exts
+				)
+			+	').'
+		) for type, exts in file_exts_by_type.items()
+	]+[
+		colored(' .<ext>', 'magenta') + (' ' * (max_file_type_length - 1))
+		+	' : process only files of given extensions, including all aliases.'
 	,	''
 	,	'Ending slashes in paths are optional.'
 	,	'Dash signs in args are optional.'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
-	,	'	{0} "/read/from/folder/" --in-folder --recurse --test'
-	,	'	{0} "/read/from/file.dat" . --truncate --remove-old'
-	,	'	{0} "/read/from/file.dat" . d e f r t'
+	,	'	{0} "/read/from/folder/" --in-folder --recurse --test --video'
+	,	'	{0} "/read/from/file.dat" . --truncate --remove-old --picture'
+	,	'	{0} "/read/from/file.dat" . d e f r t ".jpeg" ".mkv"'
 	,	'	{0} "/read/from/file.dat" TEST'
 	]
 
-	print('\n'.join(help_text_lines).format(self_name))
+	print(u'\n'.join(help_text_lines).format(self_name))
 
 def fix_slashes(path):
 	return re.sub(pat_conseq_slashes, '/', u'' + path)
@@ -164,13 +288,28 @@ def run_batch_extract(argv):
 	def extract_from_file(src_path, dest_path):
 
 		src_file_path = fix_slashes(src_path)
-		src_file_ext = src_file_path.rsplit('.', 1)[1].replace('jpeg', 'jpg')
+		src_file_ext = file_type = (
+			src_file_path
+			.rsplit('/', 1)[-1 : ][0]
+			.rsplit('.', 1)[-1 : ][0]
+			.lower()
+		)
+
+		for ext, aliases in file_ext_aliases_by_ext.items():
+			if file_type in aliases:
+				file_type = ext
+
+				break
+
+		if process_only_exts and not file_type in process_only_exts:
+			return 0
+
 		found_count_total = 0
 		content = None
 
 		for ext, pat in pat_file_content.items():
 
-			if arg_truncate and ext != src_file_ext:
+			if arg_truncate and ext != file_type:
 				continue
 
 			if not content:
@@ -184,7 +323,7 @@ def run_batch_extract(argv):
 			for found in pat.finditer(content):
 
 				found_content_part = found.group('Content')
-				found_extra_data = found.group('Extra')
+				found_extra_data = found.group('Extra') if arg_truncate else None
 
 				if arg_truncate and not found_extra_data:
 					continue
@@ -197,16 +336,21 @@ def run_batch_extract(argv):
 					if arg_in_place
 					else
 					fix_slashes(
-						'{}(d{}).{}'.format(dest_path, int(found_extra_data), ext)
+						u'{}(d{}).{}'.format(dest_path, int(found_extra_data), src_file_ext)
 						if arg_truncate and found_extra_data
 						else
-						'{}/{}.{}'.format(dest_path, found_count, ext)
+						u'{}/{}.{}'.format(dest_path, found_count, ext)
 					)
 				)
 
-				print_with_colored_prefix_line('Save file:', dest_file_path)
+				dest_file_exists = os.path.exists(dest_file_path)
+				found_files_to_save.append(dest_file_path)
 
+				print_with_colored_prefix_line('Save file:', dest_file_path)
 				print_with_colored_prefix('Size:', '{} bytes'.format(len(found_content_part)))
+
+				if dest_file_exists:
+					cprint('Warning: file already exists at destination path.', 'yellow')
 
 				if (
 					not arg_readonly_test
@@ -222,11 +366,11 @@ def run_batch_extract(argv):
 					dest_file.write(found_content_part)
 					dest_file.close()
 
-					cprint('Saved.', 'green')
+					cprint('Saved, overwritten.' if dest_file_exists else 'Saved.', 'green')
 
 			if found_count > 0:
 				print('')
-				print_with_colored_prefix('Found', '{} {} files.'.format(found_count, ext), 'cyan')
+				print_with_colored_prefix('Found', u'{} {} files.'.format(found_count, ext), 'cyan')
 
 		if not content:
 			return found_count_total
@@ -264,18 +408,19 @@ def run_batch_extract(argv):
 	src_path = fix_slashes(argv[0] if argc > 0 else '') or '.'
 	dest_path = fix_slashes(argv[1] if argc > 1 else '') or '.'
 
+	process_only_exts = []
 	optional_args = [
 		arg
 		.replace('-', '')
 		.replace('/', '')
 		.lower()
-		for arg in argv[1:]
+		for arg in argv[1 : ]
 	] if argc > 1 else []
 
 	arg_in_folder  = ('infolder'  in optional_args or 'f' in optional_args)
 
 	if not arg_in_folder and len(optional_args) > 0:
-		optional_args = optional_args[1:]
+		optional_args = optional_args[1 : ]
 
 	arg_in_place   = ('inplace'   in optional_args or 'i' in optional_args)
 	arg_recurse    = ('recurse'   in optional_args or 'r' in optional_args)
@@ -288,21 +433,64 @@ def run_batch_extract(argv):
 	or	't' in optional_args
 	)
 
+	print_with_colored_prefix('Read only:', arg_readonly_test)
+	print_with_colored_prefix('Read path:', src_path)
+	print_with_colored_prefix('Save path:', dest_path)
+	print_with_colored_prefix('Optional args:', optional_args)
+
 	if arg_in_folder:
 		dest_path = src_path
 
+	for arg in optional_args:
+		if arg[0 : 1] == '.':
+			process_only_exts.append(arg.strip('.'))
+
+	for type, exts in file_exts_by_type.items():
+		if (
+			type in optional_args
+		or	type[0 : 1] in optional_args
+		):
+			process_only_exts += exts
+
+	if len(process_only_exts) > 0:
+		process_only_exts = sorted(set(process_only_exts))
+
+		print_with_colored_prefix('Processing only files of types:', process_only_exts)
+	else:
+		process_only_exts = None
+
 	for ext, pat_part_real_file_content in pat_part_by_ext.items():
-		pat_file_content[ext] = re.compile(
-			(
+		pattern = pat_part_real_file_content
+
+		if arg_truncate:
+			pattern = (
 				pat_part_extra_start
-			+	pat_part_real_file_content
+			+	pattern
 			+	pat_part_extra_end
-			) if arg_truncate else pat_part_real_file_content
-		,	re.X | re.DOTALL
-		)
+			)
+
+		elif pat_part_extra_vary in pattern:
+			pattern_parts = pattern.split(pat_part_extra_vary)
+			pattern_magic_bytes = pattern_parts[0].split(pat_part_start, 1)[1]
+			pattern = (
+				pattern_parts[0]
+			+	pat_part_vary_start
+			+	pattern_magic_bytes
+			+	pat_part_vary_end
+			+	pattern_parts[1]
+			)
+
+		pat_file_content[ext] = regex = re.compile(pattern, re.X | re.DOTALL)
+
+		if arg_readonly_test:
+			print('')
+			print_with_colored_prefix('File type:', ext)
+			print_with_colored_prefix('Pattern:', pattern.decode(print_encoding))	# <- decode bytes to string
+			print_with_colored_prefix('Regex:', regex)
 
 # - Do the job ----------------------------------------------------------------
 
+	found_files_to_save = []
 	found_count_total = 0
 
 	if os.path.isdir(src_path):
@@ -324,7 +512,7 @@ def run_batch_extract(argv):
 					)
 				)
 
-				if os.path.isdir(each_src_path):
+				if arg_recurse and os.path.isdir(each_src_path):
 					found_count += extract_from_folder(each_src_path)
 				else:
 					found_count += extract_from_file(
@@ -341,6 +529,8 @@ def run_batch_extract(argv):
 	if found_count_total > 0:
 		if arg_readonly_test:
 			print_with_colored_prefix_line('Files to save:', found_count_total, 'cyan')
+			print('')
+			print(u'\n'.join(found_files_to_save))
 		else:
 			print_with_colored_prefix_line('Files saved:', found_count_total, 'green')
 	else:
