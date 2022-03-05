@@ -18,7 +18,7 @@ except ImportError:
 # - Configuration and defaults ------------------------------------------------
 
 zstd_levels = [3, 17, 18, 19, 20, 21, 22]
-zstd_solid_block_sizes = [99, 256]
+zstd_solid_block_sizes = [99, 256, 1024]
 
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 listfile_encoding = 'utf-8'
@@ -244,6 +244,7 @@ def print_help():
 	,	'		(limits storage redundancy and archive editing)'
 	,	'	0: no compression (store file content as is).'
 	,	'	6: big data compression settings (256 MB dictionary, 256 B word size).'
+	,	'	G: very big compression settings (1 GB dictionary, 273 B word size).'
 	,	'	9, ..., 999999: use Zstandard compression method with 7-Zip.'
 	,	'		(repeat the flag for slower and higher levels, {}-{})'.format(zstd_levels[1], zstd_levels[len(zstd_levels) - 1])
 	,	'		(a lot faster than LZMA/LZMA2 at both compression and decompression)'
@@ -504,13 +505,17 @@ def run_batch_archiving(argv):
 
 			dest_name_part_dedup		= ',dedup' if 'l' in flags else ''
 			dest_name_part_uncompressed	= ',store' if '0' in flags else ''
-			dest_name_part_dict_size	= ',d=256m' if '6' in flags else ''
+			dest_name_part_dict_size	= ',d=1g' if 'g' in flags else ',d=256m' if '6' in flags else ''
 			dest_name_part_zstd		= ',zstd={}'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else ''
 
 			if '7' in flags:
 				ext = (dest_name_part_zstd or dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
-				solid_block_size = ('={}m'.format(zstd_solid_block_sizes[1 if '6' in flags else 0])) if '9' in flags else ''
 				solid = 0
+				solid_block_size = ('={}m'.format(zstd_solid_block_sizes[
+					2 if 'g' in flags else
+					1 if '6' in flags else
+					0
+				])) if '9' in flags else ''
 
 				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
 					if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
@@ -603,11 +608,12 @@ def run_batch_archiving(argv):
 		cmd_template['7z'] = (
 			[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
 		+	(
-				['-m0=zstd', '-mmt=on', '-mx={}'.format(pick_zstd_level_from_flags(flags))] if '9' in flags else
-				['-mx=0', '-mmt=off'] if '0' in flags else
-				['-m0=lzma2', '-mx=9', '-mmt=2'] + (
+				['-m0=zstd',  '-mmt=on', '-mx={}'.format(pick_zstd_level_from_flags(flags))] if '9' in flags else
+				['-mx=0',     '-mmt=off'] if '0' in flags else
+				['-m0=lzma2', '-mmt=2', '-mx=9'] + (
+					['-md=1g',   '-mfb=273'] if 'g' in flags else
 					['-md=256m', '-mfb=256'] if '6' in flags else
-					['-md=64m', '-mfb=273']
+					['-md=64m',  '-mfb=273']
 				)
 			)
 		+	rest
@@ -645,6 +651,7 @@ def run_batch_archiving(argv):
 		+	(
 				['-m0', '-mt1'] if '0' in flags else
 				['-m5', '-mt4'] + (
+					['-md1g'] if 'g' in flags else
 					['-md256m'] if '6' in flags else
 					[]
 				)
