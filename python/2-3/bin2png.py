@@ -19,6 +19,8 @@ except ImportError:
 
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 
+optional_arg_prefixes = ['-', '/']
+
 pat_part_start       = br'(?P<Start>'
 pat_part_vary_start  = br'(?P<Vary>.(?!'
 pat_part_vary_end    = br')*'
@@ -249,15 +251,18 @@ def print_help():
 	]+[
 		colored(' .<ext>', 'magenta') + (' ' * (max_file_type_length - 1))
 		+	' : process only files of given extensions, including all aliases.'
+# TODO:	,	colored(' -a=<date> --after=<time>', 'magenta') + '  : process only files modified after given date or time.'
+# TODO:	,	colored(' -b=<date> --before=<time>', 'magenta') + ' : process only files modified before given date or time.'
 	,	''
 	,	'Ending slashes in paths are optional.'
-	,	'Dash signs in args are optional.'
+	,	'Dash or slash signs in other args are optional.'
+	,	'Single-letter optional arguments can be concatenated, starting from single dash or slash.'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
 	,	'	{0} "/read/from/folder/" --in-folder --recurse --test --video'
-	,	'	{0} "/read/from/file.dat" . --truncate --remove-old --picture'
-	,	'	{0} "/read/from/file.dat" d e f r t --quiet ".jpeg" ".mkv"'
+	,	'	{0} "/read/from/folder/" . --truncate --remove-old --picture'
+	,	'	{0} "/read/from/folder/" -r t -def --quiet ".jpeg" ".mkv"'
 	,	'	{0} "/read/from/file.dat" TEST --verbose'
 	]
 
@@ -425,22 +430,40 @@ def run_batch_extract(argv):
 
 # - Check arguments -----------------------------------------------------------
 
-	src_path = fix_slashes(argv[0] if argc > 0 else '') or '.'
-	dest_path = fix_slashes(argv[1] if argc > 1 else '') or '.'
-
 	process_only_exts = []
-	optional_args = [
-		arg
-		.replace('-', '')
-		.replace('/', '')
-		.lower()
-		for arg in argv[1 : ]
-	] if argc > 1 else []
 
-	arg_in_folder  = ('infolder'  in optional_args or 'f' in optional_args)
+	def get_path_arg_from(index):
+		return fix_slashes(argv[index] if argc > index else '') or '.'
 
-	if not arg_in_folder and len(optional_args) > 0:
-		optional_args = optional_args[1 : ]
+	def get_optional_args_starting_from(start_index):
+
+		args = []
+
+		if argc <= start_index:
+			return args
+
+		for arg in argv[start_index : ]:
+			if (
+				len(arg) > 1
+			and	arg[0] != arg[1]
+			and	arg[0] in optional_arg_prefixes
+			):
+				args += arg[1 : ].lower()
+			else:
+				normalized_arg = arg.lower()
+
+				for prefix in optional_arg_prefixes:
+					normalized_arg = normalized_arg.replace(prefix, '')
+
+				args.append(normalized_arg)
+
+		return sorted(set(args))
+
+	optional_args = get_optional_args_starting_from(1)
+	arg_in_folder = ('infolder' in optional_args or 'f' in optional_args)
+
+	if not arg_in_folder:
+		optional_args = get_optional_args_starting_from(2)
 
 	arg_in_place   = ('inplace'   in optional_args or 'i' in optional_args)
 	arg_recurse    = ('recurse'   in optional_args or 'r' in optional_args)
@@ -449,20 +472,23 @@ def run_batch_extract(argv):
 	arg_verbose    = ('verbose'   in optional_args or 'b' in optional_args)
 	arg_quiet      = ('quiet'     in optional_args or 'q' in optional_args)
 
+	src_path  = get_path_arg_from(0)
+	dest_path = get_path_arg_from(1)
+
 	arg_readonly_test = (
 		'TEST' == dest_path
 	or	'test' in optional_args
 	or	't' in optional_args
 	)
 
+	if arg_in_folder:
+		dest_path = src_path
+
 	if not arg_quiet:
 		print_with_colored_prefix('Read only:', arg_readonly_test)
 		print_with_colored_prefix('Read path:', src_path)
-		print_with_colored_prefix('Save path:', dest_path)
+		print_with_colored_prefix('Save path:', '<same as source file>' if arg_in_folder else dest_path)
 		print_with_colored_prefix('Optional args:', optional_args)
-
-	if arg_in_folder:
-		dest_path = src_path
 
 	for arg in optional_args:
 		if arg[0 : 1] == '.':
