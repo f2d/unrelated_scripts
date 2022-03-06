@@ -51,7 +51,8 @@ pat_text_time_epoch = r'''
 #	(?:^|\D)
 	(?:^|[^a-z\d])
 	(?P<Epoch>\d{10})
-	(?P<Milliseconds>\d{3})?
+#	(?P<Milliseconds>\d{3})?
+	(?P<Etc>\d{1,6})?
 	(?:$|[^a-z\d])
 #	(?:$|\D)
 '''
