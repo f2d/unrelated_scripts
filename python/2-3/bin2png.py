@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
-import os, sys, re
+import os, re, sys, time
 
 # Use colored text if available:
 try:
@@ -174,7 +174,12 @@ file_exts_by_type = {
 pat_file_content = {}
 pat_conseq_slashes = re.compile(r'[\\/]+')
 
+timestamp_format = r'%Y-%m-%d %H:%M:%S'
+
 # - Declare functions ---------------------------------------------------------
+
+def get_timestamp_text(time_value):
+	return time.strftime(timestamp_format, time.localtime(time_value))
 
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
@@ -185,7 +190,7 @@ def print_with_colored_prefix_line(comment, value, color=None):
 	print(value)
 
 def print_with_colored_prefix(prefix, value, color=None):
-	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
+	print('{prefix} {value}'.format(prefix=colored(prefix, color or 'yellow'), value=value))
 
 def print_help():
 	self_name = os.path.basename(__file__)
@@ -219,6 +224,7 @@ def print_help():
 	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
 	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
 	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content (added to bypass duplicate file checks), and add them to saved file name.'
+	,	colored(' -m --keep-time', 'magenta') + '  : set modification time of saved file to be same as original file.'
 	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
 	,	colored(' -i --in-place', 'magenta') + '   : save to original file after cutting extraneous data.'
 	,	colored(' -f --in-folder', 'magenta') + '  : save extracted files to original folder. '
@@ -329,6 +335,12 @@ def run_batch_extract(argv):
 			if not content:
 				content = get_file_content(src_file_path)
 
+				if arg_keep_time:
+					src_file_time = os.path.getmtime(src_file_path)
+
+					if not arg_quiet:
+						print_with_colored_prefix('Last modified at:', get_timestamp_text(src_file_time))
+
 			if not content:
 				return found_count_total
 
@@ -350,10 +362,18 @@ def run_batch_extract(argv):
 					if arg_in_place
 					else
 					fix_slashes(
-						u'{}(d{}).{}'.format(dest_path, int(found_extra_data), src_file_ext)
+						u'{prefix}(d{suffix}).{ext}'.format(
+							prefix=dest_path
+						,	suffix=int(found_extra_data)
+						,	ext=src_file_ext
+						)
 						if arg_truncate and found_extra_data
 						else
-						u'{}/{}.{}'.format(dest_path, found_count, ext)
+						u'{dir}/{index}.{ext}'.format(
+							dir=dest_path
+						,	index=found_count
+						,	ext=ext
+						)
 					)
 				)
 
@@ -383,15 +403,28 @@ def run_batch_extract(argv):
 
 					dest_file_size = os.path.getsize(dest_file_path)
 
+					if arg_keep_time:
+						os.utime(dest_file_path, (src_file_time, src_file_time))
+
 					print_with_colored_prefix(
-						'Saved file, overwritten:' if dest_file_exists else 'Saved file:'
-					,	'{} bytes'.format(dest_file_size)
+						'Saved file, overwritten:' if dest_file_exists else
+						'Saved file:'
+					,	'{bytes} bytes, time set to {modtime}'.format(
+							bytes=dest_file_size
+						,	modtime=get_timestamp_text(src_file_time)
+						)
+						if arg_keep_time
+						else
+						'{} bytes'.format(dest_file_size)
 					,	'green'
 					)
 
 			if found_count > 0:
 				print('')
-				print_with_colored_prefix('Found', u'{} {} files.'.format(found_count, ext), 'cyan')
+				print_with_colored_prefix('Found', u'{count} {type} files.'.format(
+					count=found_count
+				,	type=ext
+				), 'cyan')
 
 		if not content:
 			return found_count_total
@@ -466,11 +499,12 @@ def run_batch_extract(argv):
 		optional_args = get_optional_args_starting_from(2)
 
 	arg_in_place   = ('inplace'   in optional_args or 'i' in optional_args)
+	arg_keep_time  = ('keeptime'  in optional_args or 'm' in optional_args)
+	arg_quiet      = ('quiet'     in optional_args or 'q' in optional_args)
 	arg_recurse    = ('recurse'   in optional_args or 'r' in optional_args)
 	arg_remove_old = ('removeold' in optional_args or 'd' in optional_args)
 	arg_truncate   = ('truncate'  in optional_args or 'e' in optional_args)
 	arg_verbose    = ('verbose'   in optional_args or 'b' in optional_args)
-	arg_quiet      = ('quiet'     in optional_args or 'q' in optional_args)
 
 	src_path  = get_path_arg_from(0)
 	dest_path = get_path_arg_from(1)
