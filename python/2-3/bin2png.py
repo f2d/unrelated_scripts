@@ -175,11 +175,36 @@ pat_file_content = {}
 pat_conseq_slashes = re.compile(r'[\\/]+')
 
 timestamp_format = r'%Y-%m-%d %H:%M:%S'
+tz_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} %z %Z'
+gm_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} GMT'
 
 # - Declare functions ---------------------------------------------------------
 
 def get_timestamp_text(time_value):
 	return time.strftime(timestamp_format, time.localtime(time_value))
+
+def get_tz_timestamp_text(time_value):
+	return time.strftime(
+		tz_timestamp_format.format(f=get_trimmed_fraction_text(time_value))
+	,	time.localtime(time_value)
+	)
+
+def get_gm_timestamp_text(time_value):
+	return time.strftime(
+		gm_timestamp_format.format(f=get_trimmed_fraction_text(time_value))
+	,	time.gmtime(time_value)
+	)
+
+def get_long_timestamp_text(time_value):
+	return '{tz_time} ({gm_time})'.format(
+		tz_time=get_tz_timestamp_text(time_value)
+	,	gm_time=get_gm_timestamp_text(time_value)
+	)
+
+def get_trimmed_fraction_text(time_value, max_digits=6):
+	text = str(time_value % 1.0).strip('0')
+
+	return '' if text == '.' else text [ : max_digits + 1]
 
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
@@ -224,6 +249,7 @@ def print_help():
 	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
 	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
 	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content (added to bypass duplicate file checks), and add them to saved file name.'
+	,	colored(' -l --long-time', 'magenta') + '  : print long detailed timestamps with fractional seconds and timezone.'
 	,	colored(' -m --keep-time', 'magenta') + '  : set modification time of saved file to be same as original file.'
 	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
 	,	colored(' -i --in-place', 'magenta') + '   : save to original file after cutting extraneous data.'
@@ -339,7 +365,7 @@ def run_batch_extract(argv):
 					src_file_time = os.path.getmtime(src_file_path)
 
 					if not arg_quiet:
-						print_with_colored_prefix('Last modified at:', get_timestamp_text(src_file_time))
+						print_with_colored_prefix('Last modified at:', get_mod_time_text(src_file_time))
 
 			if not content:
 				return found_count_total
@@ -411,7 +437,7 @@ def run_batch_extract(argv):
 						'Saved file:'
 					,	'{bytes} bytes, time set to {modtime}'.format(
 							bytes=dest_file_size
-						,	modtime=get_timestamp_text(src_file_time)
+						,	modtime=get_mod_time_text(src_file_time)
 						)
 						if arg_keep_time
 						else
@@ -419,7 +445,7 @@ def run_batch_extract(argv):
 					,	'green'
 					)
 
-			if found_count > 0:
+			if not arg_truncate and found_count > 0:
 				print('')
 				print_with_colored_prefix('Found', u'{count} {type} files.'.format(
 					count=found_count
@@ -500,6 +526,7 @@ def run_batch_extract(argv):
 
 	arg_in_place   = ('inplace'   in optional_args or 'i' in optional_args)
 	arg_keep_time  = ('keeptime'  in optional_args or 'm' in optional_args)
+	arg_long_time  = ('longtime'  in optional_args or 'l' in optional_args)
 	arg_quiet      = ('quiet'     in optional_args or 'q' in optional_args)
 	arg_recurse    = ('recurse'   in optional_args or 'r' in optional_args)
 	arg_remove_old = ('removeold' in optional_args or 'd' in optional_args)
@@ -513,6 +540,12 @@ def run_batch_extract(argv):
 		'TEST' == dest_path
 	or	'test' in optional_args
 	or	't' in optional_args
+	)
+
+	get_mod_time_text = (
+		get_long_timestamp_text
+		if arg_long_time
+		else get_timestamp_text
 	)
 
 	if arg_in_folder:
