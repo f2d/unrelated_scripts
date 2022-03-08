@@ -209,6 +209,14 @@ def get_trimmed_fraction_text(time_value, max_digits=6):
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
 
+def get_file_ext_from_path(path):
+	return  (
+		path
+		.rsplit('/', 1)[-1 : ][0]
+		.rsplit('.', 1)[-1 : ][0]
+		.lower()
+	)
+
 def print_with_colored_prefix_line(comment, value, color=None):
 	print('')
 	cprint(comment, color or 'yellow')
@@ -334,12 +342,7 @@ def run_batch_extract(argv):
 	def extract_from_file(src_path, dest_path):
 
 		src_file_path = fix_slashes(src_path)
-		src_file_ext = file_type = (
-			src_file_path
-			.rsplit('/', 1)[-1 : ][0]
-			.rsplit('.', 1)[-1 : ][0]
-			.lower()
-		)
+		src_file_ext = file_type = get_file_ext_from_path(src_file_path)
 
 		for ext, aliases in file_ext_aliases_by_ext.items():
 			if file_type in aliases:
@@ -641,7 +644,16 @@ def run_batch_extract(argv):
 
 		found_count_total += extract_from_folder(src_path)
 	else:
-		found_count_total += extract_from_file(src_path, dest_path)
+		found_count_total += extract_from_file(
+			src_path
+		,	(
+				dest_path[ : -len(get_file_ext_from_path(dest_path)) - 1]
+				# .rstrip('.')
+				or dest_path
+			)
+			if arg_in_folder
+			else dest_path
+		)
 
 	if found_count_total > 0:
 		print('')
