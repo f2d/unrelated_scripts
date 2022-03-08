@@ -206,6 +206,9 @@ def get_trimmed_fraction_text(time_value, max_digits=6):
 
 	return '' if text == '.' else text [ : max_digits + 1]
 
+def get_bytes_length_text(content):
+	return '{} bytes'.format(len(content))
+
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
 
@@ -335,7 +338,7 @@ def run_batch_extract(argv):
 		src_file.close()
 
 		if not arg_quiet:
-			print_with_colored_prefix('Size:', '{} bytes'.format(len(content)))
+			print_with_colored_prefix('Size:', get_bytes_length_text(content))
 
 		return content
 
@@ -353,7 +356,7 @@ def run_batch_extract(argv):
 		if process_only_exts and not file_type in process_only_exts:
 			return 0
 
-		found_count_total = dest_file_size = 0
+		found_count_in_src_file = dest_file_size = 0
 		content = None
 
 		for ext, pat in pat_file_content.items():
@@ -371,9 +374,9 @@ def run_batch_extract(argv):
 						print_with_colored_prefix('Last modified at:', get_mod_time_text(src_file_time))
 
 			if not content:
-				return found_count_total
+				return found_count_in_src_file
 
-			found_count = 0
+			found_count_of_one_type = 0
 
 			for found in pat.finditer(content):
 
@@ -383,24 +386,27 @@ def run_batch_extract(argv):
 				if arg_truncate and not found_extra_data:
 					continue
 
-				found_count_total += 1
-				found_count += 1
+				file_counts['found'] += 1
+				found_count_in_src_file += 1
+				found_count_of_one_type += 1
 
 				dest_file_path = (
 					src_file_path
 					if arg_in_place
 					else
 					fix_slashes(
-						u'{prefix}(d{suffix}).{ext}'.format(
+						u'{prefix}(d{suffix}).{ext}'
+						.format(
 							prefix=dest_path
 						,	suffix=int(found_extra_data)
 						,	ext=src_file_ext
 						)
 						if arg_truncate and found_extra_data
 						else
-						u'{dir}/{index}.{ext}'.format(
+						u'{dir}/{index}.{ext}'
+						.format(
 							dir=dest_path
-						,	index=found_count
+						,	index=found_count_of_one_type
 						,	ext=ext
 						)
 					)
@@ -411,7 +417,7 @@ def run_batch_extract(argv):
 
 				if not arg_quiet or not arg_readonly_test:
 					print_with_colored_prefix_line('Save file:', dest_file_path)
-					print_with_colored_prefix('Size:', '{} bytes'.format(len(found_content_part)))
+					print_with_colored_prefix('Size:', get_bytes_length_text(found_content_part))
 
 				if not arg_quiet and dest_file_exists:
 					cprint('Warning: file already exists at destination path.', 'yellow')
@@ -423,43 +429,81 @@ def run_batch_extract(argv):
 				):
 					dest_dir = dest_file_path.rsplit('/', 1)[0]
 
-					if dest_dir and not os.path.isdir(dest_dir):
-						os.makedirs(dest_dir)
+					if (
+						dest_dir
+					and	not os.path.isdir(dest_dir)
+					and	not os.path.exists(dest_dir)
+					):
+						try:
+							os.makedirs(dest_dir)
+						except FileExistsError:
+							pass
 
-					dest_file = open(dest_file_path, 'wb')
-					dest_file.write(found_content_part)
-					dest_file.close()
+					if not os.path.isdir(dest_dir):
+						print_with_colored_prefix_line('Cannot create folder:', dest_dir, 'red')
+					else:
+						file_counts['saved'] += 1
 
-					dest_file_size = os.path.getsize(dest_file_path)
+						dest_file = open(dest_file_path, 'wb')
+						dest_file.write(found_content_part)
+						dest_file.close()
 
-					if arg_keep_time:
-						os.utime(dest_file_path, (src_file_time, src_file_time))
+						dest_file_size = os.path.getsize(dest_file_path)
 
-					print_with_colored_prefix(
-						'Saved file, overwritten:' if dest_file_exists else
-						'Saved file:'
-					,	'{bytes} bytes, time set to {modtime}'.format(
-							bytes=dest_file_size
-						,	modtime=get_mod_time_text(src_file_time)
+						if arg_keep_time:
+							os.utime(dest_file_path, (src_file_time, src_file_time))
+
+						print_with_colored_prefix(
+							'Saved file # {index}{existed}:'
+							.format(
+								existed=(
+									', overwritten'
+									if dest_file_exists
+									else ''
+								)
+							,	index=(
+									', '.join([
+										'{total} total'
+									,	'{in_src} in src'
+									,	'{of_type} of type {type}'
+									]).format(
+										total=file_counts['saved']
+									,	in_src=found_count_in_src_file
+									,	of_type=found_count_of_one_type
+									,	type=file_type
+									)
+									if not arg_truncate and arg_verbose
+									else file_counts['saved']
+								)
+							)
+						,	'{bytes} bytes{modtime}'
+							.format(
+								bytes=dest_file_size
+							,	modtime=(
+									', time set to ' + get_mod_time_text(src_file_time)
+									if arg_keep_time
+									else ''
+								)
+							)
+						,	'green'
 						)
-						if arg_keep_time
-						else
-						'{} bytes'.format(dest_file_size)
-					,	'green'
-					)
 
-			if not arg_truncate and found_count > 0:
+			if not arg_truncate and found_count_of_one_type > 0:
 				print('')
-				print_with_colored_prefix('Found', u'{count} {type} files.'.format(
-					count=found_count
-				,	type=ext
-				), 'cyan')
+				print_with_colored_prefix(
+					'Found', u'{count} {type} files.'
+					.format(
+						count=found_count_of_one_type
+					,	type=ext
+					)
+				,	'cyan'
+				)
 
 		if not content:
-			return found_count_total
+			return found_count_in_src_file
 
 		if (
-			found_count_total
+			found_count_in_src_file > 0
 		and	arg_truncate
 		and	arg_remove_old
 		and	not arg_in_place
@@ -473,13 +517,13 @@ def run_batch_extract(argv):
 
 					cprint('Deleted.', 'red')
 			elif not arg_quiet:
-				print_with_colored_prefix_line('Skip deleting file, because nothing was saved.')
+				cprint('Skip deleting file, because nothing was saved.')
 
 		if not arg_quiet:
 			print('')
 			print('	--------' * 4)
 
-		return found_count_total
+		return found_count_in_src_file
 
 # - Show help and exit --------------------------------------------------------
 
@@ -611,13 +655,14 @@ def run_batch_extract(argv):
 # - Do the job ----------------------------------------------------------------
 
 	found_files_to_save = []
-	found_count_total = 0
+	file_counts = {
+		'found' : 0
+	,	'saved' : 0
+	}
 
 	if os.path.isdir(src_path):
 
 		def extract_from_folder(src_path):
-
-			found_count = 0
 
 			for name in os.listdir(src_path):
 				each_src_path = fix_slashes(src_path + '/' + name)
@@ -633,18 +678,16 @@ def run_batch_extract(argv):
 				)
 
 				if arg_recurse and os.path.isdir(each_src_path):
-					found_count += extract_from_folder(each_src_path)
+					extract_from_folder(each_src_path)
 				else:
-					found_count += extract_from_file(
+					extract_from_file(
 						each_src_path
 					,	each_dest_path
 					)
 
-			return found_count
-
-		found_count_total += extract_from_folder(src_path)
+		extract_from_folder(src_path)
 	else:
-		found_count_total += extract_from_file(
+		extract_from_file(
 			src_path
 		,	(
 				dest_path[ : -len(get_file_ext_from_path(dest_path)) - 1]
@@ -655,15 +698,16 @@ def run_batch_extract(argv):
 			else dest_path
 		)
 
-	if found_count_total > 0:
+	if file_counts['found'] > 0:
 		print('')
+		print_with_colored_prefix('Files found:', file_counts['found'], 'cyan')
 
 		if arg_readonly_test:
-			print_with_colored_prefix('Files to save:', found_count_total, 'cyan')
 			print('')
 			print(u'\n'.join(found_files_to_save))
-		else:
-			print_with_colored_prefix('Files saved:', found_count_total, 'green')
+
+		elif file_counts['saved'] > 0:
+			print_with_colored_prefix('Files saved:', file_counts['saved'], 'green')
 	else:
 		print('')
 		cprint('Known files not found.', 'cyan')
