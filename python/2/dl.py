@@ -4,6 +4,18 @@
 from email.utils import parsedate
 import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
 
+# TODO: fix this script for python 3, then remove this crutch:
+# https://stackoverflow.com/a/4383597
+sys.path.insert(1, 'd:/programs/!_dev/Python/scripts/2-3')
+
+# Use automatic trim of extraneous digits at the end of files for deduplication, if available:
+try:
+	from bin2cut import get_extracted_files, run_batch_extract
+
+except ImportError:
+	def get_extracted_files(*list_args, **keyword_args): return
+	def run_batch_extract  (*list_args, **keyword_args): return
+
 # Use colored text if available:
 try:
 	from termcolor import colored, cprint
@@ -34,6 +46,9 @@ if sys.version_info[0] >= 3:
 from dl_config import *
 
 print_enc = default_encoding
+tab_separator = '\t'
+line_separator = '\n'
+empty_line_separator = line_separator * 2
 
 TEST = 0
 
@@ -53,52 +68,65 @@ else:
 if help:
 	self_name = os.path.basename(__file__)
 
-	print ''
-	print '* Description:'
-	print '	Read text files from disk, get list of links,'
-	print '	try to download the links and save results to disk.'
-	print ''
-	print '	It is possible to run in cycle, e.g. on log files,'
-	print '	without rereading same places in text files and'
-	print '	without redownloading same links again (with exceptions).'
-	print ''
-	print '* Usage:'
-	print '	%s [-<flags-letters>]' % self_name
-	print '		[e<cp|' + default_encoding + '>]'
-	print '		[w<num|1>] [i<num|60>] [t<num|99>] [r<num|999>]'
-	print '		[m<dir|..>] [g<dir|.>[|<dir>|...]] [d<dir|..>[|<dir>|...]]'
-	print '		[<help>]'
-	print ''
-	print 'w: Wait between downloads, in seconds. Omit = 0'
-	print 'i: Interval between txt batch checks, in seconds. Check once if zero. Omit = 0'
-	print 't: Timeout for sending request, in seconds. Omit = 60'
-#	print 'TODO ->	l: Timeout for long downloads, in seconds. Omit = 0'
-	print 'r: Recursively read up to N log folders under roots without trailing slash. Omit = 0'
-	print 'e: Log content encoding. Omit =', read_encoding
-	print 'm: Path to store meta logs. Omit =', meta_root
-	print ''
-	print 'g: Paths to get files (where to read links to DL). Omit =', read_root
-	print ''
-	print 'd: Paths to put files (DL\'d from links), + subfolder per log. Omit =', dest_root
-	print ''
-	print '-<flag-letters>: string of letters in any order after a dash.'
-	print '	m: http modtime header -> add timestamp to filename (default = current time)'
-	print '	u: add time in format:', format_epoch, '(default = all u+y+h)'
-	print '	y: add time in format:', format_ymd
-	print '	h: add time in format:', format_hms
-	print '	c: stamp separator = comma "," (default = underscore "_")'
-	print '	p: prepend time before filename (default)'
-	print '	s: append time before ext'
-	print '	a: append time after ext'
-	print '	d: grab Discord emoji by ID'
-	print ''
-	print '<help>: show this text.'
-	print '	Also </|-><|h|help>, e.g. ?, /?, -?, --?, -h, --help, etc.'
-	print '	Add anything else except help to run with all defaults.'
-	print ''
-	print '* Examples:'
-	print '	%s -mu i600 dt3600 r g d e' % self_name
-	print '	%s w10 gD:/_logs|E:/_grab dD:/_dl|E:/_dl' % self_name
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	Read text files from disk, get list of links,'
+	,	'	try to download the links and save results to disk.'
+	,	''
+	,	'	It is possible to run in cycle, e.g. on log files,'
+	,	'	without rereading same places in text files and'
+	,	'	without redownloading same links again (with exceptions).'
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0} '
+		+	colored('\n\t\t'.join([
+				'[-<flags-letters>]'
+			,	'[e<cp|' + default_encoding + '>]'
+			,	'[w<num|1>]'
+			,	'[i<num|60>]'
+			,	'[t<num|99>]'
+			,	'[r<num|999>]'
+			,	'[m<dir|..>]'
+			,	'[g<dir|.>|<dir>|...]'
+			,	'[d<dir|..>|<dir>|...]'
+			,	colored('[<help>]', 'magenta')
+			]), 'cyan')
+	,	''
+	,	colored('* Arguments:', 'yellow')
+	,	'w: Wait between downloads, in seconds. Omit = 0'
+	,	'i: Interval between txt batch checks, in seconds. Check once if zero. Omit = 0'
+	,	't: Timeout for sending request, in seconds. Omit = 60'
+#	,	'TODO ->	l: Timeout for long downloads, in seconds. Omit = 0'
+	,	'r: Recursively read up to N log folders under roots without trailing slash. Omit = 0'
+	,	'e: Log content encoding. Omit = "{}"'.format(colored(read_encoding, 'magenta'))
+	,	'm: Path to store meta logs. Omit = "{}"'.format(colored(meta_root, 'magenta'))
+	,	''
+	,	'g: Paths to get files (where to read links to DL). Omit = "{}"'.format(colored(read_root, 'magenta'))
+	,	''
+	,	'd: Paths to put files (DL\'d from links), + subfolder per log. Omit = "{}"'.format(colored(dest_root, 'magenta'))
+	,	''
+	,	colored('-<flag-letters>', 'cyan') + ': string of letters in any order after a dash.'
+	,	'	m: http modtime header -> add timestamp to filename (default = current time)'
+	,	'	u: add time in format: ' + format_epoch + ' (default = all u+y+h)'
+	,	'	y: add time in format: ' + format_ymd
+	,	'	h: add time in format: ' + format_hms
+	,	'	c: stamp separator = comma "," (default = underscore "_")'
+	,	'	p: prepend time before filename (default)'
+	,	'	s: append time before ext'
+	,	'	a: append time after ext'
+	,	'	d: grab Discord emoji by ID'
+	,	''
+	,	colored('<help>', 'cyan') + ': show this text.'
+	,	'	Any format matching </|-><|h|help>, e.g. ?, /?, -?, --?, -h, --help, etc.'
+	,	'	Add anything else except help to run with all defaults.'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} -mu i600 dt3600 r g d e'
+	,	'	{0} w10 "gD:/_logs|E:/_grab" "dD:/_dl|E:/_dl"'
+	]
+
+	print('\n'.join(help_text_lines).format(self_name))
 
 	sys.exit(0)
 
@@ -339,7 +367,7 @@ pat2replace_before_dl = [	# <- strings after this are sent to web servers
 # ,	[re.compile(r'^https(:/+([^:/?#]+\.)?(googleusercontent|h(abra)?stor(age)?|vk|youtu(be)?|danbooru)\.)', re.I), r'http\1']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?.*$', re.I), r'\1?dl=1']
 ,	[re.compile(r'img\.5cm\.ru/view/i5', re.I), 'i5.5cm.ru/i']
-,	[re.compile(r'//(www\.)?2-?ch\.(cm|ec|hk|pm|re|ru|so|tf|wf|yt)/', re.I), r'//2ch.pm/']
+,	[re.compile(r'//(www\.)?2-?ch\.(cm|ec|hk|pm|re|ru|so|tf|wf|yt)/', re.I), r'//2ch.life/']
 ,	[re.compile(r'//(www\.)?dobrochan\.(ru|org|com)/', re.I), r'//dobrochan.com/']
 # ,	[re.compile(r'(vocaroo\.com)/i/s', re.I), r'\1/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
 ,	[re.compile(r'^(\w+:/+(?:[^:/?#]+\.)?(vocaroo\.com|voca\.ro)/+)([^/?&#]+)$', re.I), r'https://media.vocaroo.com/mp3/\3']
@@ -845,6 +873,7 @@ false_ctx.verify_mode = ssl.CERT_NONE
 
 # functionality ---------------------------------------------------------------
 
+def is_type_int(v): return isinstance(v, int)
 def is_type_arr(v): return isinstance(v, a_type)
 def is_type_reg(v): return isinstance(v, r_type)
 def is_type_str(v): return isinstance(v, s_type) or isinstance(v, u_type)
@@ -931,7 +960,7 @@ def try_print(*list_args, **keyword_args):
 
 # encode/decode are bad kludges:
 
-	# separator = '\n'
+	# separator = line_separator
 	separator = ' '
 
 	if lines:
@@ -1114,15 +1143,15 @@ def write_exception_traceback(text=''):
 		return
 
 	f = open(log_traceback, 'a+b')
-	t = '\n' + log_stamp()
+	t = line_separator + log_stamp()
 
 	try:
 		if text:
-			text += '\n'
+			text += line_separator
 		f.write(t + text)
 
 	except Exception:
-		f.write(t + '<Unwritable pretext>\n')
+		f.write(t + '<Unwritable pretext>' + line_separator)
 
 	try:
 		traceback.print_exc(None, f)
@@ -1320,7 +1349,7 @@ def read_path(path, dest_root, lvl=0):
 		for line in old_meta:
 			if line[2] == f:
 				start = int(line[1])
-				meta = '	'.join(line)
+				meta = tab_separator.join(line)
 				break
 
 		sz = os.path.getsize(f)
@@ -1411,10 +1440,10 @@ def read_path(path, dest_root, lvl=0):
 
 						if TEST and u > 1:
 							break
-		new_meta += meta + '\n'
+		new_meta += meta + line_separator
 
 	if lvl < 1:
-		print
+		print('')
 
 	return urls
 
@@ -1461,7 +1490,7 @@ def redl(url, regex, msg=''):
 	content = response.read()
 	headers = response.info()
 
-	print
+	print('')
 	try_print(colored('Response headers:', 'yellow'), headers)
 
 	r = re.search(regex, content)
@@ -1469,6 +1498,70 @@ def redl(url, regex, msg=''):
 		return r.group(1)
 	else:
 		raise URLError(content)
+
+def get_reason_why_file_not_to_save(
+	content=None
+,	etag=None
+,	file_url=None
+,	filename=None
+,	filesize=None
+):
+	if (
+		content is None
+	and	etag is None
+	and	file_url is None
+	and	filename is None
+	and	filesize is None
+	):
+		return
+
+	if filesize is not None and filesize <= 0:
+		return 'filesize = ' + str(filesize)
+
+	for rule_set in file_not_to_save:
+		try:
+			if filesize is not None:
+				t = rule_set.get('content_size')
+				if t and t != filesize:
+					continue
+
+			if etag is not None:
+				t = rule_set.get('header_etag')
+				if t and t != etag:
+					continue
+
+			if file_url is not None:
+				t = rule_set.get('url_part')
+				if t and file_url.find(t) < 0:
+					continue
+
+			if filename is not None:
+				t = rule_set.get('name_part')
+				if t and filename.find(t) < 0:
+					continue
+
+			if content is not None:
+
+				# Note: To generate the same numeric value across all Python versions and platforms, use crc32(data) & 0xffffffff.
+				# https://docs.python.org/3/library/zlib.html#zlib.crc32
+
+				t = rule_set.get('content_crc32')
+				if t and t != (zlib.crc32(content) & 0xffffffff):
+					continue
+
+				t = rule_set.get('content_md5')
+				if t and t != hashlib.md5(content).hexdigest():
+					continue
+
+				t = rule_set.get('content_sha1')
+				if t and t != hashlib.sha1(content).hexdigest():
+					continue
+
+			return get_obj_pretty_print(rule_set)
+
+		except Exception as e:
+			write_exception_traceback()
+
 
 def is_url_blocked(url=None, content=None):
 	if url:
@@ -1504,7 +1597,7 @@ def pass_url(app, url):
 		write_exception_traceback()
 
 		cprint('Unexpected error. See logs.\n', 'red')
-		write_file(log_no_response, [log_stamp(), e, '\n\n'])
+		write_file(log_no_response, [log_stamp(), e, empty_line_separator])
 
 	return 1
 
@@ -1527,7 +1620,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		hostname = hostname.group('Domain')
 		for s in url_to_skip:
 			if meet(hostname if is_type_str(s) and s.find('/') < 0 else url, s):
-				write_file(log_skipped, [log_stamp(), utf, '\n'])
+				write_file(log_skipped, [log_stamp(), utf, line_separator])
 				hostname = 0
 				break
 	if not hostname:
@@ -1546,7 +1639,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		if not recheck:
 			return 0
 	else:
-		write_file(log_all_urls, [log_stamp(), dest_root, '	', url, '\n'])
+		write_file(log_all_urls, [log_stamp(), dest_root, tab_separator, url, line_separator])
 		urls_done.append(url)				# <- add to skip list
 
 	finished = 1
@@ -1554,7 +1647,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 	for p in pat2replace_before_dl:
 		if len(p) > 1:
 			udl = re.sub(p[0], p[1], udl)		# <- fix urls to DL
-	udn = [utf, '\n']+([udl, '\n'] if udl != url else [])
+	udn = [utf, line_separator]+([udl, line_separator] if udl != url else [])
 
 	try:
 		try_print(colored('Downloading', 'yellow'), udl)
@@ -1565,7 +1658,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			req = response.geturl()
 			headers = response.info()
 
-			print
+			print('')
 			try_print(colored('Response headers:', 'yellow'), headers)
 
 			if req == udl:
@@ -1579,7 +1672,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		write_file(log_no_file, [log_stamp(), '%d	' % e.code]+udn)
 
 		if e.code > 300 and e.code < 400:
-			write_file(log_no_file, [e, '\n\n'])
+			write_file(log_no_file, [e, empty_line_separator])
 
 		udl_trim = re.sub(pat_trim, '', udl)
 
@@ -1595,7 +1688,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		write_exception_traceback()
 
 		cprint('Unexpected error. See logs.\n', 'red')
-		write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
+		write_file(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
 
 		if udl.find('http://') != 0:
 			cprint('Retrying with plain http:\n', 'yellow')
@@ -1614,7 +1707,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			write_exception_traceback()
 
 			cprint('Unexpected error. See logs.\n', 'red')
-			write_file(log_no_response, [log_stamp()]+udn+[e, '\n\n'])
+			write_file(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
 		else:
 			# uncompress file content:
 
@@ -1628,7 +1721,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 				except IOError as e:
 					write_exception_traceback()
 
-					write_file(log_no_file, [log_stamp()]+udn+[e, '\n\n'])
+					write_file(log_no_file, [log_stamp()]+udn+[e, empty_line_separator])
 
 				headers['Content-Length-Decoded'] = str(len(content))
 
@@ -1655,12 +1748,19 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 			write_file(
 				log_completed
-			,	('%s%s\n\nResponse code: %s\nResponse headers:\n%s\n' % (
-					log_stamp()
-				,	'\n'.join(urls_to_log)
-				,	response.code
-				,	headers
-				))
+			,	line_separator.join([
+					'{time}{urls}'
+				,	''
+				,	'Response code: {code}'
+				,	'Response headers:'
+				,	'{headers}'
+				,	''
+				]).format(
+					time=log_stamp()
+				,	urls=line_separator.join(urls_to_log)
+				,	code=response.code
+				,	headers=headers
+				)
 			)
 
 			dest = url.rstrip('/')
@@ -1784,61 +1884,73 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# got destination path and content.
 			# check if result is needed to save:
 
-			filename = f.split('/', 1)[-1:][0]
+			filename = f.rsplit('/', 1)[-1 : ][0]
 			filesize = len(content)
 			file_url = urldest or udl
 			etag = get_by_caseless_key(headers, 'ETag')
+			saved = extracted_file = extracted_files = None
 
-			if filesize <= 0:
-				why_not_save = 'filesize = ' + str(filesize)
-			else:
-				why_not_save = None
+			why_not_save = get_reason_why_file_not_to_save(
+				content=content
+			,	etag=etag
+			,	file_url=file_url
+			,	filename=filename
+			,	filesize=filesize
+			)
 
-				for rule_set in file_not_to_save:
-					try:
-						t = rule_set.get('content_size')
-						if t and t != filesize:
-							continue
+			if not why_not_save:
 
-						t = rule_set.get('header_etag')
-						if t and t != etag:
-							continue
+				extracted_files = get_extracted_files([
+					content
+				,	filename
+				# ,	'--in-folder'
+				,	'--truncate'
+				,	'--picture'
+				])
 
-						t = rule_set.get('url_part')
-						if t and file_url.find(t) < 0:
-							continue
+				if (
+					extracted_files
+				# and	is_type_arr(extracted_files)
+				and	not is_type_int(extracted_files)
+				and	len(extracted_files) > 0
+				):
+					extracted_file = extracted_files[0]
 
-						t = rule_set.get('name_part')
-						if t and filename.find(t) < 0:
-							continue
+					if extracted_file and (
+						filename != extracted_file['name']
+					or	filesize != extracted_file['size']
+					):
+						old_filename_length = len(filename)
+						content = extracted_file['content']
+						filename = extracted_file['name']
+						filesize = extracted_file['size']
 
-						# Note: To generate the same numeric value across all Python versions and platforms, use crc32(data) & 0xffffffff.
-						# https://docs.python.org/3/library/zlib.html#zlib.crc32
+						why_not_save = get_reason_why_file_not_to_save(
+							content=content
+						,	filename=filename
+						,	filesize=filesize
+						)
 
-						t = rule_set.get('content_crc32')
-						if t and t != (zlib.crc32(content) & 0xffffffff):
-							continue
+						if not why_not_save:
+							f = (
+								(
+									f[ : -old_filename_length]
+									# .rstrip('/.')
+									+ '/'
+									+ filename
+								) if len(f) > old_filename_length
+								else filename
+							)
 
-						t = rule_set.get('content_md5')
-						if t and t != hashlib.md5(content).hexdigest():
-							continue
-
-						t = rule_set.get('content_sha1')
-						if t and t != hashlib.sha1(content).hexdigest():
-							continue
-
-						why_not_save = get_obj_pretty_print(rule_set)
-						break
-
-					except Exception as e:
-						write_exception_traceback()
+					else:
+						extracted_file = False
 
 			# save this file:
 
 			if why_not_save:
 				try_print(colored('Not saved, reason:', 'red'), why_not_save)
 
-				write_file(log_not_saved, [log_stamp()]+udn+[why_not_save, '\n\n'])
+				write_file(log_not_saved, [log_stamp()]+udn+[why_not_save, empty_line_separator])
 			else:
 				try:
 					saved = save_uniq_copy(f, content)
@@ -1852,9 +1964,10 @@ def process_url(dest_root, url, utf='', prfx=''):
 							cprint('Tried to <Unprintable>', 'red')
 
 						write_file(log_not_saved, [log_stamp()]+udn+[
-							'Tried path: ', f, '\n'
-						,	'Saved path: ', saved, '\n\n'
+							'Tried path: ', f, line_separator
+						,	'Saved path: ', saved, empty_line_separator
 						])
+
 
 				except Exception as e:
 					write_exception_traceback()
@@ -1866,11 +1979,23 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 					try_print(colored('failed with error:', 'red'), e)
 
-					write_file(log_not_saved, [log_stamp()]+udn+[e, '\n\n'])
+					write_file(log_not_saved, [log_stamp()]+udn+[e, empty_line_separator])
 
-			print
+			print('')
 			try_print(colored('Response code:', 'yellow'), response.code)
 			try_print(colored('Response headers:', 'yellow'), headers)
+
+			if saved and extracted_file is None:
+
+				run_batch_extract([
+					saved
+				# ,	'-defmp'
+				,	'--in-folder'
+				,	'--truncate'
+				,	'--picture'
+				,	'--keep-time'
+				,	'--remove-old'
+				])
 
 			# check new links found on the way:
 
@@ -1971,9 +2096,9 @@ def process_url(dest_root, url, utf='', prfx=''):
 urls_done = []
 urls_passed = []
 
-# for line in read_file(log_all_urls).split('\n'):
-#	if '	' in line:
-#		url = line.rsplit('	', 1)[1]
+# for line in read_file(log_all_urls).split(line_separator):
+#	if tab_separator in line:
+#		url = line.rsplit(tab_separator, 1)[1]
 #		if not url in urls_done:
 #			urls_done.append(url)
 
@@ -1982,14 +2107,16 @@ urls_done = list(set(
 		None
 	,	map(
 			lambda line: (
-				line.rsplit('	', 1)[1]
-				if '	' in line
+				line.rsplit(tab_separator, 1)[1]
+				if tab_separator in line
 				else None
 			)
-		,	read_file(log_all_urls).split('\n')
+		,	read_file(log_all_urls).split(line_separator)
 		)
 	)
 ))
+
+new_meta = old_meta = ''
 
 i = 0
 while 1:
@@ -1998,9 +2125,17 @@ while 1:
 
 	new_meta = ''
 	old_meta = []
-	for line in read_file(log_last_pos).decode(default_encoding).split('\n'):
-		if '	' in line:
-			old_meta.append(line.split('	'))
+
+	for line in read_file(log_last_pos).decode(default_encoding).split(line_separator):
+		if tab_separator in line:
+			old_meta.append(line.split(tab_separator))
+
+	if TEST:
+		cprint(default_encoding, 'magenta')
+		cprint(log_last_pos, 'cyan')
+		print(old_meta)
+
+		break
 
 	changes = count_urls_done = count_urls_to_do = 0
 	urls_done_this_time = []
@@ -2040,4 +2175,5 @@ while 1:
 			write_exception_traceback()
 	else:
 		cprint('Done.', 'green')
+
 		break

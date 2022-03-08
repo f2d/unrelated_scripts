@@ -4,6 +4,12 @@
 
 import os, re, sys, time
 
+try:
+	from collections.abc import Iterable
+
+except:
+	from collections import Iterable
+
 # Use colored text if available:
 try:
 	from termcolor import colored, cprint
@@ -178,7 +184,18 @@ timestamp_format = r'%Y-%m-%d %H:%M:%S'
 tz_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} %z %Z'
 gm_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} GMT'
 
+a_type = type([])
+s_type = type('')
+u_type = type(u'')
+b_type = type(b'')
+
 # - Declare functions ---------------------------------------------------------
+
+def is_iterable(v): return isinstance(v, Iterable)
+def is_type_int(v): return isinstance(v, int)
+def is_type_arr(v): return isinstance(v, a_type)
+def is_type_bin(v): return isinstance(v, b_type)
+def is_type_str(v): return isinstance(v, s_type) or isinstance(v, u_type)
 
 def get_timestamp_text(time_value):
 	return time.strftime(timestamp_format, time.localtime(time_value))
@@ -206,18 +223,31 @@ def get_trimmed_fraction_text(time_value, max_digits=6):
 
 	return '' if text == '.' else text [ : max_digits + 1]
 
-def get_bytes_length_text(content):
-	return '{} bytes'.format(len(content))
+def get_bytes_length_text(value):
+	return '{} bytes'.format(value if is_type_int(value) else len(value))
 
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
 
+def get_file_name_from_path(path):
+	return (
+		path
+		.rsplit('/', 1)[-1 : ][0]
+	)
+
 def get_file_ext_from_path(path):
-	return  (
+	return (
 		path
 		.rsplit('/', 1)[-1 : ][0]
 		.rsplit('.', 1)[-1 : ][0]
 		.lower()
+	)
+
+def get_file_path_without_ext(path):
+	return (
+		path[ : -len(get_file_ext_from_path(path)) - 1]
+		# .rstrip('.')
+		or path
 	)
 
 def print_with_colored_prefix_line(comment, value, color=None):
@@ -232,8 +262,8 @@ def print_help():
 	self_name = os.path.basename(__file__)
 	max_file_type_length = 0
 
-	for type in file_exts_by_type.keys():
-		type_length = len(type)
+	for media_type in file_exts_by_type.keys():
+		type_length = len(media_type)
 
 		if max_file_type_length < type_length:
 			max_file_type_length = type_length
@@ -257,9 +287,12 @@ def print_help():
 	,	''
 	,	colored(' -t --test', 'magenta') + '     : do not save or change any files.'
 	,	colored(' -q --quiet', 'magenta') + '    : print only changes and final summary.'
+	,	colored(' -s --silent', 'magenta') + '   : print nothing, usable for calling from another script.'
 	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
 	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
-	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content (added to bypass duplicate file checks), and add them to saved file name.'
+	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content'
+		+	' (added to bypass duplicate file checks),'
+		+	' and add them to saved file name.'
 	,	colored(' -l --long-time', 'magenta') + '  : print long detailed timestamps with fractional seconds and timezone.'
 	,	colored(' -m --keep-time', 'magenta') + '  : set modification time of saved file to be same as original file.'
 	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
@@ -267,14 +300,19 @@ def print_help():
 	,	colored(' -f --in-folder', 'magenta') + '  : save extracted files to original folder. '
 		+	colored('<dest>', 'cyan')
 		+	' argument is not needed.'
+	,	colored(' -c --content-in-arg', 'magenta') + ' : read content directly from '
+		+	colored('<source>', 'cyan')
+		+	' argument, not as path, and return a list of dictionaries, each with new file name and extracted content.'
+	,	'	This is usable for calling from another script.'
+	,	'	Otherwise, read files from path on disk, return success status (zero).'
 	]+[
 		(
 			colored(
-				' -' + type[0 : 1]
-			+	' --' + type + (' ' * (max_file_type_length - len(type)))
+				' -' + media_type[0 : 1]
+			+	' --' + media_type + (' ' * (max_file_type_length - len(media_type)))
 			,	'magenta'
 			)
-			+	' : process only ' + type + ' files ('
+			+	' : process only ' + media_type + ' files ('
 			+	get_sorted_text_from_items(
 					(
 						colored(ext, 'yellow')
@@ -290,7 +328,7 @@ def print_help():
 					) for ext in exts
 				)
 			+	').'
-		) for type, exts in file_exts_by_type.items()
+		) for media_type, exts in file_exts_by_type.items()
 	]+[
 		colored(' .<ext>', 'magenta') + (' ' * (max_file_type_length - 1))
 		+	' : process only files of given extensions, including all aliases.'
@@ -300,6 +338,7 @@ def print_help():
 	,	'Ending slashes in paths are optional.'
 	,	'Dash or slash signs in other args are optional.'
 	,	'Single-letter optional arguments can be concatenated, starting from single dash or slash.'
+	,	'If file type restrictions are not given, all known types will be processed.'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
@@ -314,9 +353,12 @@ def print_help():
 def fix_slashes(path):
 	return re.sub(pat_conseq_slashes, '/', u'' + path)
 
+def get_extracted_files(argv):
+	return run_batch_extract(argv, '--content-in-arg') if len(argv) > 1 else []
+
 # - Main job function ---------------------------------------------------------
 
-def run_batch_extract(argv):
+def run_batch_extract(argv, *list_args, **keyword_args):
 
 	def get_file_content(src_file_path):
 
@@ -342,10 +384,16 @@ def run_batch_extract(argv):
 
 		return content
 
-	def extract_from_file(src_path, dest_path):
+	def extract_from_file(source, dest_path):
 
-		src_file_path = fix_slashes(src_path)
-		src_file_ext = file_type = get_file_ext_from_path(src_file_path)
+		if arg_content:
+			content = source
+			src_file_path = fix_slashes(dest_path)
+		else:
+			content = None
+			src_file_path = fix_slashes(source)
+
+		src_file_ext = file_type = get_file_ext_from_path(dest_path)
 
 		for ext, aliases in file_ext_aliases_by_ext.items():
 			if file_type in aliases:
@@ -357,7 +405,6 @@ def run_batch_extract(argv):
 			return 0
 
 		found_count_in_src_file = dest_file_size = 0
-		content = None
 
 		for ext, pat in pat_file_content.items():
 
@@ -399,7 +446,7 @@ def run_batch_extract(argv):
 						.format(
 							prefix=dest_path
 						,	suffix=int(found_extra_data)
-						,	ext=src_file_ext
+						,	ext=(src_file_ext or file_type or ext)
 						)
 						if arg_truncate and found_extra_data
 						else
@@ -412,20 +459,33 @@ def run_batch_extract(argv):
 					)
 				)
 
-				dest_file_exists = os.path.exists(dest_file_path)
-				found_files_to_save.append(dest_file_path)
+				dest_file_exists = not arg_content and os.path.exists(dest_file_path)
+				found_file_size = len(found_content_part)
 
-				if not arg_quiet or not arg_readonly_test:
-					print_with_colored_prefix_line('Save file:', dest_file_path)
-					print_with_colored_prefix('Size:', get_bytes_length_text(found_content_part))
+				found_files_to_save.append(
+					{
+						"name" : get_file_name_from_path(dest_file_path)
+					,	"path" : dest_file_path
+					,	"size" : found_file_size
+					,	"content" : found_content_part
+					}
+					if arg_content
+					else
+					dest_file_path
+				)
+
+				if not arg_quiet or (not arg_silent and not arg_readonly_test):
+					print_with_colored_prefix_line('Result file:' if arg_content else 'Save file:', dest_file_path)
+					print_with_colored_prefix('Size:', get_bytes_length_text(found_file_size))
 
 				if not arg_quiet and dest_file_exists:
 					cprint('Warning: file already exists at destination path.', 'yellow')
 
 				if (
 					not arg_readonly_test
+				and	not arg_content
 				and	found_content_part
-				and	len(found_content_part) > 0
+				and	found_file_size > 0
 				):
 					dest_dir = dest_file_path.rsplit('/', 1)[0]
 
@@ -440,7 +500,8 @@ def run_batch_extract(argv):
 							pass
 
 					if not os.path.isdir(dest_dir):
-						print_with_colored_prefix_line('Cannot create folder:', dest_dir, 'red')
+						if not arg_silent:
+							print_with_colored_prefix_line('Cannot create folder:', dest_dir, 'red')
 					else:
 						file_counts['saved'] += 1
 
@@ -453,48 +514,53 @@ def run_batch_extract(argv):
 						if arg_keep_time:
 							os.utime(dest_file_path, (src_file_time, src_file_time))
 
-						print_with_colored_prefix(
-							'Saved file # {index}{existed}:'
-							.format(
-								existed=(
-									', overwritten'
-									if dest_file_exists
-									else ''
-								)
-							,	index=(
-									', '.join([
-										'{total} total'
-									,	'{in_src} in src'
-									,	'{of_type} of type {type}'
-									]).format(
-										total=file_counts['saved']
-									,	in_src=found_count_in_src_file
-									,	of_type=found_count_of_one_type
-									,	type=file_type
+						if not arg_silent:
+							print_with_colored_prefix(
+								'Saved file # {index}{existed}:'
+								.format(
+									existed=(
+										', overwritten'
+										if dest_file_exists
+										else ''
 									)
-									if not arg_truncate and arg_verbose
-									else file_counts['saved']
+								,	index=(
+										', '.join([
+											'{total} total'
+										,	'{in_src} in source'
+										,	'{of_type} of type {file_type}'
+										]).format(
+											total=file_counts['saved']
+										,	in_src=found_count_in_src_file
+										,	of_type=found_count_of_one_type
+										,	file_type=file_type
+										)
+										if not arg_truncate and arg_verbose
+										else file_counts['saved']
+									)
 								)
-							)
-						,	'{bytes} bytes{modtime}'
-							.format(
-								bytes=dest_file_size
-							,	modtime=(
-									', time set to ' + get_mod_time_text(src_file_time)
-									if arg_keep_time
-									else ''
+							,	'{bytes} bytes{modtime}'
+								.format(
+									bytes=dest_file_size
+								,	modtime=(
+										', time set to ' + get_mod_time_text(src_file_time)
+										if arg_keep_time
+										else ''
+									)
 								)
+							,	'green'
 							)
-						,	'green'
-						)
 
-			if not arg_truncate and found_count_of_one_type > 0:
+			if (
+				not arg_silent
+			and	not arg_truncate
+			and	found_count_of_one_type > 0
+			):
 				print('')
 				print_with_colored_prefix(
-					'Found', u'{count} {type} files.'
+					'Found', u'{count} {file_type} files.'
 					.format(
 						count=found_count_of_one_type
-					,	type=ext
+					,	file_type=ext
 					)
 				,	'cyan'
 				)
@@ -506,16 +572,19 @@ def run_batch_extract(argv):
 			found_count_in_src_file > 0
 		and	arg_truncate
 		and	arg_remove_old
+		and	not arg_content
 		and	not arg_in_place
 		and	os.path.isfile(src_file_path)
 		):
 			if arg_readonly_test or dest_file_size > 0:
-				print_with_colored_prefix_line('Delete file:', src_file_path)
+				if not arg_silent:
+					print_with_colored_prefix_line('Delete file:', src_file_path)
 
 				if not arg_readonly_test:
 					os.remove(src_file_path)
 
-					cprint('Deleted.', 'red')
+					if not arg_silent:
+						cprint('Deleted.', 'red')
 			elif not arg_quiet:
 				cprint('Skip deleting file, because nothing was saved.')
 
@@ -525,9 +594,28 @@ def run_batch_extract(argv):
 
 		return found_count_in_src_file
 
-# - Show help and exit --------------------------------------------------------
+# - Collect arguments into one flat list --------------------------------------
+
+	if not is_type_arr(argv):
+		if (
+			not is_iterable(argv)
+		or	is_type_bin(argv)
+		or	is_type_str(argv)
+		):
+			argv = [argv]
+		else:
+			argv = list(argv)
+
+	if list_args and len(list_args) > 0:
+		argv += list(list_args)
+
+	if keyword_args:
+		for k, v in keyword_args.items():
+			argv.append(v)
 
 	argc = len(argv)
+
+# - Show help and exit --------------------------------------------------------
 
 	if argc < 2:
 		print_help()
@@ -538,8 +626,10 @@ def run_batch_extract(argv):
 
 	process_only_exts = []
 
-	def get_path_arg_from(index):
-		return fix_slashes(argv[index] if argc > index else '') or '.'
+	def get_path_arg_from(index, fix_path=True):
+		arg = argv[index] if argc > index else ''
+
+		return (fix_slashes(arg) or '.') if fix_path else arg
 
 	def get_optional_args_starting_from(start_index):
 
@@ -571,16 +661,21 @@ def run_batch_extract(argv):
 	if not arg_in_folder:
 		optional_args = get_optional_args_starting_from(2)
 
-	arg_in_place   = ('inplace'   in optional_args or 'i' in optional_args)
-	arg_keep_time  = ('keeptime'  in optional_args or 'm' in optional_args)
-	arg_long_time  = ('longtime'  in optional_args or 'l' in optional_args)
-	arg_quiet      = ('quiet'     in optional_args or 'q' in optional_args)
-	arg_recurse    = ('recurse'   in optional_args or 'r' in optional_args)
-	arg_remove_old = ('removeold' in optional_args or 'd' in optional_args)
-	arg_truncate   = ('truncate'  in optional_args or 'e' in optional_args)
-	arg_verbose    = ('verbose'   in optional_args or 'b' in optional_args)
+	arg_content    = ('contentinarg' in optional_args or 'c' in optional_args)
+	arg_in_place   = ('inplace'      in optional_args or 'i' in optional_args)
+	arg_keep_time  = ('keeptime'     in optional_args or 'm' in optional_args)
+	arg_long_time  = ('longtime'     in optional_args or 'l' in optional_args)
+	arg_quiet      = ('quiet'        in optional_args or 'q' in optional_args)
+	arg_recurse    = ('recurse'      in optional_args or 'r' in optional_args)
+	arg_remove_old = ('removeold'    in optional_args or 'd' in optional_args)
+	arg_silent     = ('silent'       in optional_args or 's' in optional_args)
+	arg_truncate   = ('truncate'     in optional_args or 'e' in optional_args)
+	arg_verbose    = ('verbose'      in optional_args or 'b' in optional_args)
 
-	src_path  = get_path_arg_from(0)
+	arg_quiet = arg_quiet or arg_silent
+	arg_verbose = arg_verbose and not arg_quiet
+
+	src_path  = get_path_arg_from(0) if not arg_content else None
 	dest_path = get_path_arg_from(1)
 
 	arg_readonly_test = (
@@ -595,23 +690,33 @@ def run_batch_extract(argv):
 		else get_timestamp_text
 	)
 
-	if arg_in_folder:
+	if arg_content:
+		src_content = get_path_arg_from(0, fix_path=False)
+
+	elif arg_in_folder:
 		dest_path = src_path
 
 	if not arg_quiet:
-		print_with_colored_prefix('Read only:', arg_readonly_test)
-		print_with_colored_prefix('Read path:', src_path)
-		print_with_colored_prefix('Save path:', '<same as source file>' if arg_in_folder else dest_path)
+		print_with_colored_prefix('Read only:', arg_readonly_test or arg_content)
+		print_with_colored_prefix('Read path:',
+			'<content in argument>' if arg_content else
+			src_path
+		)
+		print_with_colored_prefix('Save path:',
+			# '<return value>' if arg_content else
+			'<same as source file>' if arg_in_folder else
+			dest_path
+		)
 		print_with_colored_prefix('Optional args:', optional_args)
 
 	for arg in optional_args:
 		if arg[0 : 1] == '.':
 			process_only_exts.append(arg.strip('.'))
 
-	for type, exts in file_exts_by_type.items():
+	for media_type, exts in file_exts_by_type.items():
 		if (
-			type in optional_args
-		or	type[0 : 1] in optional_args
+			media_type in optional_args
+		or	media_type[0 : 1] in optional_args
 		):
 			process_only_exts += exts
 
@@ -624,6 +729,10 @@ def run_batch_extract(argv):
 		process_only_exts = None
 
 	for ext, pat_part_real_file_content in pat_part_by_ext.items():
+
+		if process_only_exts and not ext in process_only_exts:
+			continue
+
 		pattern = pat_part_real_file_content
 
 		if arg_truncate:
@@ -646,7 +755,7 @@ def run_batch_extract(argv):
 
 		pat_file_content[ext] = regex = re.compile(pattern, re.X | re.DOTALL)
 
-		if not arg_quiet and arg_verbose:
+		if arg_verbose:
 			print('')
 			print_with_colored_prefix('File type:', ext)
 			print_with_colored_prefix('Pattern:', pattern.decode(print_encoding))	# <- decode bytes to string
@@ -660,7 +769,7 @@ def run_batch_extract(argv):
 	,	'saved' : 0
 	}
 
-	if os.path.isdir(src_path):
+	if not arg_content and os.path.isdir(src_path):
 
 		def extract_from_folder(src_path):
 
@@ -688,31 +797,30 @@ def run_batch_extract(argv):
 		extract_from_folder(src_path)
 	else:
 		extract_from_file(
-			src_path
-		,	(
-				dest_path[ : -len(get_file_ext_from_path(dest_path)) - 1]
-				# .rstrip('.')
-				or dest_path
-			)
+			src_content
+			if arg_content
+			else src_path
+		,	get_file_path_without_ext(dest_path)
 			if arg_in_folder
 			else dest_path
 		)
 
-	if file_counts['found'] > 0:
-		print('')
-		print_with_colored_prefix('Files found:', file_counts['found'], 'cyan')
-
-		if arg_readonly_test:
+	if not arg_silent:
+		if file_counts['found'] > 0:
 			print('')
-			print(u'\n'.join(found_files_to_save))
+			print_with_colored_prefix('Files found:', file_counts['found'], 'cyan')
 
-		elif file_counts['saved'] > 0:
-			print_with_colored_prefix('Files saved:', file_counts['saved'], 'green')
-	else:
-		print('')
-		cprint('Known files not found.', 'cyan')
+			if arg_readonly_test:
+				print('')
+				print(u'\n'.join(found_files_to_save))
 
-	return 0
+			elif file_counts['saved'] > 0:
+				print_with_colored_prefix('Files saved:', file_counts['saved'], 'green')
+		else:
+			print('')
+			cprint('Known files not found.', 'cyan')
+
+	return found_files_to_save if arg_content else 0
 
 # - Run from commandline, when not imported as module -------------------------
 
