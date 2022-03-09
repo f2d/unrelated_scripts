@@ -393,7 +393,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 			content = None
 			src_file_path = fix_slashes(source)
 
-		src_file_ext = file_type = get_file_ext_from_path(dest_path)
+		file_type = src_file_ext = get_file_ext_from_path(src_file_path)
 
 		for ext, aliases in file_ext_aliases_by_ext.items():
 			if file_type in aliases:
@@ -406,9 +406,9 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 
 		found_count_in_src_file = dest_file_size = 0
 
-		for ext, pat in pat_file_content.items():
+		for each_ext, each_pat in pat_file_content.items():
 
-			if arg_truncate and ext != file_type:
+			if arg_truncate and each_ext != file_type:
 				continue
 
 			if not content:
@@ -425,7 +425,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 
 			found_count_of_one_type = 0
 
-			for found in pat.finditer(content):
+			for found in each_pat.finditer(content):
 
 				found_content_part = found.group('Content')
 				found_extra_data = found.group('Extra') if arg_truncate else None
@@ -446,7 +446,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 						.format(
 							prefix=dest_path
 						,	suffix=int(found_extra_data)
-						,	ext=(src_file_ext or file_type or ext)
+						,	ext=(src_file_ext or file_type or each_ext)
 						)
 						if arg_truncate and found_extra_data
 						else
@@ -454,7 +454,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 						.format(
 							dir=dest_path
 						,	index=found_count_of_one_type
-						,	ext=ext
+						,	ext=each_ext
 						)
 					)
 				)
@@ -560,7 +560,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 					'Found', u'{count} {file_type} files.'
 					.format(
 						count=found_count_of_one_type
-					,	file_type=ext
+					,	file_type=each_ext
 					)
 				,	'cyan'
 				)
@@ -728,12 +728,12 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 	else:
 		process_only_exts = None
 
-	for ext, pat_part_real_file_content in pat_part_by_ext.items():
+	for each_ext, each_pat in pat_part_by_ext.items():
 
-		if process_only_exts and not ext in process_only_exts:
+		if process_only_exts and not each_ext in process_only_exts:
 			continue
 
-		pattern = pat_part_real_file_content
+		pattern = each_pat
 
 		if arg_truncate:
 			pattern = (
@@ -753,11 +753,11 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 			+	pattern_parts[1]
 			)
 
-		pat_file_content[ext] = regex = re.compile(pattern, re.X | re.DOTALL)
+		pat_file_content[each_ext] = regex = re.compile(pattern, re.X | re.DOTALL)
 
 		if arg_verbose:
 			print('')
-			print_with_colored_prefix('File type:', ext)
+			print_with_colored_prefix('File type:', each_ext)
 			print_with_colored_prefix('Pattern:', pattern.decode(print_encoding))	# <- decode bytes to string
 			print_with_colored_prefix('Regex:', regex)
 
