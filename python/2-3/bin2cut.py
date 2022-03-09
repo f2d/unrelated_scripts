@@ -224,7 +224,7 @@ def get_trimmed_fraction_text(time_value, max_digits=6):
 	return '' if text == '.' else text [ : max_digits + 1]
 
 def get_bytes_length_text(value):
-	return '{} bytes'.format(value if is_type_int(value) else len(value))
+	return '{} bytes'.format(len(value) if is_iterable(value) else value)
 
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
@@ -393,6 +393,9 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 			content = None
 			src_file_path = fix_slashes(source)
 
+		if arg_content or arg_in_folder:
+			dest_path = get_file_path_without_ext(src_file_path)
+
 		file_type = src_file_ext = get_file_ext_from_path(src_file_path)
 
 		for ext, aliases in file_ext_aliases_by_ext.items():
@@ -475,8 +478,13 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 				)
 
 				if not arg_quiet or (not arg_silent and not arg_readonly_test):
-					print_with_colored_prefix_line('Result file:' if arg_content else 'Save file:', dest_file_path)
-					print_with_colored_prefix('Size:', get_bytes_length_text(found_file_size))
+					print_with_colored_prefix_line(
+						'{what} file, {size}:'.format(
+							what=('Result' if arg_content else 'Save')
+						,	size=get_bytes_length_text(found_file_size)
+						)
+					,	dest_file_path
+					)
 
 				if not arg_quiet and dest_file_exists:
 					cprint('Warning: file already exists at destination path.', 'yellow')
@@ -538,14 +546,12 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 										else file_counts['saved']
 									)
 								)
-							,	'{bytes} bytes{modtime}'
-								.format(
-									bytes=dest_file_size
-								,	modtime=(
-										', time set to ' + get_mod_time_text(src_file_time)
-										if arg_keep_time
-										else ''
-									)
+							,	get_bytes_length_text(dest_file_size)
+								+ (
+									', time set to '
+								+	get_mod_time_text(src_file_time)
+									if arg_keep_time
+									else ''
 								)
 							,	'green'
 							)
@@ -675,8 +681,9 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 	arg_quiet = arg_quiet or arg_silent
 	arg_verbose = arg_verbose and not arg_quiet
 
-	src_path  = get_path_arg_from(0) if not arg_content else None
-	dest_path = get_path_arg_from(1)
+	src_content = get_path_arg_from(0, fix_path=False) if arg_content else None
+	src_path    = get_path_arg_from(0) if not arg_content else None
+	dest_path   = get_path_arg_from(1)
 
 	arg_readonly_test = (
 		'TEST' == dest_path
@@ -690,11 +697,11 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 		else get_timestamp_text
 	)
 
-	if arg_content:
-		src_content = get_path_arg_from(0, fix_path=False)
-
-	elif arg_in_folder:
-		dest_path = src_path
+	if arg_in_folder:
+		if arg_content:
+			src_path = dest_path
+		else:
+			dest_path = src_path
 
 	if not arg_quiet:
 		print_with_colored_prefix('Read only:', arg_readonly_test or arg_content)
@@ -797,12 +804,8 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 		extract_from_folder(src_path)
 	else:
 		extract_from_file(
-			src_content
-			if arg_content
-			else src_path
-		,	get_file_path_without_ext(dest_path)
-			if arg_in_folder
-			else dest_path
+			src_content or src_path
+		,	dest_path
 		)
 
 	if not arg_silent:
