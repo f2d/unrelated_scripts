@@ -349,7 +349,8 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 #,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']	# <- better to use proxy than change domains
 ,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
-,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
+# ,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
+,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)?twitter\.com/+([^?#]+/+status)', re.I), r'https://nitter.net/\4']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)([^&#%]+).*?$', re.I), r'\1.\2']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1:orig']
 ,	[re.compile(r'\b(twimg\.com/+profile_images?/+[^:?&#%]+)(_[^/:?&#%]+)(\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1\3']
@@ -1205,7 +1206,7 @@ def save_uniq_copy(path, content):
 	if path:
 		if is_existing_path:
 			if content == read_file(path, 'rb'):
-				return 'existing copy - no difference'
+				return False
 
 			path_with_old_file_modtime = (
 				datetime.datetime.fromtimestamp(os.path.getmtime(path))
@@ -1650,7 +1651,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 	udn = [utf, line_separator]+([udl, line_separator] if udl != url else [])
 
 	try:
-		try_print(colored('Downloading', 'yellow'), udl)
+		try_print(colored('Downloading:', 'yellow'), udl)
 		req = ('l/?'+udl) if TEST else udl
 
 		if hostname == 'db.tt':
@@ -1728,7 +1729,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# check result:
 
 			if urldest != url:
-				try_print(colored('From', 'yellow'), urldest)
+				try_print(colored('Request URL:', 'yellow'), urldest)
 
 				if is_url_blocked(urldest, content):
 					write_file(log_blocked, [log_stamp(), 'blocked	']+udn)
@@ -1737,6 +1738,10 @@ def process_url(dest_root, url, utf='', prfx=''):
 					finished += process_url(dest_root, get_proxified_url(udl))
 			else:
 				urldest = ''
+
+			print('')
+			try_print(colored('Response code:', 'yellow'), response.code)
+			try_print(colored('Response headers:', 'yellow'), headers)
 
 			urls_to_log = [url]
 
@@ -1899,6 +1904,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			)
 
 			if not why_not_save:
+				cprint('Cutting extraneous data:', 'yellow')
 
 				extracted_files = get_extracted_files([
 					content
@@ -1955,9 +1961,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 				try:
 					saved = save_uniq_copy(f, content)
 
-					try_print(colored('To', 'yellow'), saved)
-
-					if not saved:
+					if saved == False:
+						saved = f
+						try_print(colored('Same as existing copy:', 'yellow'), saved)
+					elif saved:
+						try_print(colored('Saved to:', 'yellow'), saved)
+					else:
 						try:
 							try_print(colored('Tried to', 'red'), f)
 						except Exception as e:
@@ -1981,11 +1990,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 					write_file(log_not_saved, [log_stamp()]+udn+[e, empty_line_separator])
 
-			print('')
-			try_print(colored('Response code:', 'yellow'), response.code)
-			try_print(colored('Response headers:', 'yellow'), headers)
-
 			if saved and extracted_file is None:
+				cprint('Cutting extraneous data:', 'yellow')
 
 				run_batch_extract([
 					saved
