@@ -28,11 +28,13 @@ print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 optional_arg_prefixes = ['-', '/']
 
 pat_part_start       = br'(?P<Start>'
+pat_part_end         = br'(?P<End>'
 pat_part_vary_start  = br'(?P<Vary>.(?!'
 pat_part_vary_end    = br')*'
 pat_part_extra_vary  = br'(?P<Vary>.*?)'
 pat_part_extra_start = br'^'
-pat_part_extra_end   = br'(?P<Extra>\d{4,})?$'
+pat_part_extra_end_marked  = br'(?P<Extra>\d+)?$'
+pat_part_extra_end_guessed = br'(?P<Extra>\d{4,})?$'
 
 # GIF magic bytes:
 # start	GIF87a
@@ -746,7 +748,10 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 			pattern = (
 				pat_part_extra_start
 			+	pattern
-			+	pat_part_extra_end
+			+	(
+					pat_part_extra_end_marked if pat_part_end in pattern else
+					pat_part_extra_end_guessed
+				)
 			)
 
 		elif pat_part_extra_vary in pattern:

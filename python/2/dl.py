@@ -1540,7 +1540,7 @@ def read_path(path, dest_root, lvl=0):
 
 def get_response(req):
 	hostname = re.search(pat_host, req).group('Domain')
-	headers = { 'Accept-Encoding' : accept_enc }
+	headers = { 'Accept-Encoding' : accept_enc } if accept_enc else {}
 	data = []
 
 	for batch in add_headers_to:
