@@ -49,6 +49,8 @@ print_enc = default_encoding
 tab_separator = '\t'
 line_separator = '\n'
 empty_line_separator = line_separator * 2
+content_type_separators = ['+', '-']
+exts_to_add_from_content_type = ['json', 'xml']
 
 TEST = 0
 
@@ -61,6 +63,7 @@ if len(sys.argv) > 1:
 		L = a[-1:]
 		if (a == L or a.lstrip('-/') == L) and (L == '?' or L == 'h' or a == 'help'):
 			help = 1
+
 			break
 else:
 	help = 1
@@ -128,7 +131,7 @@ if help:
 
 	print('\n'.join(help_text_lines).format(self_name))
 
-	sys.exit(0)
+	sys.exit(1)
 
 flags = ''
 add_time = None
@@ -146,7 +149,9 @@ for a in sys.argv[1:]:
 				if not add_time: add_time = [format_epoch, format_ymd, format_hms]
 				add_time_j = ',' if 'c' in flags else '_'
 				add_time_fmt = add_time_j.join(add_time)
+
 				break
+
 	elif L == 'w': wait = int(a[1:]) if len(a) > 1 else 1
 	elif L == 'i': interval = int(a[1:]) if len(a) > 1 else 60
 	elif L == 't': timeout_request = int(a[1:]) if len(a) > 1 else 99
@@ -336,10 +341,12 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'^((\w+:/+)?([^:/?#]+\.)?(i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\1.']	# <- skip downscaled copy
 ,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?discord[^?#]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
 
-# remove discord web-proxy, sample without arguments:
+# remove discord web-proxy:
+
+# URL sample without arguments:
 # https://images-ext-2.discordapp.net/external/rmIM(...)_7kNZEi-(...)/https/media.discordapp.net/attachments/(...).png
 
-# sample with arguments (easier to let it be and fix destination filename later, than URL-decode arguments here?):
+# URL sample with arguments (easier to let it be and fix destination filename later, than URL-decode arguments here?):
 # https://images-ext-1.discordapp.net/external/NxJF(...)/%3F_nc_ht%3Dscontent-lga3-1.cdninstagram.com/https/scontent-lga3-1.cdninstagram.com/(...).jpg
 
 ,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(\w+)/+', re.I), r'\1://']
@@ -435,7 +442,10 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 				"?\s*[,}]
 			)+
 		''', re.I | re.X)
-	,	'link': [r'i.imgur.com/\g<imgurID>\g<imgurExt>', r'imgur.com/\g<imgurID>']
+	,	'link': [
+			r'i.imgur.com/\g<imgurID>\g<imgurExt>'
+		,	r'imgur.com/\g<imgurID>'
+		]
 	,	'name': [
 			[0, r'\1 - ']	# <- 0: expand from parent URL
 		,	[-1,r'\1 - ']	# <- negative: substitute \1 with recursive processed count, minus given here
@@ -470,8 +480,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 # </video>
 
 ,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?gfycat\.com/+(?:\w{2}/+)?[^/]+)([,&?#]|$)', re.I)
-	,	'grab':
-		re.compile(r'''
+	,	'grab': re.compile(r'''
 			(?:
 				<meta(?:\s+[^>]*?)?\s+property="?og:video:
 				(
@@ -485,7 +494,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 			)+
 		|	<source(?:\s+[^>]*?)?\s+src="?([^">]+)	# <- 1
 		''', re.I | re.X)
-	,	'link': [r'\g<gfycatURL>']
+	,	'link': r'\g<gfycatURL>'
 	,	'name': [
 			[0, r'\1 - ']	# <- 0: expand from parent URL
 		# ,	[1, r'\1']	# <- 1: expand from child URL
@@ -497,7 +506,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 # gyazo:
 
 ,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>gyazo\.com/+)([^?#]*?)?(?P<ImageID>/+\w{32})(\W.*)?$', re.I)
-	,	'link': [r'\g<Domain>\g<ImageID>']	# <- view page instead of direct link to image
+	,	'link': r'\g<Domain>\g<ImageID>'	# <- view page instead of direct link to image
 	}
 ,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?gyazo\.com/+[^/]+)$', re.I)
 	,	'grab': re.compile(r'''
@@ -508,7 +517,10 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 				<link(?:\s+[^>]*?)?\s+href="?(?P<ImageLink>[^">\s]+)"?(?:\s+[^>]*?)?\s+rel="?image[^a-z]?src["\s/>]
 			)
 		''', re.I | re.X)
-	,	'link': [r'\g<ImageSrc>', r'\g<ImageLink>']
+	,	'link': [
+			r'\g<ImageSrc>'
+		,	r'\g<ImageLink>'
+		]
 	,	'name': [
 			[0, r'\1 - ']
 		,	[1, r'\g<ImageWidth>x\g<ImageHeight> - ']
@@ -532,13 +544,13 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 
 # skype:
 
-# link samples:
+# URL samples:
 # https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
 # https://web.skype.com/xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
 # https://api.asm.skype.com/v1/objects/0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae/views/imgpsh_fullsize
 
 ,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>skype\.com/+)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)', re.I)
-	,	'link': [r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize']	# <- direct link to image instead of page, which contains no links and relies on JS
+	,	'link': r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize'	# <- direct link to image instead of page, which contains no links and relies on JS
 	}
 
 # exhentai:
@@ -654,7 +666,7 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		|	<a(?:\s+[^>]*?)?\s+href=[\'"]*([^">\s]+)(?:[\s"]+[^>]*)?>\w*?download
 		''', re.I | re.X)
 
-# sample from https://upload.cat/c9d04f72208d7966
+# HTML sample from https://upload.cat/c9d04f72208d7966
 # <img alt="cache_95c50f95-ffdb-4502-c548-fef6618fb774.png" src="https://upload.cat/imageviewer/8e175786cf0929b39570ce75f92e307e_40518" style="max-width: 100%;"/>
 # <a onclick="_gaq.push(['_trackPageview', '/download_image']);" href="https://upload.cat/c9d04f72208d7966?download_token=9daebf1bf5552c8d83f8a11960f424d820c0d8eb8883de28ae20b1644d2e9abf" target="_blank">(download)</a>
 
@@ -678,6 +690,44 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 		]
 	}
 
+# nitter - twitter frontend:
+
+# HTML sample from https://nitter.net/Soveno2/status/1483152138972712962
+# <link rel="preload" type="image/png" href="/pic/media%2FFJUwOH1XsAExXQs.jpg%3Fname%3Dsmall" as="image" />
+# <meta property="og:image" content="https://nitter.net/pic/media%2FFJUwOH1XsAExXQs.jpg" />
+# <meta property="twitter:image:src" content="https://nitter.net/pic/media%2FFJUwOH1XsAExXQs.jpg" />
+# <...>
+# <div class="attachments">
+# <div class="gallery-row" style="">
+# <div class="attachment image">
+# <a class="still-image" href="/pic/media%2FFJUwOH1XsAExXQs.jpg%3Fname%3Dorig" target="_blank">
+# <img src="/pic/media%2FFJUwOH1XsAExXQs.jpg%3Fname%3Dsmall" alt="" />
+# <...>
+# <div class="attachments media-gif">
+# <div class="gallery-gif" style="max-height: unset; ">
+# <div class="attachment">
+# <video class="gif" poster="/pic/tweet_video_thumb%2FFJVma9TWUBEkwAr.jpg%3Asmall" controls="" autoplay="" muted="" loop="">
+# <source src="/pic/video.twimg.com%2Ftweet_video%2FFJVma9TWUBEkwAr.mp4" type="video/mp4" />
+
+,	{	'page': re.compile(r'^(\w+:/+(?:[^%:/=\s&?#]+\.)?nitter\.net/+[^?#]+)([?#]|$)', re.I)
+	,	'grab': re.compile(r'''
+			\s\w+="
+		(?:	\w+:/+			(?:[^%:/=\s&?#]+\.)?nitter\.net				)?
+			/pic/
+		(?:	(?P<Domain>		(?:[^%:/=\s&?#]+\.)?twimg\.com	)	(?:/|%2F)+	)?
+			(?P<DirType>		[^%/.\s">]+			)	(?:/|%2F)+
+		(?:	(?P<DirNumber>		\d+				)	(?:/|%2F)+	)?
+			(?P<FileName>		[^%/.\s">]+			)
+			(?P<FileExt>	\.	[^%/.\s">]+			)
+		''', re.I | re.X)
+	,	'link': [
+			r'https://\g<Domain>/\g<DirType>/\g<DirNumber>/\g<FileName>\g<FileExt>'
+		,	r'https://\g<Domain>/\g<DirType>/\g<FileName>\g<FileExt>'
+		,	r'https://pbs.twimg.com/\g<DirType>/\g<DirNumber>/\g<FileName>\g<FileExt>'
+		,	r'https://pbs.twimg.com/\g<DirType>/\g<FileName>\g<FileExt>'
+		]
+	}
+
 # twitter:
 
 ,	{	'page': re.compile(r'^(\w+:/+([^:/?#]+\.)?t.co/+[^/]+)', re.I)
@@ -697,10 +747,10 @@ pat2recursive_dl = [		# <- additional sub-steps to grab
 # twitter - grab video by thumb:
 
 ,	{	'page': re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>twimg\.com/+tweet_video)_thumb(?P<ImageID>/+[^/.?#]+)([.?#]|$)', re.I)
-	,	'link': [r'https://video.\g<Domain>\g<ImageID>.mp4']
+	,	'link': r'https://video.\g<Domain>\g<ImageID>.mp4'
 	}
 
-# sample from https://twitter.com/tukudani01/status/1140647123873964032
+# URL samples from https://twitter.com/tukudani01/status/1140647123873964032
 # https://pbs.twimg.com/tweet_video_thumb/D9RkbuHVUAA7Ch0.jpg
 # https://video.twimg.com/tweet_video/D9RkbuHVUAA7Ch0.mp4
 
@@ -792,7 +842,7 @@ pat2open_in_browser = [	# <- too complicated to grab, so handle it by a prepared
 pat2recheck_next_time = [
 	re.compile(r'^\w+:/+([^:/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+', re.I)
 ,	re.compile(r'^\w+:/+([^:/?#]+\.)?dropbox(usercontent)?\.\w+/', re.I)
-,	re.compile(r'^\w+:/+([^:/?#]+\.)?twitter\.com/\w+', re.I)
+,	re.compile(r'^\w+:/+([^:/?#]+\.)?(twitter\.com|nitter\.net)/\w+', re.I)
 ]
 
 #pat2etag = [	# <- TODO: request using ETag header from the copy saved before, will get "304: not modified" for unchanged without full dl
@@ -888,6 +938,9 @@ def meet(obj, criteria):
 			None
 		)
 	) else False
+
+def get_as_list(value):
+	return value if is_type_arr(value) else [value]
 
 def fix_slashes(path):
 	return re.sub(pat_conseq_slashes, '/', path)
@@ -1079,6 +1132,7 @@ def dump(obj, check_list=[]):
 def get_obj_pretty_print(obj):
 	try:
 		d = obj.__dict__ if '__dict__' in obj else obj
+
 		return json.dumps(d, sort_keys=True, indent=4, default=repr)
 
 	except Exception, e:
@@ -1095,14 +1149,16 @@ def log_stamp():
 def timestamp_now(str_format=format_epoch):
 	return time.strftime(str_format.replace(format_epoch, str(int(time.time()))))
 
+# http://code.activestate.com/recipes/577015-parse-http-date-time-string/
+# http://stackoverflow.com/questions/11743019/convert-python-datetime-to-epoch-with-strftime
+
 def timestamp_from_http_modtime(str_modtime, str_format=format_epoch):
 	t = datetime.datetime(*parsedate(str_modtime)[:6])
 	s = str(int((t - datetime.datetime(1970,1,1)).total_seconds()))
 	t = datetime.datetime.fromtimestamp(time.mktime(t.timetuple()))
 	f = str_format.replace(format_epoch, s)
+
 	return t.strftime(f)
-# http://code.activestate.com/recipes/577015-parse-http-date-time-string/
-# http://stackoverflow.com/questions/11743019/convert-python-datetime-to-epoch-with-strftime
 
 def read_file(path, mode='r'):
 	if not os.path.isfile(path):
@@ -1118,6 +1174,7 @@ def write_file(path, conts, mode='a+b'):
 	for f in ['lower', 'real']:
 		if hasattr(conts, f):
 			conts = [conts]
+
 			break
 
 	f = open(path, mode)
@@ -1176,6 +1233,7 @@ def trim_path(path, delim='.', placeholder='(...)', max_len=250):
 			name[0:max_len - len(path)] if left_for_name < 0 else
 			(head[0:left_for_name] + tail)
 		)
+
 	return path
 
 def save_uniq_copy(path, content):
@@ -1243,6 +1301,7 @@ def uniq_path(path):
 				base += t + '_'
 
 			path = base + n + ext
+
 	return path
 
 def read_log(path, start=0, size=0):
@@ -1271,10 +1330,13 @@ def get_prereplaced_url(url, hostname='', protocol='http://'):
 			url = protocol + url.lstrip('/')
 		elif hostname:
 			url = hostname + url
+
 	if url.find('(') < 0:
 		url = url.strip(')')
+
 	for p in pat2replace_before_checking:
 		url = re.sub(p[0], p[1], url)	# <- fix urls to note
+
 	return url
 
 def get_proxified_url(url, prfx=False):
@@ -1307,6 +1369,7 @@ def get_dest_dir_from_log_name(name):
 							g_clean = g
 							for pat in pat_dest_dir_replace:
 								g_clean = re.sub(pat[0], pat[1] or '', g_clean).strip()
+
 							return g_clean if len(g_clean) > 0 else g
 
 					except Exception:
@@ -1343,6 +1406,7 @@ def read_path(path, dest_root, lvl=0):
 		if os.path.isdir(f):
 			if can_go_deeper:
 				urls += read_path(f, dest_root, lvl+1)
+
 			continue
 
 		meta = r = ''
@@ -1351,6 +1415,7 @@ def read_path(path, dest_root, lvl=0):
 			if line[2] == f:
 				start = int(line[1])
 				meta = tab_separator.join(line)
+
 				break
 
 		sz = os.path.getsize(f)
@@ -1364,6 +1429,7 @@ def read_path(path, dest_root, lvl=0):
 
 				try_print(colored('Error reading log:', 'red'), log_stamp(), e)
 				r = meta = ''
+
 				# continue
 
 		if r:
@@ -1396,6 +1462,7 @@ def read_path(path, dest_root, lvl=0):
 							for p in pat2recheck_next_time:
 								if p.search(url):
 									recheck = 1
+
 									break
 					if recheck:
 						if did:
@@ -1577,6 +1644,7 @@ def is_url_blocked(url=None, content=None):
 
 def pass_url(app, url):
 	global urls_passed
+
 	if url in urls_passed:
 		return 0
 
@@ -1623,6 +1691,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			if meet(hostname if is_type_str(s) and s.find('/') < 0 else url, s):
 				write_file(log_skipped, [log_stamp(), utf, line_separator])
 				hostname = 0
+
 				break
 	if not hostname:
 		return 0
@@ -1636,7 +1705,9 @@ def process_url(dest_root, url, utf='', prfx=''):
 		for p in pat2recheck_next_time:
 			if p.search(url):
 				recheck = 1
+
 				break
+
 		if not recheck:
 			return 0
 	else:
@@ -1805,39 +1876,66 @@ def process_url(dest_root, url, utf='', prfx=''):
 			t = get_by_caseless_key(headers, 'Content-Type').split(';', 1)[0].lower()
 			if t:
 				media, format = (t, '') if t.find('/') < 0 else t.split('/', 1)
-				ext_in_format = (ext in format.split('+')) or (ext in format.split('-'))
-				amp_in_ext = re.search(pat_exno, ext)
+				is_ext_not_in_format = not any((ext in format.split(s)) for s in content_type_separators)
+				is_amp_in_ext = bool(re.search(pat_exno, ext))
 				subd = 'etc'
 				add_ext = ''
 
-				if udl.find('.flac') > 0:
-					add_ext = 'flac'
-
-				elif media == 'text':
+				if media == 'text':
 					if format == 'plain':
 						add_ext = 'txt'
 
-					elif ext != 'txt' and ext.find('htm') < 0:
+					elif (
+						ext != 'txt'
+					and	ext.find('htm') < 0
+					):
 						add_ext = 'htm'
 
-				elif media == 'video' or media == 'audio' or media == 'application':
+				elif (
+					media == 'video'
+				or	media == 'audio'
+				or	media == 'application'
+				):
 					if format == 'x-javascript':
 						add_ext = 'js'
 
-					elif format != 'octet-stream' and format[0 : 2] != 'x-' and not ext_in_format:
+					elif (
+						is_ext_not_in_format
+					and	format[0 : 2] != 'x-'
+					and	format != 'octet-stream'
+					):
 						add_ext = format
 
 				elif media == 'image':
 					subd = 'pix'
 
-					if format == 'jpg' or format == 'jpeg':
-						if ext != 'jpg' and ext != 'jpeg':
+					if (
+						format == 'jpg'
+					or	format == 'jpeg'
+					):
+						if (
+							ext != 'jpg'
+						and	ext != 'jpeg'
+						):
 							add_ext = 'jpg'
 
-					elif not ext_in_format:
+					elif is_ext_not_in_format:
 						add_ext = format
 
-				if add_ext and (amp_in_ext or ext.find(add_ext) < 0):
+				elif is_ext_not_in_format:
+					for x in exts_to_add_from_content_type:
+						if x in format:
+							add_ext = x
+
+							break
+
+				elif udl.find('.flac') > 0:
+					add_ext = 'flac'
+
+				if add_ext and (
+					is_amp_in_ext
+				or	ext.find(add_ext) < 0
+				):
 					dest += '.'+add_ext
 
 				if subd:
@@ -1913,6 +2011,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 				,	'--truncate'
 				,	'--picture'
 				])
+
+				print('')
 
 				if (
 					extracted_files
@@ -2003,6 +2103,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 				,	'--remove-old'
 				])
 
+				print('')
+
 			# check new links found on the way:
 
 			for p in pat2recursive_dl:
@@ -2013,12 +2115,16 @@ def process_url(dest_root, url, utf='', prfx=''):
 					pat_name = p.get('name', default_red2_name_prefix)
 
 					if pat_link and not pat_grab:
-						for x in pat_link:
+						for x in get_as_list(pat_link):
 							try:
 								url2 = r2.expand(x)
 								if url2 and not url2 == x:
 									url2 = get_prereplaced_url(url2, hostname, protocol)
+
+									try_print(colored('Sub-URL from URL:', 'yellow'), dest_root, url2)
+
 									finished += process_url(dest_root, url2)
+
 									break
 
 							except Exception:
@@ -2061,7 +2167,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 									if TEST: cprint('<re: skipped unmatched group in dest.link>', 'red')
 						url2 = ''
 						if pat_link:
-							for x in pat_link:
+							for x in get_as_list(pat_link):
 								try:
 									url2 = d2.expand(x)
 
@@ -2075,7 +2181,11 @@ def process_url(dest_root, url, utf='', prfx=''):
 						if not url2:
 							url2 = ''.join(d2.groups(''))
 						url2 = get_prereplaced_url(url2, hostname, protocol)
+
+						try_print(colored('Sub-URL from grab:', 'yellow'), dest_root, prfx, url2)
+
 						finished += process_url(dest_root, url2, prfx=prfx)
+
 					break
 
 			for p in pat2open_in_browser:
@@ -2090,6 +2200,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 					if is_type_str(p2):
 						url2 = r2.expand(p2)
 					pass_url(dest_app_default, url2)
+
 					break
 	if wait:
 		cprint('%s Waiting for %d sec. after each download attempt.\n' % (timestamp(), wait), 'cyan')
