@@ -2,7 +2,18 @@
 # -*- coding: UTF-8 -*-
 
 from email.utils import parsedate
-import datetime, gzip, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
+import datetime, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
+
+# Use compressed download if available:
+try:
+	import brotli
+except ImportError:
+	brotli = None
+
+try:
+	import gzip
+except ImportError:
+	gzip = None
 
 # TODO: fix this script for python 3, then remove this crutch:
 # https://stackoverflow.com/a/4383597
@@ -166,6 +177,18 @@ read_encoding = read_encoding.split('|')
 
 #print add_time, add_time_j, add_time_fmt
 #sys.exit(0)
+
+# Accept-Encoding: br, gzip, deflate
+accept_enc = ', '.join(filter(
+	None
+,	[
+		'br' if brotli else None
+	,	'gzip' if gzip else None
+	,	'deflate' if zlib else None
+	]
+))
+
+print colored('Accept-Encoding:', 'yellow'), accept_enc
 
 # precaution ------------------------------------------------------------------
 
@@ -1517,7 +1540,7 @@ def read_path(path, dest_root, lvl=0):
 
 def get_response(req):
 	hostname = re.search(pat_host, req).group('Domain')
-	headers = {}
+	headers = { 'Accept-Encoding' : accept_enc }
 	data = []
 
 	for batch in add_headers_to:
@@ -1781,21 +1804,38 @@ def process_url(dest_root, url, utf='', prfx=''):
 			cprint('Unexpected error. See logs.\n', 'red')
 			write_file(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
 		else:
+			filesize = len(content)
+
 			# uncompress file content:
 
+			decoded_content = None
+
 			t = get_by_caseless_key(headers, 'Content-Encoding').lower()
-			if t == 'gzip':
-				try:
+			try:
+				if brotli is not None and t == 'br':
+					decoded_content = brotli.decompress(content)
+
+				elif zlib is not None and t == 'deflate':
+					decoded_content = zlib.decompress(content)
+
+				elif gzip is not None and t == 'gzip':
 					i = StringIO.StringIO(content)
 					o = gzip.GzipFile(fileobj=i)
-					content = o.read()
+					decoded_content = o.read()
 
-				except IOError as e:
-					write_exception_traceback()
+			except IOError as e:
+				write_exception_traceback()
 
-					write_file(log_no_file, [log_stamp()]+udn+[e, empty_line_separator])
+				write_file(log_no_file, [log_stamp()]+udn+[e, empty_line_separator])
 
-				headers['Content-Length-Decoded'] = str(len(content))
+			if decoded_content is not None:
+				decoded_size = len(decoded_content)
+
+				print colored('Decompressed:', 'yellow'), filesize, 'to', decoded_size, 'bytes'
+
+				content = decoded_content
+				filesize = decoded_size
+				headers['Content-Length-Decoded'] = str(filesize)
 
 			# check result:
 
@@ -1988,7 +2028,6 @@ def process_url(dest_root, url, utf='', prfx=''):
 			# check if result is needed to save:
 
 			filename = f.rsplit('/', 1)[-1 : ][0]
-			filesize = len(content)
 			file_url = urldest or udl
 			etag = get_by_caseless_key(headers, 'ETag')
 			saved = extracted_file = extracted_files = None
