@@ -380,7 +380,7 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
 # ,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
-,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)?twitter\.com/+([^?#]+/+status)', re.I), r'https://nitter.net/\4']
+,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?twitter\.com/+([^/?#])', re.I), r'https://nitter.net/\3']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)([^&#%]+).*?$', re.I), r'\1.\2']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1:orig']
 ,	[re.compile(r'\b(twimg\.com/+profile_images?/+[^:?&#%]+)(_[^/:?&#%]+)(\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1\3']
@@ -865,7 +865,7 @@ pat2open_in_browser = [	# <- too complicated to grab, so handle it by a prepared
 pat2recheck_next_time = [
 	re.compile(r'^\w+:/+([^:/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+', re.I)
 ,	re.compile(r'^\w+:/+([^:/?#]+\.)?dropbox(usercontent)?\.\w+/', re.I)
-,	re.compile(r'^\w+:/+([^:/?#]+\.)?(twitter\.com|nitter\.net)/\w+', re.I)
+,	re.compile(r'^\w+:/+([^:/?#]+\.)?(t\.co|twitter\.com|nitter\.net)/\w+', re.I)
 ]
 
 #pat2etag = [	# <- TODO: request using ETag header from the copy saved before, will get "304: not modified" for unchanged without full dl
@@ -1353,6 +1353,8 @@ def get_prereplaced_url(url, hostname='', protocol='http://'):
 			url = protocol + url.lstrip('/')
 		elif hostname:
 			url = hostname + url
+	elif url.find('://') < 0:
+		url = protocol + url.lstrip('/')
 
 	if url.find('(') < 0:
 		url = url.strip(')')
