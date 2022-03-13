@@ -824,7 +824,7 @@ def run_batch_archiving(argv):
 						summary_parts = archive_file_summary.split(' ', 4)
 						content_sum_size = int(summary_parts[2])
 						content_counts_text = summary_parts[4]
-						compression_ratio = (archive_file_size / content_sum_size) * 100
+						compression_ratio = 100.0 * archive_file_size / content_sum_size
 
 						archive_size_text = get_bytes_text(archive_file_size)
 						content_size_text = get_bytes_text(content_sum_size)

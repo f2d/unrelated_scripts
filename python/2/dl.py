@@ -1812,15 +1812,15 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 			decoded_content = None
 
-			t = get_by_caseless_key(headers, 'Content-Encoding').lower()
+			encoding_type = get_by_caseless_key(headers, 'Content-Encoding').lower()
 			try:
-				if brotli is not None and t == 'br':
+				if brotli is not None and encoding_type == 'br':
 					decoded_content = brotli.decompress(content)
 
-				elif zlib is not None and t == 'deflate':
+				elif zlib is not None and encoding_type == 'deflate':
 					decoded_content = zlib.decompress(content)
 
-				elif gzip is not None and t == 'gzip':
+				elif gzip is not None and encoding_type == 'gzip':
 					i = StringIO.StringIO(content)
 					o = gzip.GzipFile(fileobj=i)
 					decoded_content = o.read()
@@ -1832,8 +1832,17 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 			if decoded_content is not None:
 				decoded_size = len(decoded_content)
+				compression_ratio = 100.0 * filesize / decoded_size
 
-				print colored('Decompressed:', 'yellow'), filesize, 'to', decoded_size, 'bytes'
+				try_print(
+					colored('Decompressed:', 'yellow')
+				,	'{enc_type} from {enc_size} to {dec_size} bytes, compression ratio {ratio:.2f}%'.format(
+						enc_type=encoding_type
+					,	enc_size=filesize
+					,	dec_size=decoded_size
+					,	ratio=compression_ratio
+					)
+				)
 
 				content = decoded_content
 				filesize = decoded_size
