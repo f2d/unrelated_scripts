@@ -380,7 +380,7 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 ,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
 ,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
 # ,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
-,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?twitter\.com/+([^/?#])', re.I), r'https://nitter.net/\3']
+,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(fx)?twitter\.com/+(?P<Path>[^/?#])', re.I), r'https://nitter.net/\g<Path>']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)([^&#%]+).*?$', re.I), r'\1.\2']
 ,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1:orig']
 ,	[re.compile(r'\b(twimg\.com/+profile_images?/+[^:?&#%]+)(_[^/:?&#%]+)(\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1\3']
@@ -865,7 +865,7 @@ pat2open_in_browser = [	# <- too complicated to grab, so handle it by a prepared
 pat2recheck_next_time = [
 	re.compile(r'^\w+:/+([^:/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+', re.I)
 ,	re.compile(r'^\w+:/+([^:/?#]+\.)?dropbox(usercontent)?\.\w+/', re.I)
-,	re.compile(r'^\w+:/+([^:/?#]+\.)?(t\.co|twitter\.com|nitter\.net)/\w+', re.I)
+,	re.compile(r'^\w+:/+([^:/?#]+\.)?(t\.co|(fx)?twitter\.com|nitter\.net)/\w+', re.I)
 ]
 
 #pat2etag = [	# <- TODO: request using ETag header from the copy saved before, will get "304: not modified" for unchanged without full dl
@@ -1110,7 +1110,7 @@ def sanitize_filename(input_text):
 	return result_text
 
 def fix_filename_before_saving(filename):
-	filename = try_decode(filename)
+	filename = get_unproxified_url(try_decode(filename))
 
 	for p in pat2replace_before_saving_file:
 		filename = re.sub(p[0], p[1], translate_url_to_filename(filename))
@@ -1365,31 +1365,56 @@ def get_prereplaced_url(url, hostname='', protocol='http://'):
 	return url
 
 def get_proxified_url(url, prfx=False):
-	if not prfx:
-		prfx = default_web_proxy
+	if prfx:
+		# prfx = default_web_proxy
+		# prfx = prfx.rstrip('/')+'/'
 
-	#prfx = prfx.rstrip('/')+'/'
+		return (
+			prfx+'http/'+url if url.find('://') < 0 else
+			re.sub(pat_badp, prfx+(
+				'https/' if url.find('https://') == 0 else
+				'http/'
+			), url)
+		)
 
-	return (
-		prfx+'http/'+url if url.find('://') < 0 else
-		re.sub(pat_badp, prfx+(
-			'https/' if url.find('https://') == 0 else
-			'http/'
-		), url)
-	)
+	match = re.search(web_proxy_replacement_add['from'], url)
+
+	if match:
+		for pat in web_proxy_replacement_add['to']:
+			try:
+				return match.expand(pat)
+
+			except Exception:
+				continue
+
+	return url
+
+def get_unproxified_url(url):
+
+	match = re.search(web_proxy_replacement_remove['from'], url)
+
+	if match:
+		for pat in web_proxy_replacement_remove['to']:
+			try:
+				return match.expand(pat)
+
+			except Exception:
+				continue
+
+	return url
 
 def get_dest_dir_from_log_name(name):
 	for rule in pat_ln2d:
 		a = rule if is_type_arr(rule) else [rule]
-		res = re.search(a[0], name)
-		if res:
+		match = re.search(a[0], name)
+		if match:
 			if len(a) > 1:
 				for i in a[1:]:
 					try:
 						if i.find('\\') >= 0:
-							g = res.expand(i)
+							g = match.expand(i)
 						else:
-							g = res.group(i)
+							g = match.group(i)
 						if g and len(g) > 0:
 							g_clean = g
 							for pat in pat_dest_dir_replace:
@@ -1402,7 +1427,7 @@ def get_dest_dir_from_log_name(name):
 
 						continue
 			else:
-				for i in res.groups():
+				for i in match.groups():
 					if i and len(i) > 0:
 						return i
 			return name
@@ -1586,9 +1611,9 @@ def redl(url, regex, msg=''):
 	print('')
 	try_print(colored('Response headers:', 'yellow'), headers)
 
-	r = re.search(regex, content)
-	if r:
-		return r.group(1)
+	match = re.search(regex, content)
+	if match:
+		return match.group(1)
 	else:
 		raise URLError(content)
 
@@ -1902,12 +1927,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 			dest = dest.split('#', 1)[0]
 			dest = fix_filename_before_saving(dest)
 
-			t = get_by_caseless_key(headers, 'Content-Disposition')
-			if t:
-				t = re.search(pat_cdfn, t)
-				if t:
-					t = t.group(1)
-					d = fix_filename_before_saving(t)
+			filename_in_header = get_by_caseless_key(headers, 'Content-Disposition')
+			if filename_in_header:
+				match = re.search(pat_cdfn, filename_in_header)
+				if match:
+					filename_in_header = match.group(1)
+					d = fix_filename_before_saving(filename_in_header)
 
 					try:
 						if d and dest.find(d) < 0:
@@ -1924,9 +1949,9 @@ def process_url(dest_root, url, utf='', prfx=''):
 			ext = '' if dest.find('.') < 0 else dest.rsplit('.', 1)[1].lower()
 			d = dest_root+'/'
 
-			t = get_by_caseless_key(headers, 'Content-Type').split(';', 1)[0].lower()
-			if t:
-				media, format = (t, '') if t.find('/') < 0 else t.split('/', 1)
+			content_type = get_by_caseless_key(headers, 'Content-Type').split(';', 1)[0].lower()
+			if content_type:
+				media, format = (content_type, '') if content_type.find('/') < 0 else content_type.split('/', 1)
 				is_ext_not_in_format = not any((ext in format.split(s)) for s in content_type_separators)
 				is_amp_in_ext = bool(re.search(pat_exno, ext))
 				subd = 'etc'
@@ -1995,26 +2020,28 @@ def process_url(dest_root, url, utf='', prfx=''):
 			dest = fix_filename_before_saving(dest)
 
 			if add_time:
-				t = None
+				time_text = None
 				if 'm' in flags:
-					t = get_by_caseless_key(headers, 'Last-Modified').lower()
-					if t:
-						t = timestamp_from_http_modtime(t, add_time_fmt)
+					time_text = get_by_caseless_key(headers, 'Last-Modified').lower()
+
+					if time_text:
+						time_text = timestamp_from_http_modtime(time_text, add_time_fmt)
 				else:
-					t = timestamp_now(add_time_fmt)
-				if t:
+					time_text = timestamp_now(add_time_fmt)
+
+				if time_text:
 					a = -1
 					if 's' in flags:
 						if dest.find('.') < 0:
 							a = 1
 						else:
 							a = 0
-							dest = (add_time_j + t + '.').join(dest.rsplit('.', 1))
+							dest = (add_time_j + time_text + '.').join(dest.rsplit('.', 1))
 					if 'a' in flags or a > 0:
 						a = 0
-						dest += add_time_j + t
+						dest += add_time_j + time_text
 					if 'p' in flags or a < 0:
-						dest = t + add_time_j + dest
+						dest = time_text + add_time_j + dest
 
 			if not os.path.exists(d):
 				os.makedirs(d)
@@ -2054,13 +2081,19 @@ def process_url(dest_root, url, utf='', prfx=''):
 			if not why_not_save:
 				cprint('Cutting extraneous data:', 'yellow')
 
-				extracted_files = get_extracted_files([
-					content
-				,	filename
-				# ,	'--in-folder'
-				,	'--truncate'
-				,	'--picture'
-				])
+				try:
+					extracted_files = get_extracted_files([
+						content
+					,	filename
+					# ,	'--in-folder'
+					,	'--truncate'
+					,	'--picture'
+					])
+
+				except Exception as e:
+					write_exception_traceback()
+
+					cprint('Failed cutting extraneous data.', 'red')
 
 				print('')
 
@@ -2143,15 +2176,21 @@ def process_url(dest_root, url, utf='', prfx=''):
 			if saved and extracted_file is None:
 				cprint('Cutting extraneous data:', 'yellow')
 
-				run_batch_extract([
-					saved
-				# ,	'-defmp'
-				,	'--in-folder'
-				,	'--truncate'
-				,	'--picture'
-				,	'--keep-time'
-				,	'--remove-old'
-				])
+				try:
+					run_batch_extract([
+						saved
+					# ,	'-defmp'
+					,	'--in-folder'
+					,	'--truncate'
+					,	'--picture'
+					,	'--keep-time'
+					,	'--remove-old'
+					])
+
+				except Exception as e:
+					write_exception_traceback()
+
+					cprint('Failed cutting extraneous data.', 'red')
 
 				print('')
 

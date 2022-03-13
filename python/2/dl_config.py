@@ -24,6 +24,21 @@ format_hms = '%H-%M-%S'
 format_print = '%Y-%m-%d %H:%M:%S'
 format_path_mtime = ';_%Y-%m-%d,%H-%M-%S.'
 
+web_proxy_replacement_add = {
+	'from' : re.compile(r'^(?:(?P<Protocol>\w+)://)?(?P<DomainAndPath>[^/].*?)$', re.I)
+,	'to' : [
+		default_web_proxy + r'\g<Protocol>/\g<DomainAndPath>'
+	,	default_web_proxy + r'http/\g<DomainAndPath>'
+	]
+}
+
+web_proxy_replacement_remove = {
+	'from' : re.compile(r'^' + default_web_proxy + r'(?P<Protocol>\w+)/+(?P<DomainAndPath>[^/].*?)$', re.I)
+,	'to' : [
+		r'\g<Protocol>://\g<DomainAndPath>'
+	]
+}
+
 read_root = '|'.join([	# <- only flat string format available from command line; add trailing "/" for no subfolder recursion
 	u'd:/_bak/_graber/py/'
 ,	u'd:/programs/!_net/Miranda-NG/Profiles/u/Logs/MsgExport'
