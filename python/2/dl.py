@@ -2,7 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 from email.utils import parsedate
-import datetime, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
+import datetime, glob, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
 
 # Use compressed download if available:
 try:
@@ -263,7 +263,10 @@ pat_grab = re.compile(
 	)
 , re.I | re.U | re.X)
 
+pat_placeholders = re.compile(r'[%][a-z]', re.I)
 pat_conseq_slashes = re.compile(r'[\\/]+')
+pat_local_prefix = re.compile(r'(?P<Prefix>^[\\/]+[?][\\/]+)(?P<Path>.*?)$')
+
 pat_badp = re.compile(r'^(\w+):/*')
 pat_cdfn = re.compile(r'filename\*?=(?:UTF-8\'+)?"?([^"\r\n>]+)', re.I)
 pat_exno = re.compile(r'\W')
@@ -274,6 +277,7 @@ pat_synt = re.compile(r'[\d/.,_-]+')
 pat_trim = re.compile(r'([.,]+|[*~]+|[_-]+|[()]+|/+)$')
 pat_uenc = re.compile(r'%([0-9a-f]{2})', re.I)
 pat_ymdt = re.compile(r'[_-]+\d{4}[_-]+\d{2}[_-]+\d{2}(\.\w+)?$')
+
 pat_dest_dir_replace = [
 	[re.compile(r'\s', re.U), ' ']
 ,	[re.compile(ur'''
@@ -948,6 +952,7 @@ pat_blocked_content = [
 ]
 
 a_type = type([])
+d_type = type({})
 r_type = type(pat_grab)
 s_type = type('')
 u_type = type(u'')
@@ -963,6 +968,7 @@ false_ctx.verify_mode = ssl.CERT_NONE
 
 def is_type_int(v): return isinstance(v, int)
 def is_type_arr(v): return isinstance(v, a_type)
+def is_type_dic(v): return isinstance(v, d_type)
 def is_type_reg(v): return isinstance(v, r_type)
 def is_type_str(v): return isinstance(v, s_type) or isinstance(v, u_type)
 
@@ -977,10 +983,7 @@ def meet(obj, criteria):
 	) else False
 
 def get_as_list(value):
-	return value if is_type_arr(value) else [value]
-
-def fix_slashes(path):
-	return re.sub(pat_conseq_slashes, '/', path)
+	return value if is_type_arr(value) else [ value ]
 
 def try_decode(text, enc_in=None, enc_out=None):
 	if not enc_in:
@@ -1084,6 +1087,54 @@ def try_print(*list_args, **keyword_args):
 
 	else:
 		print('Warning: nothing to print with %d args and %d keyword args.' % (count_args, count_keyword_args))
+
+def normalize_slashes(path):
+	return path.replace('\\', '/')
+
+def fix_slashes(path):
+	if os.sep != '/':
+		path = path.replace('/', os.sep)
+
+	if os.sep != '\\':
+		path = path.replace('\\', os.sep)
+
+	return path
+
+def conflate_slashes(path):
+
+	match = re.search(pat_local_prefix, path)
+
+	return (
+		local_path_prefix + re.sub(pat_conseq_slashes, '/', match.group('Path'))
+		if match
+		else
+		re.sub(pat_conseq_slashes, '/', path)
+	)
+
+def get_path_with_local_prefix(path):
+
+	match = re.search(pat_local_prefix, path)
+	path = re.sub(pat_conseq_slashes, '/', match.group('Path') if match else path)
+
+	return local_path_prefix + path.lstrip('/')
+
+def remove_trailing_dots_in_path_parts(path):
+	return '/'.join(
+		part if part == '.' or part == '..'
+		else part.rstrip('.')
+		for part in normalize_slashes(path).split('/')
+	)
+
+def get_long_abs_path(path):
+	if local_path_prefix:
+		path = remove_trailing_dots_in_path_parts(path)
+
+		if path.find(normalize_slashes(local_path_prefix)) == 0:
+			return path
+		else:
+			return local_path_prefix + os.path.abspath(path)
+
+	return fix_slashes(remove_trailing_dots_in_path_parts(path))
 
 def translate_url_to_filename(text):
 	try:			return text.translate(url2name)
@@ -1257,7 +1308,7 @@ def write_exception_traceback(text=''):
 	f.close()
 
 def trim_path(path, delim='.', placeholder='(...)', max_len=250):
-	path = fix_slashes(path)
+	path = conflate_slashes(path)
 
 	if len(path) > max_len:
 		path, name = path.rsplit('/', 1)
@@ -1274,7 +1325,8 @@ def trim_path(path, delim='.', placeholder='(...)', max_len=250):
 	return path
 
 def save_uniq_copy(path, content):
-	path = trim_path(path)
+	# path = trim_path(path)
+	path = get_long_abs_path(path)
 
 	try:
 		is_existing_path = os.path.exists(path)
@@ -1308,7 +1360,9 @@ def save_uniq_copy(path, content):
 				.strftime(format_path_mtime)
 				.join(path.rsplit('.', 1))
 			)
-			new_path_for_old_file = uniq_path(trim_path(path_with_old_file_modtime, ';'))
+
+			# new_path_for_old_file = uniq_path(trim_path(path_with_old_file_modtime, ';'))
+			new_path_for_old_file = uniq_path(path_with_old_file_modtime)
 
 			try:
 				os.rename(path, new_path_for_old_file)
@@ -1721,7 +1775,7 @@ def pass_url(app, url):
 	if url in urls_passed:
 		return 0
 
-	urls_passed.append(url)
+	urls_passed.add(url)
 
 	k = app.strip(dest_app_sep)
 	app_path = dest_app[k if k in dest_app else dest_app_default]
@@ -1762,6 +1816,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 		hostname = hostname.group('Domain')
 		for s in url_to_skip:
 			if meet(hostname if is_type_str(s) and s.find('/') < 0 else url, s):
+
 				write_file(log_skipped, [log_stamp(), utf, line_separator])
 				hostname = 0
 
@@ -1772,7 +1827,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 	if dest_root[-1:] == dest_app_sep or os.path.isfile(dest_root):
 		return pass_url(dest_root, url)
 
-	urls_done_this_time.append(url)				# <- so it won't recursively recheck same link in endless cycle
+	urls_done_this_time.add(url)				# <- so it won't recursively recheck same link in endless cycle
 
 	if url in urls_done:
 		for p in pat2recheck_next_time:
@@ -1784,8 +1839,15 @@ def process_url(dest_root, url, utf='', prfx=''):
 		if not recheck:
 			return 0
 	else:
-		write_file(log_all_urls, [log_stamp(), dest_root, tab_separator, url, line_separator])
-		urls_done.append(url)				# <- add to skip list
+		urls_done.add(url)				# <- add to skip list
+
+		try:
+			log_path = time.strftime(log_all_urls) if '%' in log_all_urls else log_all_urls
+
+		except Exception:
+			log_path = log_all_urls
+
+		write_file(log_path, [log_stamp(), get_path_without_local_prefix(dest_root), tab_separator, url, line_separator])
 
 	finished = 1
 	udl = url
@@ -1814,7 +1876,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 	except HTTPError as e:
 		print colored('Server could not fulfill the request. Error code:', 'red'), e.code, '\n'
 
-		write_file(log_no_file, [log_stamp(), '%d	' % e.code]+udn)
+		write_file(log_no_file, [log_stamp(), e.code, tab_separator]+udn)
 
 		if e.code > 300 and e.code < 400:
 			write_file(log_no_file, [e, empty_line_separator])
@@ -2121,14 +2183,17 @@ def process_url(dest_root, url, utf='', prfx=''):
 				print('')
 
 				if (
-					extracted_files
-				# and	is_type_arr(extracted_files)
-				and	not is_type_int(extracted_files)
-				and	len(extracted_files) > 0
+					not extracted_files
+				# or	not is_type_arr(extracted_files)
+				or	is_type_int(extracted_files)
 				):
+					extracted_file = False
+
+				elif len(extracted_files) > 0:
+
 					extracted_file = extracted_files[0]
 
-					if extracted_file and (
+					if is_type_dic(extracted_file) and (
 						filename != extracted_file['name']
 					or	filesize != extracted_file['size']
 					):
@@ -2153,9 +2218,8 @@ def process_url(dest_root, url, utf='', prfx=''):
 								) if len(f) > old_filename_length
 								else filename
 							)
-
 					else:
-						extracted_file = False
+						extracted_file = True
 
 			# save this file:
 
@@ -2182,7 +2246,6 @@ def process_url(dest_root, url, utf='', prfx=''):
 							'Tried path: ', f, line_separator
 						,	'Saved path: ', saved, empty_line_separator
 						])
-
 
 				except Exception as e:
 					write_exception_traceback()
@@ -2322,30 +2385,41 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 # run -------------------------------------------------------------------------
 
-urls_done = []
-urls_passed = []
+urls_passed = set()
+urls_done = set()
+url_log_files = (
+	glob.glob(
+		re.sub(pat_placeholders, '*', log_all_urls)
+		if '%' in log_all_urls
+		else log_all_urls
+	) if (
+		'*' in log_all_urls
+	or	'?' in log_all_urls
+	or	'%' in log_all_urls
+	) else
+	[ log_all_urls ]
+)
 
-# for line in read_file(log_all_urls).split(line_separator):
-#	if tab_separator in line:
-#		url = line.rsplit(tab_separator, 1)[1]
-#		if not url in urls_done:
-#			urls_done.append(url)
+cprint('Reading already done URLs:', 'yellow')
 
-urls_done = list(set(
-	filter(
-		None
-	,	map(
-			lambda line: (
-				line.rsplit(tab_separator, 1)[1]
-				if tab_separator in line
-				else None
-			)
-		,	read_file(log_all_urls).split(line_separator)
-		)
-	)
-))
+count_urls_done_in_all_old_files = 0
 
-new_meta = old_meta = i = count_urls_done_this_run = 0
+for log_file_path in url_log_files:
+	count_urls_done_in_old_file = 0
+
+	for line in read_file(log_file_path).split(line_separator):
+		if tab_separator in line:
+			url = line.rsplit(tab_separator, 1)[1]
+			urls_done.add(url)
+
+			count_urls_done_in_old_file += 1
+			count_urls_done_in_all_old_files += 1
+
+	print log_file_path, count_urls_done_in_old_file
+
+print colored('Total:', 'yellow'), count_urls_done_in_all_old_files
+
+count_urls_done_this_run = new_meta = old_meta = i = 0
 
 while 1:
 	i += 1
@@ -2366,7 +2440,7 @@ while 1:
 		break
 
 	changes = count_urls_done_this_round = count_urls_to_do = 0
-	urls_done_this_time = []
+	urls_done_this_time = set()
 
 	for p in read_paths:
 		lines = read_path(p[0], p[1])
