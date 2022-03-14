@@ -21,6 +21,10 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint(*list_args, **keyword_args): print(list_args[0])
 
+# https://stackoverflow.com/a/47625614
+if sys.version_info[0] >= 3:
+	unicode = str
+
 # - Configuration and defaults ------------------------------------------------
 
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
@@ -180,8 +184,11 @@ file_exts_by_type = {
 }
 
 pat_file_content = {}
-pat_conseq_slashes = re.compile(r'[\\/]+')
 
+pat_conseq_slashes = re.compile(r'[\\/]+')
+pat_local_prefix = re.compile(r'(?P<Prefix>^[\\/]+[?][\\/]+)(?P<Path>.*?)$')
+
+local_path_prefix = u'//?/'
 timestamp_format = r'%Y-%m-%d %H:%M:%S'
 tz_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} %z %Z'
 gm_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} GMT'
@@ -232,18 +239,19 @@ def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
 
 def get_file_name_from_path(path):
-	return (
-		path
-		.rsplit('/', 1)[-1 : ][0]
-	)
+	path = normalize_slashes(path)
+
+	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
+
+	return path
 
 def get_file_ext_from_path(path):
-	return (
-		path
-		.rsplit('/', 1)[-1 : ][0]
-		.rsplit('.', 1)[-1 : ][0]
-		.lower()
-	)
+	path = normalize_slashes(path)
+
+	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
+	if path.find('.') >= 0: path = path.rsplit('.', 1)[1]
+
+	return path.lower()
 
 def get_file_path_without_ext(path):
 	return (
@@ -251,6 +259,54 @@ def get_file_path_without_ext(path):
 		# .rstrip('.')
 		or path
 	)
+
+def normalize_slashes(path):
+	return path.replace('\\', '/')
+
+def fix_slashes(path):
+	if os.sep != '/':
+		path = path.replace('/', os.sep)
+
+	if os.sep != '\\':
+		path = path.replace('\\', os.sep)
+
+	return path
+
+def conflate_slashes(path):
+
+	match = re.search(pat_local_prefix, path)
+
+	return (
+		local_path_prefix + re.sub(pat_conseq_slashes, '/', match.group('Path'))
+		if match
+		else
+		re.sub(pat_conseq_slashes, '/', path)
+	)
+
+def get_path_with_local_prefix(path):
+
+	match = re.search(pat_local_prefix, path)
+	path = re.sub(pat_conseq_slashes, '/', match.group('Path') if match else path)
+
+	return local_path_prefix + path.lstrip('/')
+
+def remove_trailing_dots_in_path_parts(path):
+	return '/'.join(
+		part if part == '.' or part == '..'
+		else part.rstrip('.')
+		for part in normalize_slashes(path).split('/')
+	)
+
+def get_long_abs_path(path):
+	if local_path_prefix:
+		path = remove_trailing_dots_in_path_parts(path)
+
+		if path.find(normalize_slashes(local_path_prefix)) == 0:
+			return path
+		else:
+			return local_path_prefix + os.path.abspath(path)
+
+	return fix_slashes(remove_trailing_dots_in_path_parts(path))
 
 def print_with_colored_prefix_line(comment, value, color=None):
 	print('')
@@ -351,9 +407,6 @@ def print_help():
 	]
 
 	print(u'\n'.join(help_text_lines).format(self_name))
-
-def fix_slashes(path):
-	return re.sub(pat_conseq_slashes, '/', u'' + path)
 
 def get_extracted_files(argv):
 	return run_batch_extract(argv, '--content-in-arg') if len(argv) > 1 else []
@@ -637,7 +690,10 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 	def get_path_arg_from(index, fix_path=True):
 		arg = argv[index] if argc > index else ''
 
-		return (fix_slashes(arg) or '.') if fix_path else arg
+		if fix_path and (not arg_content or (arg and re.search(pat_conseq_slashes, arg))):
+			return get_long_abs_path(arg or '.')
+
+		return arg
 
 	def get_optional_args_starting_from(start_index):
 
