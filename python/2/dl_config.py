@@ -81,7 +81,7 @@ log_no_file	= log_path_pattern % 'no_file'		# <- when file not found, forbidden,
 log_not_saved	= log_path_pattern % 'not_saved'	# <- failed saving for some reason
 log_blocked	= log_path_pattern % 'blocked'		# <- ISP firewall
 log_skipped	= log_path_pattern % 'skipped'		# <- skipped, according to the list above
-log_all_urls	= log_path_pattern % 'url'		# <- just all URLs, bad or OK, to skip repeated, not redownload every rime
+log_all_urls	= log_path_pattern % 'url_%Y-%m'	# <- all processed URLs, bad or OK, to skip repeated, not redownload every rime
 
 url_to_skip = [				# <- various bad or useless stuff, won't fix now, or forever
 	'//localhost/', '//l/', '//a/'					# <- localhost and its aliases

@@ -1121,7 +1121,7 @@ def get_path_with_local_prefix(path):
 def remove_trailing_dots_in_path_parts(path):
 	return '/'.join(
 		part if part == '.' or part == '..'
-		else part.rstrip('.')
+		else trim_path(part.rstrip('.'))
 		for part in normalize_slashes(path).split('/')
 	)
 
@@ -1307,26 +1307,33 @@ def write_exception_traceback(text=''):
 
 	f.close()
 
-def trim_path(path, delim='.', placeholder='(...)', max_len=250):
+def trim_path(path, path_sep='/', name_sep='.', placeholder='(...)', max_len=250):
 	path = conflate_slashes(path)
 
 	if len(path) > max_len:
-		path, name = path.rsplit('/', 1)
-		head, tail = name.rsplit(delim, 1)
-		path += '/'
-		tail = placeholder + delim + tail
+		path, name = ('', path) if path.find(path_sep) < 0 else path.rsplit(path_sep, 1)
+		head, tail = (name, '') if name.find(name_sep) < 0 else name.rsplit(name_sep, 1)
+
+		if path:
+			path += path_sep
+
+		tail = (placeholder + name_sep + tail) if tail else placeholder
+
 		len_without_name = len(path) + len(tail)
 		left_for_name = max_len - len_without_name
+
 		path += (
-			name[0:max_len - len(path)] if left_for_name < 0 else
-			(head[0:left_for_name] + tail)
+			name[0 : max_len - len(path)]
+			if left_for_name < 0
+			else
+			(head[0 : left_for_name] + tail)
 		)
 
 	return path
 
 def save_uniq_copy(path, content):
-	# path = trim_path(path)
 	path = get_long_abs_path(path)
+	path = trim_path(path)
 
 	try:
 		is_existing_path = os.path.exists(path)
@@ -1361,8 +1368,8 @@ def save_uniq_copy(path, content):
 				.join(path.rsplit('.', 1))
 			)
 
-			# new_path_for_old_file = uniq_path(trim_path(path_with_old_file_modtime, ';'))
-			new_path_for_old_file = uniq_path(path_with_old_file_modtime)
+			new_path_for_old_file = uniq_path(trim_path(path_with_old_file_modtime, ';'))
+			# new_path_for_old_file = uniq_path(path_with_old_file_modtime)
 
 			try:
 				os.rename(path, new_path_for_old_file)
@@ -1876,9 +1883,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 	except HTTPError as e:
 		print colored('Server could not fulfill the request. Error code:', 'red'), e.code, '\n'
 
-		write_file(log_no_file, [log_stamp(), e.code, tab_separator]+udn)
+		write_file(log_no_file, [log_stamp(), '%d' % e.code, tab_separator]+udn)
 
-		if e.code > 300 and e.code < 400:
+		if (
+			e.code > 300
+		and	e.code < 400
+		):
 			write_file(log_no_file, [e, empty_line_separator])
 
 		udl_trim = re.sub(pat_trim, '', udl)
@@ -1887,7 +1897,12 @@ def process_url(dest_root, url, utf='', prfx=''):
 			cprint('Retrying after trim:\n', 'yellow')
 			finished += process_url(dest_root, udl_trim)
 
-		elif e.code > 400 and e.code != 404 and e.code < 500 and udl.find(default_web_proxy) != 0:
+		elif (
+			e.code != 404
+		and	e.code > 400
+		and	e.code < 500
+		and	udl.find(default_web_proxy) != 0
+		):
 			cprint('Retrying with proxy:\n', 'yellow')
 			finished += process_url(dest_root, get_proxified_url(udl))
 
