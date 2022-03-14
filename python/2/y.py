@@ -20,7 +20,7 @@ CYS = 'c' in sys.argv
 page_prfx = 'Youtube'
 page_sufx = ' - watch'
 page_ext_arr = ['mht', 'mhtml']
-page_fnmatch_by_ext_arr = map(lambda x: page_prfx+'*.'+x, page_ext_arr)
+page_fnmatch_by_ext_arr = [page_prfx+'*.'+ext for ext in page_ext_arr]
 
 separated_subdir = '_audio-video_separated'
 

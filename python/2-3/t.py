@@ -325,6 +325,7 @@ def run_batch_retime(argv):
 				if timestamp_text:
 					try:
 						timestamp_value = get_timestamp_value(timestamp_text)
+
 					except Exception as exception:
 						if arg_verbose:
 							print_exception('Error reading time text from file:', path_name)
@@ -342,6 +343,7 @@ def run_batch_retime(argv):
 							,	colored(timestamp_value, 'yellow')
 							,	path_name
 							]))
+
 						except Exception as exception:
 							print_exception('Error printing path info for:', path_name)
 
@@ -433,6 +435,7 @@ def run_batch_retime(argv):
 						,	colored('of', 'yellow')
 						,	path
 						]))
+
 					except Exception as exception:
 						print_exception('Error printing path info for:', path)
 

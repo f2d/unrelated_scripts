@@ -437,16 +437,17 @@ def run_batch_archiving(argv):
 				cmd_args = cmd_template[exe_type] + (opt_args or [])
 
 				if suffix.find('.zip') >= 0:
-					cmd_args = list(map(
-						lambda x: (
-							None if x[0 : 4] == '-mqs'
-						else	None if x[0 : 4] == '-md='
-						else	None if x[0 : 4] == '-m0='
-						else	('-mx=0' if '0' in flags else '-mx=9') if x[0 : 4] == '-mx='
-						else	(None if '0' in flags else '-mfb=256') if x[0 : 5] == '-mfb='
-						else	x
-						), cmd_args
-					))
+					cmd_args = [
+						(
+							None if arg[0 : 4] == '-mqs'
+						else	None if arg[0 : 4] == '-md='
+						else	None if arg[0 : 4] == '-m0='
+						else	('-mx=0' if '0' in flags else '-mx=9') if arg[0 : 4] == '-mx='
+						else	(None if '0' in flags else '-mfb=256') if arg[0 : 5] == '-mfb='
+						else	arg
+						)
+						for arg in cmd_args
+					]
 
 				dest = get_unique_clean_path(dest, suffix, t0)
 				path_args = (
@@ -600,7 +601,7 @@ def run_batch_archiving(argv):
 		foreach_dir  = '4' in flags
 		foreach_file = 'f' in flags
 		foreach = (foreach_dir or foreach_file) and not is_subj_list
-		foreach_ID = ''.join(map(lambda x: x if x in flags else '', flags_group_by_num_any_sep))
+		foreach_ID = ''.join([(x if x in flags else '') for x in flags_group_by_num_any_sep])
 
 		exe_paths = get_exe_paths()
 

@@ -214,7 +214,7 @@ def run_batch_repack(argv):
 
 	print_with_colored_prefix('From:    ', old_path.encode(print_encoding))
 	print_with_colored_prefix('To:      ', new_path.encode(print_encoding))
-	print_with_colored_prefix('Matching:', ', '.join(map(lambda x: x['arg'], criteria)).encode(print_encoding))
+	print_with_colored_prefix('Matching:', ', '.join([x['arg'] for x in criteria]).encode(print_encoding))
 
 	count_members = 0
 	count_members_added = 0

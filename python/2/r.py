@@ -363,17 +363,59 @@ def fix_slashes(path):
 
 	return path
 
-def get_file_name(path):
+def conflate_slashes(path):
+
+	match = re.search(pat_local_prefix, path)
+
+	return (
+		local_path_prefix + re.sub(pat_conseq_slashes, '/', match.group('Path'))
+		if match
+		else
+		re.sub(pat_conseq_slashes, '/', path)
+	)
+
+def get_path_with_local_prefix(path):
+
+	match = re.search(pat_local_prefix, path)
+	path = re.sub(pat_conseq_slashes, '/', match.group('Path') if match else path)
+
+	return local_path_prefix + path.lstrip('/')
+
+def remove_trailing_dots_in_path_parts(path):
+	return '/'.join(
+		part if part == '.' or part == '..'
+		else part.rstrip('.')
+		for part in normalize_slashes(path).split('/')
+	)
+
+def get_long_abs_path(path):
+	if local_path_prefix:
+		path = remove_trailing_dots_in_path_parts(path)
+
+		if path.find(normalize_slashes(local_path_prefix)) == 0:
+			return path
+		else:
+			return local_path_prefix + os.path.abspath(path)
+
+	return fix_slashes(remove_trailing_dots_in_path_parts(path))
+
+def get_file_name_from_path(path):
+	path = normalize_slashes(path)
+
 	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
+
 	return path
 
-def get_file_ext(path):
+def get_file_ext_from_path(path):
+	path = normalize_slashes(path)
+
 	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
 	if path.find('.') >= 0: path = path.rsplit('.', 1)[1]
+
 	return path.lower()
 
 def read_zip_file(name, return_source_html=False):
-	file_ext = get_file_ext(name)
+	file_ext = get_file_ext_from_path(name)
 
 	for ext, index_file_name in ext_web_index_file.items():
 		if ext != file_ext:
@@ -428,20 +470,6 @@ def read_file_or_part(name, size=0):
 
 def get_formatted_modtime(src_path, format):
 	return datetime.datetime.fromtimestamp(os.path.getmtime(src_path)).strftime(format)
-
-def remove_trailing_dots_in_path_parts(path):
-	return '/'.join(
-		part if part == '.' or part == '..'
-		else part.rstrip('.')
-		for part in normalize_slashes(path).split('/')
-	)
-
-def get_long_abs_path(path):
-	return fix_slashes(remove_trailing_dots_in_path_parts(
-		local_path_prefix + os.path.abspath(path)
-		if local_path_prefix and not path.find(fix_slashes(local_path_prefix)) == 0
-		else path
-	))
 
 def get_unique_clean_path(src_path, dest_path, print_duplicate_count=True):
 	global unprinted_duplicate_count
@@ -646,10 +674,10 @@ def process_dir(path, later=0):
 				if n_max_len < src_len:
 					n_max_len = src_len
 
-				ext = '(...).' + get_file_ext(name)
+				ext = '(...).' + get_file_ext_from_path(name)
 				dest_path = src_path[:arg_len - len(ext)].rstrip() + ext
 				dest_path = get_unique_clean_path(src_path, dest_path)
-				dest_show = (dest_path if arg_print_full_path else get_file_name(dest_path))
+				dest_show = (dest_path if arg_print_full_path else get_file_name_from_path(dest_path))
 				src_show = (src_path if arg_print_full_path else name)
 
 				print
@@ -659,12 +687,12 @@ def process_dir(path, later=0):
 				if DO:
 					os.rename(src, dest_path)
 
-					name = get_file_name(dest_path)
+					name = get_file_name_from_path(dest_path)
 					src = get_long_abs_path(path+'/'+name)
 
 					n_moved += 1
 
-		ext = old_ext = get_file_ext(name)
+		ext = old_ext = get_file_ext_from_path(name)
 		ext = ext_web_remap.get(ext, ext)
 		d = ''
 
@@ -833,7 +861,7 @@ def process_dir(path, later=0):
 								continue
 
 						child_path = path+'/'+child_name
-						child_ext = get_file_ext(child_name)
+						child_ext = get_file_ext_from_path(child_name)
 						if (child_ext in ext_path_inside) or (not os.path.exists(child_path)):
 							continue
 
