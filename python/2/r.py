@@ -325,6 +325,7 @@ r_type = type(pat_url)
 s_type = type('')
 u_type = type(u'')
 
+local_path_prefix = u'//?/'
 info_prfx = '\t'
 msg_prfx = '\n-\t'
 
@@ -435,11 +436,18 @@ def remove_trailing_dots_in_path_parts(path):
 		for part in normalize_slashes(path).split('/')
 	)
 
+def get_long_abs_path(path):
+	return fix_slashes(remove_trailing_dots_in_path_parts(
+		local_path_prefix + os.path.abspath(path)
+		if local_path_prefix and not path.find(fix_slashes(local_path_prefix)) == 0
+		else path
+	))
+
 def get_unique_clean_path(src_path, dest_path, print_duplicate_count=True):
 	global unprinted_duplicate_count
 
 	try_count = 0
-	dest_path = remove_trailing_dots_in_path_parts(dest_path)
+	dest_path = get_long_abs_path(dest_path)
 
 	if os.path.exists(dest_path) and os.path.exists(src_path):
 		try_count += 1
@@ -463,6 +471,8 @@ def get_unique_clean_path(src_path, dest_path, print_duplicate_count=True):
 	return dest_path
 
 def rename_to_unique_clean_path(src_path, dest_path):
+	src_path = get_long_abs_path(src_path)
+
 	return os.rename(src_path, get_unique_clean_path(src_path, dest_path))
 
 def meet(obj, criteria, file_path_or_name=None):
@@ -608,7 +618,7 @@ def process_dir(path, later=0):
 
 	for name in names:
 		n_i += 1
-		src = path+'/'+name
+		src = get_long_abs_path(path+'/'+name)
 		src_path_or_name = (src if arg_print_full_path else name)
 
 		if os.path.isdir(src):
@@ -650,7 +660,7 @@ def process_dir(path, later=0):
 					os.rename(src, dest_path)
 
 					name = get_file_name(dest_path)
-					src = path+'/'+name
+					src = get_long_abs_path(path+'/'+name)
 
 					n_moved += 1
 
@@ -1069,7 +1079,7 @@ def process_dir(path, later=0):
 def run(later=0):
 	global n_later, dup_lists_by_ID
 
-	process_dir(u'.', later)
+	process_dir(get_long_abs_path(u'.'), later)
 
 	if later:
 		for i in dup_lists_by_ID:

@@ -57,6 +57,7 @@ if sys.version_info[0] >= 3:
 from dl_config import *
 
 print_enc = default_encoding
+local_path_prefix = u'//?/'
 tab_separator = '\t'
 line_separator = '\n'
 empty_line_separator = line_separator * 2
@@ -192,8 +193,20 @@ print colored('Accept-Encoding:', 'yellow'), accept_enc
 
 # precaution ------------------------------------------------------------------
 
-read_paths = zip(read_root.split('|'), dest_root.split('|'))
+def get_path_list_from_arg(value):
+
+	if local_path_prefix:
+		return [local_path_prefix + x for x in value.split('|')]
+	else:
+		return value.split('|')
+
+read_paths = zip(
+	get_path_list_from_arg(read_root)
+,	get_path_list_from_arg(dest_root)
+)
+
 f = nf = 0
+
 for p in read_paths:
 	for d in p:
 		if os.path.exists(d):
@@ -202,6 +215,7 @@ for p in read_paths:
 			nf += 1
 
 			print colored('Path not found:', 'red'), d
+
 if not f:
 	sys.exit(1)
 
@@ -1433,6 +1447,12 @@ def get_dest_dir_from_log_name(name):
 			return name
 	return ''
 
+def get_path_without_local_prefix(path):
+	if local_path_prefix and path.find(local_path_prefix) == 0:
+		return path[len(local_path_prefix) : ]
+
+	return path
+
 def read_path(path, dest_root, lvl=0):
 	global changes, old_meta, new_meta
 
@@ -1461,8 +1481,11 @@ def read_path(path, dest_root, lvl=0):
 
 		meta = r = ''
 		start = 0
+		src_file_path = get_path_without_local_prefix(f)
+
 		for line in old_meta:
-			if line[2] == f:
+			if src_file_path == get_path_without_local_prefix(line[2]):
+
 				start = int(line[1])
 				meta = tab_separator.join(line)
 
@@ -2322,12 +2345,11 @@ urls_done = list(set(
 	)
 ))
 
-new_meta = old_meta = ''
+new_meta = old_meta = i = count_urls_done_this_run = 0
 
-i = 0
 while 1:
 	i += 1
-	cprint('%s Reading logs # %d #, URLs done: %d' % (timestamp(), i, len(urls_done)), 'yellow')
+	cprint('%s Reading logs # %d #, URLs found: %d, done: %d' % (timestamp(), i, len(urls_done), count_urls_done_this_run), 'yellow')
 
 	new_meta = ''
 	old_meta = []
@@ -2343,7 +2365,7 @@ while 1:
 
 		break
 
-	changes = count_urls_done = count_urls_to_do = 0
+	changes = count_urls_done_this_round = count_urls_to_do = 0
 	urls_done_this_time = []
 
 	for p in read_paths:
@@ -2358,12 +2380,14 @@ while 1:
 				if finished > 1:
 					count_urls_to_do += finished - 1
 
-				count_urls_done += finished
+				count_urls_done_this_round += finished
 
-				cprint('(done in this round: %d / %d)\n' % (count_urls_done, count_urls_to_do), 'green')
+				cprint('(done in this round: %d / %d)\n' % (count_urls_done_this_round, count_urls_to_do), 'green')
 
-			if TEST and count_urls_done > 1:
+			if TEST and count_urls_done_this_round > 1:
 				break
+
+	count_urls_done_this_run += count_urls_done_this_round
 
 	if changes and new_meta:
 		write_file(log_last_pos, new_meta.encode(default_encoding), 'w')
