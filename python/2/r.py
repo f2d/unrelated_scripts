@@ -25,7 +25,7 @@ args = sys.argv
 argc = len(args)
 
 arg_flags = args[1] if argc > 1 else ''
-other_args = args[2:] if argc > 2 else []
+other_args = args[2 : ] if argc > 2 else []
 
 if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	self_name = os.path.basename(__file__)
@@ -115,8 +115,8 @@ if arg_name_cut in other_args:
 else:
 	arg_len = 0
 	for a in other_args:
-		if a[0:j] == arg_name_cut:
-			arg_len = int(a[j:])
+		if a[0 : j] == arg_name_cut:
+			arg_len = int(a[j : ])
 			break
 
 print_duplicate_count=True
@@ -414,18 +414,19 @@ def get_file_ext_from_path(path):
 
 	return path.lower()
 
-def read_zip_file(name, return_source_html=False):
-	file_ext = get_file_ext_from_path(name)
+def read_zip_file(src_path, return_source_html=False):
+	file_ext = get_file_ext_from_path(src_path)
 
 	for ext, index_file_name in ext_web_index_file.items():
 		if ext != file_ext:
 			continue
 
 		try:
-			zip_file = zipfile.ZipFile(name, 'r')
+			zip_file = zipfile.ZipFile(src_path, 'r')
 
 			for path in zip_file.namelist():
-				name = path.rsplit('/', 1)[-1:][0]
+				name = path.rsplit('/', 1)[-1 : ][0]
+
 				if name == index_file_name:
 					if TEST:
 						print info_prfx, colored('MAFF/ZIP test, meta file:', 'yellow'), path, '\n'
@@ -434,8 +435,9 @@ def read_zip_file(name, return_source_html=False):
 
 					if return_source_html:
 						s = re.search(pat_idx, result)
+
 						if s and s.group(1):
-							path = path[:-len(name)] + s.group(1)
+							path = path[ : -len(name)] + s.group(1)
 							if TEST:
 								print info_prfx, colored('MAFF/ZIP test, content file:', 'yellow'), path, '\n'
 
@@ -444,26 +446,26 @@ def read_zip_file(name, return_source_html=False):
 
 		except zipfile.BadZipfile as exception:
 			if TEST:
-				print msg_prfx, colored('MAFF/ZIP test, cannot read file as ZIP:', 'yellow'), name
+				print msg_prfx, colored('MAFF/ZIP test, cannot read file as ZIP:', 'yellow'), src_path
 				print exception
 
 
-def read_file_or_part(name, size=0):
+def read_file_or_part(src_path, size=0):
 	global n_fail
 
 	result = ''
 
 	try:
-		result = read_zip_file(name, return_source_html=(not size))
+		result = read_zip_file(src_path, return_source_html=(not size))
 
 		if result is None:
-			f = open(name)
+			f = open(src_path)
 			result = f.read(size) if size else f.read()
 			f.close()
 
 	except Exception as exception:
 		n_fail += 1
-		print msg_prfx, colored('Path length:', 'yellow'), len(name)
+		print msg_prfx, colored('Path length:', 'yellow'), len(src_path)
 		print exception
 
 	return result
@@ -612,29 +614,29 @@ def print_name(name, prefix='', extra_line=True):
 		cprint('{0}name in {1}:'.format(prefix, enc), 'yellow')
 		print name.encode(enc)
 
-def move_processed_target(src, path, name, dest_dir=None):
+def move_processed_target(src_path, path, name, dest_dir=None):
 	global n_fail, n_moved
 
 	if not dest_dir and arg_subdir_modtime_format:
-		dest_dir = path.rstrip('/') + '/' + get_formatted_modtime(src, arg_subdir_modtime_format).strip('/')
+		dest_dir = path.rstrip('/') + '/' + get_formatted_modtime(src_path, arg_subdir_modtime_format).strip('/')
 
 	if dest_dir:
 		print dest_dir.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
 
 		if DO:
-			dest = get_unique_clean_path(src, dest_dir+'/'+name)
+			dest = get_unique_clean_path(src_path, dest_dir+'/'+name)
 
 			try:
 				if not os.path.exists(dest_dir):
 					print colored('Path not found, make dirs:', 'yellow'), dest_dir.encode(default_print_encoding)
 					os.makedirs(dest_dir)
 
-				os.rename(src, dest)
+				os.rename(src_path, dest)
 				n_moved += 1
 
 			except Exception as exception:
 				n_fail += 1
-				print msg_prfx, colored('Path length:', 'yellow'), len(src), colored('to', 'yellow'), len(dest)
+				print msg_prfx, colored('Path length:', 'yellow'), len(src_path), colored('to', 'yellow'), len(dest)
 				print exception
 
 def process_dir(path, later=0):
@@ -646,17 +648,17 @@ def process_dir(path, later=0):
 
 	for name in names:
 		n_i += 1
-		src = get_long_abs_path(path+'/'+name)
-		src_path_or_name = (src if arg_print_full_path else name)
+		src_path = get_long_abs_path(path+'/'+name)
+		src_path_or_name = (src_path if arg_print_full_path else name)
 
-		if os.path.isdir(src):
+		if os.path.isdir(src_path):
 			if arg_recurse_into_subdirs:
 				if TEST and arg_print_full_path:
 					print_name(name, 'Dir')
-				process_dir(src, later)
+				process_dir(src_path, later)
 
 			if arg_move_dirs_to_subdir_by_modtime:
-				move_processed_target(src, path, name)
+				move_processed_target(src_path, path, name)
 
 			continue
 
@@ -666,7 +668,7 @@ def process_dir(path, later=0):
 		# optionally cut long names before anything else:
 
 		if arg_len:
-			src_path = os.path.abspath(src) if arg_cut_full_path else name
+			src_path = os.path.abspath(src_path) if arg_cut_full_path else name
 			src_len = len(src_path)
 
 			if src_len > arg_len:
@@ -675,7 +677,7 @@ def process_dir(path, later=0):
 					n_max_len = src_len
 
 				ext = '(...).' + get_file_ext_from_path(name)
-				dest_path = src_path[:arg_len - len(ext)].rstrip() + ext
+				dest_path = src_path[ : arg_len - len(ext)].rstrip() + ext
 				dest_path = get_unique_clean_path(src_path, dest_path)
 				dest_show = (dest_path if arg_print_full_path else get_file_name_from_path(dest_path))
 				src_show = (src_path if arg_print_full_path else name)
@@ -685,10 +687,10 @@ def process_dir(path, later=0):
 				print colored('Cut to', 'yellow'), len(dest_show), dest_show.encode(default_print_encoding)
 
 				if DO:
-					os.rename(src, dest_path)
+					os.rename(src_path, dest_path)
 
 					name = get_file_name_from_path(dest_path)
-					src = get_long_abs_path(path+'/'+name)
+					src_path = get_long_abs_path(path+'/'+name)
 
 					n_moved += 1
 
@@ -720,34 +722,37 @@ def process_dir(path, later=0):
 
 				print d.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
 
-				if DO and os.path.exists(src) and os.path.isdir(d):
-					rename_to_unique_clean_path(src, d+'/'+name)
+				if DO and os.path.exists(src_path) and os.path.isdir(d):
+					rename_to_unique_clean_path(src_path, d+'/'+name)
 					n_moved += 1
 
 		elif ext in ext_path_inside:
 			n_matched += 1
-			read_bytes = ext_web_read_bytes.get(ext, default_read_bytes)
 
-			if ext == 'html':
-				url = None
-				max_found_url_length = 0
+			url = None
+			size_of_part_to_read = ext_web_read_bytes.get(ext, default_read_bytes)
+			file_content_part = read_file_or_part(src_path, size_of_part_to_read)
 
-				for each_found_url in re.finditer(pat_url, read_file_or_part(src, read_bytes)):
-					url_length = len(each_found_url.group('URL'))
+			if file_content_part:
+				if ext == 'html':
+					max_found_url_length = 0
 
-					if max_found_url_length < url_length:
-						max_found_url_length = url_length
+					for each_found_url in re.finditer(pat_url, file_content_part):
+						url_length = len(each_found_url.group('URL'))
 
-						url = each_found_url
-			else:
-				url = re.search(pat_url, read_file_or_part(src, read_bytes))
+						if max_found_url_length < url_length:
+							max_found_url_length = url_length
+
+							url = each_found_url
+				else:
+					url = re.search(pat_url, file_content_part)
 
 			if url:
 				if TEST:
 					print_url_groups(url, 'yellow')
 			else:
 				if TEST:
-					print info_prfx, colored('No URL in file:', 'yellow'), src.encode(default_print_encoding)
+					print info_prfx, colored('No URL in file:', 'yellow'), src_path.encode(default_print_encoding)
 
 				continue
 
@@ -798,10 +803,10 @@ def process_dir(path, later=0):
 				dest = (s[1] if (len(s) > 1) else domain)		# <- site bak root
 				dest += (
 					test[0]
-					if (isinstance(test, a_type) and dest[-2:] == '//')
+					if (isinstance(test, a_type) and dest[-2 : ] == '//')
 					else
 					domain
-					if (dest[-1:] == '/')
+					if (dest[-1 : ] == '/')
 					else ''
 				).strip('/:.')+'/'
 
@@ -826,7 +831,7 @@ def process_dir(path, later=0):
 
 				if TEST:
 					if arg_print_full_path:
-						print info_prfx, src.encode(default_print_encoding)
+						print info_prfx, src_path.encode(default_print_encoding)
 					print dest, colored('<-', 'yellow'), ufull
 
 				# rename target files downloaded from RGHost/booru/yt/etc:
@@ -847,7 +852,7 @@ def process_dir(path, later=0):
 					pat_child_name = p.get('child')
 
 					if site_type == 'booru':
-						page_content = re.sub(pat_ren_mht_linebreak, '', read_file_or_part(src))
+						page_content = re.sub(pat_ren_mht_linebreak, '', read_file_or_part(src_path))
 
 					if site_type == 'youtube':
 						page_ID = re.search(pat_ren_yt_URL_ID, url.group('Query'))
@@ -907,7 +912,7 @@ def process_dir(path, later=0):
 								f = child_match.group('ID')
 							if not f:
 								f = len(child_ext)+1
-								f = re.sub(pat_ren_src_name, '', child_name[:-f])
+								f = re.sub(pat_ren_src_name, '', child_name[ : -f])
 							if f:
 								f = re.search(get_rei(
 									r'(?:^|[\r\n\t])'
@@ -964,13 +969,13 @@ def process_dir(path, later=0):
 							else name[ : -len(old_ext)] + ext
 						)
 
-						dq = get_unique_clean_path(src, d, print_duplicate_count=print_duplicate_count)
-						os.rename(src, dq)
+						dq = get_unique_clean_path(src_path, d, print_duplicate_count=print_duplicate_count)
+						os.rename(src_path, dq)
 
 						if os.path.exists(d):		# <- check that new-moved and possible duplicate both exist
 							n_moved += 1
 							if arg_print_full_path:
-								print info_prfx, src.encode(default_print_encoding)
+								print info_prfx, src_path.encode(default_print_encoding)
 							print dest, colored('<-', 'yellow'), ufull
 
 							print_duplicate_count=True
@@ -1093,8 +1098,8 @@ def process_dir(path, later=0):
 				i = len(subdir)
 				d = path.rstrip('/')
 
-				while d[-i:] == subdir:
-					d = d[0:-i]
+				while d[-i : ] == subdir:
+					d = d[0 : -i]
 
 				d += subdir
 				if d == path:
@@ -1102,7 +1107,7 @@ def process_dir(path, later=0):
 
 				break
 
-			move_processed_target(src, path, name, d)
+			move_processed_target(src_path, path, name, d)
 
 def run(later=0):
 	global n_later, dup_lists_by_ID
