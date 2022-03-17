@@ -71,8 +71,8 @@ TEST = 0
 if len(sys.argv) > 1:
 	help = 0
 	for a in sys.argv:
-		a = a[-4:].lower()
-		L = a[-1:]
+		a = a[-4 : ].lower()
+		L = a[-1 : ]
 		if (a == L or a.lstrip('-/') == L) and (L == '?' or L == 'h' or a == 'help'):
 			help = 1
 
@@ -122,6 +122,8 @@ if help:
 	,	'd: Paths to put files (DL\'d from links), + subfolder per log. Omit = "{}"'.format(colored(dest_root, 'magenta'))
 	,	''
 	,	colored('-<flag-letters>', 'cyan') + ': string of letters in any order after a dash.'
+	,	'	l: normalize preloaded urls from old logs (less redundancy, but slow start)'
+
 	,	'	m: http modtime header -> add timestamp to filename (default = current time)'
 	,	'	u: add time in format: ' + format_epoch + ' (default = all u+y+h)'
 	,	'	y: add time in format: ' + format_ymd
@@ -130,6 +132,7 @@ if help:
 	,	'	p: prepend time before filename (default)'
 	,	'	s: append time before ext'
 	,	'	a: append time after ext'
+
 	,	'	d: grab Discord emoji by ID'
 	,	''
 	,	colored('<help>', 'cyan') + ': show this text.'
@@ -148,31 +151,38 @@ if help:
 flags = ''
 add_time = None
 
-for a in sys.argv[1:]:
-	L = a[0].lower()
-	if L == '-':
-		flags = a[1:] if len(a) > 1 else ''
-		for i in 'acmpsuy':
-			if i in flags:
-				add_time = []
-				if 'u' in flags: add_time.append(format_epoch)
-				if 'y' in flags: add_time.append(format_ymd)
-				if 'h' in flags: add_time.append(format_hms)
-				if not add_time: add_time = [format_epoch, format_ymd, format_hms]
-				add_time_j = ',' if 'c' in flags else '_'
-				add_time_fmt = add_time_j.join(add_time)
+for argv in sys.argv[1 : ]:
+	arg = argv.strip('"')
 
-				break
+	if not len(arg):
+		continue
 
-	elif L == 'w': wait = int(a[1:]) if len(a) > 1 else 1
-	elif L == 'i': interval = int(a[1:]) if len(a) > 1 else 60
-	elif L == 't': timeout_request = int(a[1:]) if len(a) > 1 else 99
-#	elif L == 'l': timeout_slow_dl = int(a[1:]) if len(a) > 1 else 99
-	elif L == 'r': recurse = int(a[1:]) if len(a) > 1 else 999
-	elif L == 'm': meta_root = a[1:].replace('\\', '/') if len(a) > 1 else '..'
-	elif L == 'g': read_root = a[1:].replace('\\', '/') if len(a) > 1 else '.'
-	elif L == 'd': dest_root = a[1:].replace('\\', '/') if len(a) > 1 else '..'
-	elif L == 'e': read_encoding = a[1:] if len(a) > 1 else default_encoding
+	L = arg[0].lower()
+
+	if   L == '-': flags              += arg[1 : ]  if len(arg) > 1 else ''
+	elif L == 'w': wait            = int(arg[1 : ]) if len(arg) > 1 else 1
+	elif L == 'i': interval        = int(arg[1 : ]) if len(arg) > 1 else 60
+	elif L == 't': timeout_request = int(arg[1 : ]) if len(arg) > 1 else 99
+#	elif L == 'l': timeout_slow_dl = int(arg[1 : ]) if len(arg) > 1 else 99
+	elif L == 'r': recurse         = int(arg[1 : ]) if len(arg) > 1 else 999
+	elif L == 'm': meta_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
+	elif L == 'g': read_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '.'
+	elif L == 'd': dest_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
+	elif L == 'e': read_encoding       = arg[1 : ].replace('-' , '_') if len(arg) > 1 else default_encoding
+
+for i in 'achmpsuy':
+	if i in flags:
+		add_time = []
+
+		if 'u' in flags: add_time.append(format_epoch)
+		if 'y' in flags: add_time.append(format_ymd)
+		if 'h' in flags: add_time.append(format_hms)
+		if not add_time: add_time = [format_epoch, format_ymd, format_hms]
+
+		add_time_j = ',' if 'c' in flags else '_'
+		add_time_fmt = add_time_j.join(add_time)
+
+		break
 
 read_encoding = read_encoding.split('|')
 
@@ -367,20 +377,20 @@ pat_ln2d = [
 # -----------------------------------------------------------------------------
 
 pat2replace_before_checking = [	# <- strings before this can have any of "/path/?query&params#fragment" parts
-	[re.compile(r'&(nbsp|#8203);', re.I), ' ']
-,	[re.compile(r'&lt;', re.I), '<']
-,	[re.compile(r'&gt;', re.I), '>']
-,	[re.compile(r'&quot;', re.I), '"']
-,	[re.compile(r'&#0*39;', re.I), "'"]
-,	[re.compile(r'&amp;', re.I), '&']
-,	[re.compile(r'(\[/img\]|[\|\'\\"\s.,;:%|?*]|%2C|%3B|%3A|%25|%7C|%3F)+$', re.I), '']
-,	[re.compile(r'^(\w+:/+)?([^:/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url=', re.I), '']# <- remove redirect
-,	[re.compile(r'^(\w+:/+)?([^:/?#]+\.)?deviantart\.com/+users/+outgoing\?', re.I), '']	# <- remove redirect
-,	[re.compile(r'\.prx2\.unblocksit\.es', re.I), '']					# <- remove web-proxy
-,	[re.compile(r'^(\w+:/+[^/?#]+/)/+', re.I), r'\1']					# <- remove redundant slashes
-,	[re.compile(r'^https(:/+([^:/?#]+\.)?(i\.imgur)\.)', re.I), r'http\1']			# <- remove https (mostly for deduplication)
-,	[re.compile(r'^((\w+:/+)?([^:/?#]+\.)?(i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\1.']	# <- skip downscaled copy
-,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?discord[^?#]+/[^?#]+)([?#].*)$', re.I), r'\1#\3']
+	[re.compile(r'&(?:nbsp|#8203);',re.I), ' ']
+,	[re.compile(r'&lt;',		re.I), '<']
+,	[re.compile(r'&gt;',		re.I), '>']
+,	[re.compile(r'&quot;',		re.I), '"']
+,	[re.compile(r'&#0*39;',		re.I), "'"]
+,	[re.compile(r'&amp;',		re.I), '&']
+,	[re.compile(r'(?:\[/img\]|[\|\'\\"\s.,;:%|?*]|%2C|%3B|%3A|%25|%7C|%3F)+$'		, re.I), '']	# <- remove tail formatting garbage
+,	[re.compile(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?steamcommunity\.com/+linkfilter/+\?url='	, re.I), '']	# <- remove redirect
+,	[re.compile(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?deviantart\.com/+users/+outgoing\?'		, re.I), '']	# <- remove redirect
+,	[re.compile(r'^(?P<Site>(?:\w+:/+)?[^:/?#]+)\.prx2\.unblocksit\.es(?P<Path>$|/+)'	, re.I), '\g<Site>\g<Path>']	# <- remove given web-proxy
+,	[re.compile(r'^(?P<Protocol>\w+):/+(?P<Domain>[^/?#]+)/+'			, re.I), r'\g<Protocol>://\g<Domain>/']	# <- remove redundant slashes
+,	[re.compile(r'^https(?P<NoProtocol>:/+(?:[^:/?#]+\.)?(?:i\.imgur)\.)'		, re.I), r'http\g<NoProtocol>']		# <- remove https for deduplication
+,	[re.compile(r'^(?P<FullVersion>(?:\w+:/+)?(?:[^:/?#]+\.)?(?:i\.imgur)\.\w+/+\w{7})[rh]\.', re.I), r'\g<FullVersion>.']	# <- skip downscaled copy
+,	[re.compile(r'^(?P<Path>\w+:/+(?:[^:/?#]+\.)?discord[^?#]+/[^?#]+)(?P<Query>[?#].*)$'	, re.I), r'\g<Path>#\g<Query>']	# <- ?query to #anchor
 
 # remove discord web-proxy:
 
@@ -390,36 +400,43 @@ pat2replace_before_checking = [	# <- strings before this can have any of "/path/
 # URL sample with arguments (easier to let it be and fix destination filename later, than URL-decode arguments here?):
 # https://images-ext-1.discordapp.net/external/NxJF(...)/%3F_nc_ht%3Dscontent-lga3-1.cdninstagram.com/https/scontent-lga3-1.cdninstagram.com/(...).jpg
 
-,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(\w+)/+', re.I), r'\1://']
-# ,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?:\W[^/?#]+/+)*(\w+)/+', re.I), r'\1://']
+,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?P<Protocol>\w+)/+', re.I), r'\g<Protocol>://']
+# ,	[re.compile(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?:\W[^/?#]+/+)*(?P<Protocol>\w+)/+', re.I), r'\g<Protocol>://']
 
-,	[re.compile(r'^(\w+:/+)?([^:/?#]+\.)?(discordapp\.\w+/+)(attachments/.*?)(#\?.*)?$', re.I), r'https://cdn.discordapp.com/\4']
-#,	[re.compile(r'^(\w+:/+)?((?:danbo+ru|w+)\.)?(donmai\.us/)', re.I), r'http://shima.\3']	# <- better to use proxy than change domains
-,	[re.compile(r'^(\w+:/+([^:/?#]+\.)?gelbooru\.com/)index\.\w+([?#]|$)', re.I), r'\1\3']
-,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?dl=.*$', re.I), r'\1']
-# ,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(mobile\.)(twitter\.com/+[^?#]+/+status)', re.I), r'\1\4']
-,	[re.compile(r'^(\w+:/+)([^:/?#]+\.)?(fx)?twitter\.com/+(?P<Path>[^/?#])', re.I), r'https://nitter.net/\g<Path>']
-,	[re.compile(r'\b(twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)([^&#%]+).*?$', re.I), r'\1.\2']
-,	[re.compile(r'\b(twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1:orig']
-,	[re.compile(r'\b(twimg\.com/+profile_images?/+[^:?&#%]+)(_[^/:?&#%]+)(\.[^.:?&#%]+)((?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\1\3']
-,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(\d\w+|private/\d\w+/\w+)[^?#]*', re.I), r'https://rghost.net/\2']
-,	[re.compile(r'(file.qip.ru/(file|photo)/[^?#]+)(\?.*)?$', re.I), r'\1?action=downloads']
-,	[re.compile(r'shot\.qip\.ru[^-#]*-(.)([^/?#]+)(/+.*)?$', re.I), r'f\1.s.qip.ru/\2.png']
-,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?(skype\.com)/+login/+sso?go=(.*)$', re.I), r'\1web.\2/\3']	# <- get attachments via web version
-,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?youtu\.be/+([^/?&#]+)$', re.I), r'\1www.youtube.com/watch?v=\2']
-,	[re.compile(r'^(\w+:/+)(?:[^:/?#]+\.)?youtu\.be/+([^/?&#]+)([?&/](.*))?$', re.I), r'\1www.youtube.com/watch?v=\2&\3']
-,	[re.compile(r'^((\w+:/+)(?:[^:/?#]+\.)?forum\.spaceengine\.org\/+download/+file\.php\?id=[^&#]+)&[^#]*', re.I), r'\1']
+,	[re.compile(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?(?:discordapp\.\w+/+)(?P<Path>attachments/.*?)(?:#\?.*)?$', re.I), r'https://cdn.discordapp.com/\g<Path>']
+
+#,	[re.compile(r'^(?:\w+:/+)?(?:(?:danbo+ru|w+)\.)?(?P<Domain>donmai\.us)/+', re.I), r'http://shima.\g<Domain>/']	# <- this needs changing domains, better rely on auto-trying web-proxy instead
+
+,	[re.compile(r'^(?:\w+:/+)(?:[^:/?#]+\.)?youtu\.be/+(?P<ID>[^/?&#]+)$'				, re.I), r'https://www.youtube.com/watch?v=\g<ID>']
+,	[re.compile(r'^(?:\w+:/+)(?:[^:/?#]+\.)?youtu\.be/+(?P<ID>[^/?&#]+)(?:[?&/](?P<Arg>.*))?$'	, re.I), r'https://www.youtube.com/watch?v=\g<ID>&\g<Arg>']
+,	[re.compile(r'^(?P<Site>\w+:/+(?:[^:/?#]+\.)?gelbooru\.com/)index\.\w+(?P<Query>[?#]|$)', re.I), r'\g<Site>\g<Query>']
+,	[re.compile(r'^(?P<NoDL>\w+:/+(?:[^:/?#]+\.)?dropbox\.com/s/[^?#]+)[?#]dl=.*$'		, re.I), r'\g<NoDL>']
+,	[re.compile(r'(?P<Path>file.qip.ru/(?:file|photo)/[^?#]+)(?:\?.*)?$'			, re.I), r'\g<Path>?action=downloads']
+,	[re.compile(r'shot\.qip\.ru[^-#]*-(?P<Prefix>.)(?P<File>[^/?#]+)(?P<Sub>/+.*)?$'	, re.I), r'f\g<Prefix>.s.qip.ru/\g<File>.png']
+,	[re.compile(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:fx)?twitter\.com/+(?P<Path>[^/?#])'		, re.I), r'https://nitter.net/\g<Path>']
+,	[re.compile(r'\b(?P<Path>twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)(?P<Format>[^&#%]+).*?$'		, re.I), r'\g<Path>.\g<Format>']
+,	[re.compile(r'\b(?P<Path>twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'					, re.I), r'\g<Path>:orig']
+,	[re.compile(r'\b(?P<Path>twimg\.com/+profile_images?/+[^:?&#%]+)(?:_[^/:?&#%]+)(?P<File>\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$', re.I), r'\g<Path>\g<File>']
+,	[re.compile(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/(?P<Path>\d\w+|private/\d\w+/\w+)[^?#]*'		, re.I), r'https://rghost.net/\g<Path>']
+,	[re.compile(r'^(?P<Path>(?:\w+:/+)(?:[^:/?#]+\.)?forum\.spaceengine\.org\/+download/+file\.php\?id=[^&#]+)&[^#]*'	, re.I), r'\g<Path>']
+,	[re.compile(r'^(?P<Protocol>\w+):/+(?:[^:/?#]+\.)?(?P<Domain>skype\.com)/+login/+sso?go=(?P<File>.*)$'			, re.I), r'\g<Protocol>://web.\g<Domain>/\g<File>']	# <- get attachments via web version
+
+# reddit image URL samples:
+# https://preview.redd.it/g22rbbmq5kn81.jpg?width=640&crop=smart&auto=webp&s=6443a74739a9d9c882ae7d5fb35e35b2c1caed10
+# https://i.redd.it/g22rbbmq5kn81.jpg
+
+,	[re.compile(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?(?:i|preview)\.redd\.it/+(?P<FileName>[^?#]+)(?:[?#].*)?$', re.I), r'https://i.redd.it/\g<FileName>']
 ]
 
 pat2replace_before_dl = [	# <- strings after this are sent to web servers
-	[re.compile(r'^([^#]+)#.*$'), r'\1']
-# ,	[re.compile(r'^https(:/+([^:/?#]+\.)?(googleusercontent|h(abra)?stor(age)?|vk|youtu(be)?|danbooru)\.)', re.I), r'http\1']
-,	[re.compile(r'(dropbox\.com/s/[^?#]+)\?.*$', re.I), r'\1?dl=1']
+	[re.compile(r'^(?P<Path>[^#]+)#.*$'), r'\g<Path>']
+# ,	[re.compile(r'^https(?P<NoProtocol>:/+(?:[^:/?#]+\.)?(?:googleusercontent|h(?:abra)?stor(?:age)?|vk|youtu(?:be)?|danbooru)\.)', re.I), r'http\g<NoProtocol>']
+,	[re.compile(r'(?P<NoDL>dropbox\.com/s/[^?#]+)\?.*$', re.I), r'\g<NoDL>?dl=1']
 ,	[re.compile(r'img\.5cm\.ru/view/i5', re.I), 'i5.5cm.ru/i']
-,	[re.compile(r'//(www\.)?2-?ch\.(cm|ec|hk|pm|re|ru|so|tf|wf|yt)/', re.I), r'//2ch.life/']
-,	[re.compile(r'//(www\.)?dobrochan\.(ru|org|com)/', re.I), r'//dobrochan.com/']
-# ,	[re.compile(r'(vocaroo\.com)/i/s', re.I), r'\1/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
-,	[re.compile(r'^(\w+:/+(?:[^:/?#]+\.)?(vocaroo\.com|voca\.ro)/+)([^/?&#]+)$', re.I), r'https://media.vocaroo.com/mp3/\3']
+,	[re.compile(r'//(?:www\.)?2-?ch\.(?:cm|ec|hk|pm|re|ru|so|tf|wf|yt)/+', re.I), r'//2ch.life/']
+,	[re.compile(r'//(?:www\.)?dobrochan\.(?:ru|org|com)/+', re.I), r'//dobrochan.com/']
+# ,	[re.compile(r'(?P<Site>vocaroo\.com)/i/s', re.I), r'\g<Site>/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
+,	[re.compile(r'^(?:\w+:/+(?:[^:/?#]+\.)?(?:vocaroo\.com|voca\.ro)/+)(?P<File>[^/?&#]+)$', re.I), r'https://media.vocaroo.com/mp3/\g<File>']
 ]
 
 default_red2_name_prefix = [[0, r'\1 - ']]	# <- prepend only first captured sub-group - "(...)"
@@ -1241,7 +1258,7 @@ def timestamp_now(str_format=format_epoch):
 # http://stackoverflow.com/questions/11743019/convert-python-datetime-to-epoch-with-strftime
 
 def timestamp_from_http_modtime(str_modtime, str_format=format_epoch):
-	t = datetime.datetime(*parsedate(str_modtime)[:6])
+	t = datetime.datetime(*parsedate(str_modtime)[ : 6])
 	s = str(int((t - datetime.datetime(1970,1,1)).total_seconds()))
 	t = datetime.datetime.fromtimestamp(time.mktime(t.timetuple()))
 	f = str_format.replace(format_epoch, s)
@@ -1423,8 +1440,8 @@ def read_log(path, start=0, size=0):
 	return [r, '%d	%d	%s' % (start, sz, path)]
 
 def get_prereplaced_url(url, hostname='', protocol='http://'):
-	if url[0:1] == '/':
-		if url[1:2] == '/':
+	if url[0 : 1] == '/':
+		if url[1 : 2] == '/':
 			url = protocol + url.lstrip('/')
 		elif hostname:
 			url = hostname + url
@@ -1484,7 +1501,7 @@ def get_dest_dir_from_log_name(name):
 		match = re.search(a[0], name)
 		if match:
 			if len(a) > 1:
-				for i in a[1:]:
+				for i in a[1 : ]:
 					try:
 						if i.find('\\') >= 0:
 							g = match.expand(i)
@@ -1585,6 +1602,7 @@ def read_path(path, dest_root, lvl=0):
 						url = 'https://cdn.discordapp.com/emojis/' + did + '.png'
 					else:
 						url = i.group('URL').strip()
+
 					url = get_prereplaced_url(url)
 
 					recheck = 1
@@ -1831,7 +1849,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 	if not hostname:
 		return 0
 
-	if dest_root[-1:] == dest_app_sep or os.path.isfile(dest_root):
+	if dest_root[-1 : ] == dest_app_sep or os.path.isfile(dest_root):
 		return pass_url(dest_root, url)
 
 	urls_done_this_time.add(url)				# <- so it won't recursively recheck same link in endless cycle
@@ -2020,7 +2038,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 			if prfx:
 				dest = prfx + (
 					dest.rsplit('/', 1)[1]
-					if prfx[-3:] == ' - ' else
+					if prfx[-3 : ] == ' - ' else
 					' - ' + dest
 				)
 
@@ -2370,6 +2388,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 									break
 						if not url2:
 							url2 = ''.join(d2.groups(''))
+
 						url2 = get_prereplaced_url(url2, hostname, protocol)
 
 						try_print(colored('Sub-URL from grab:', 'yellow'), dest_root, prfx, url2)
@@ -2402,6 +2421,7 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 urls_passed = set()
 urls_done = set()
+
 url_log_files = (
 	glob.glob(
 		re.sub(pat_placeholders, '*', log_all_urls)
@@ -2424,7 +2444,7 @@ for log_file_path in url_log_files:
 
 	for line in read_file(log_file_path).split(line_separator):
 		if tab_separator in line:
-			url = line.rsplit(tab_separator, 1)[1]
+			url = line.rsplit(tab_separator, 1)[-1 : ][0]
 			urls_done.add(url)
 
 			count_urls_done_in_old_file += 1
@@ -2432,7 +2452,18 @@ for log_file_path in url_log_files:
 
 	print log_file_path, count_urls_done_in_old_file
 
-print colored('Total:', 'yellow'), count_urls_done_in_all_old_files
+print colored('Preloaded total URLs:', 'yellow'), count_urls_done_in_all_old_files
+print colored('Preloaded unique URLs:', 'yellow'), len(urls_done)
+
+if 'l' in flags:
+	for url in urls_done:
+		url = get_prereplaced_url(url)
+		urls_passed.add(url)
+
+	urls_done = urls_passed
+	urls_passed = set()
+
+	print colored('Normalized unique URLs:', 'yellow'), len(urls_done)
 
 count_urls_done_this_run = new_meta = old_meta = i = 0
 
