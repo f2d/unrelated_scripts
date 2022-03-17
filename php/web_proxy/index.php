@@ -373,9 +373,20 @@ if (
 
 //* Process response, received from request:
 
-	header('X-Source-Headers: '.text_to_one_line($response_headers_text));
+	$src_header_prefix = 'X-Source-Header-';
+
+	foreach (preg_split('~\v+~u', $response_headers_text, 0, PREG_SPLIT_NO_EMPTY) as $header_line) {
+		header(
+			is_prefix($header_line, 'HTTP/')
+		||	is_prefix($header_line, $src_header_prefix)
+		||	false === strpos($header_line, ':')
+			? $header_line
+			: $src_header_prefix.$header_line
+		);
+	}
 
 	if (IS_LOCALHOST) {
+		header('X-All-Source-Headers: '.text_to_one_line($response_headers_text));
 		header('X-JSON-Low-Key-Headers: '.text_to_one_line(json_encode($response_headers)));
 		header('X-JSON-Curl-Info: '.text_to_one_line(json_encode($response_info)));
 	}
