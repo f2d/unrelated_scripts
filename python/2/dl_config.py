@@ -3,11 +3,29 @@
 
 import re
 
-# config --------------------------------------------------------------------
+re_ix = re.I | re.X
+re_iux = re.I | re.U | re.X
 
-# versions as of 2019-12-25:
-user_agent_firefox = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0'
-user_agent_chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.94 Safari/537.36'
+def get_rei(pattern, flags=None):
+	return re.compile(
+		pattern
+	,	flags or (
+			re_ix if (
+				'\n' in pattern
+			or	'\r' in pattern
+			) else re.I
+		)
+	)
+
+
+def get_log_path(name):
+	return log_path_pattern.format(name)
+
+# Config --------------------------------------------------------------------
+
+# Versions as of 2022-03-18:
+user_agent_firefox = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0'
+user_agent_chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.136 Safari/537.36'
 
 wait = interval = recurse = 0
 timeout_request = 60
@@ -25,7 +43,7 @@ format_print = '%Y-%m-%d %H:%M:%S'
 format_path_mtime = ';_%Y-%m-%d,%H-%M-%S.'
 
 web_proxy_replacement_add = {
-	'from' : re.compile(r'^(?:(?P<Protocol>\w+)://)?(?P<DomainAndPath>[^/].*?)$', re.I)
+	'from' : get_rei(r'^(?:(?P<Protocol>\w+)://)?(?P<DomainAndPath>[^/].*?)$')
 ,	'to' : [
 		default_web_proxy + r'\g<Protocol>/\g<DomainAndPath>'
 	,	default_web_proxy + r'http/\g<DomainAndPath>'
@@ -33,7 +51,7 @@ web_proxy_replacement_add = {
 }
 
 web_proxy_replacement_remove = {
-	'from' : re.compile(r'^' + default_web_proxy + r'(?P<Protocol>\w+)/+(?P<DomainAndPath>[^/].*?)$', re.I)
+	'from' : get_rei(r'^' + default_web_proxy + r'(?P<Protocol>\w+)/+(?P<DomainAndPath>[^/].*?)$')
 ,	'to' : [
 		r'\g<Protocol>://\g<DomainAndPath>'
 	]
@@ -70,27 +88,27 @@ dest_app_default = 'v'
 
 meta_root = u'.'
 
-log_path_pattern = meta_root + '/dl.%s.log'
+log_path_pattern = meta_root + '/dl.{}.log'
 
-# log_traceback	= log_path_pattern % 'traceback'	# <- info about program exceptions
+# log_traceback	= get_log_path('traceback')	# <- info about program exceptions
 log_traceback	= None
-log_completed	= log_path_pattern % 'completed'	# <- "src links -> dest path" logged per line + response headers dump
-log_last_pos	= log_path_pattern % 'last_pos'		# <- last known src log file sizes per line, rewritten every time
-log_no_response	= log_path_pattern % 'no_response'	# <- when server not found at all, or some weird exception, like SSL
-log_no_file	= log_path_pattern % 'no_file'		# <- when file not found, forbidden, or something, like "I'm Teapot"
-log_not_saved	= log_path_pattern % 'not_saved'	# <- failed saving for some reason
-log_blocked	= log_path_pattern % 'blocked'		# <- ISP firewall
-log_skipped	= log_path_pattern % 'skipped'		# <- skipped, according to the list above
-log_all_urls	= log_path_pattern % 'url_%Y-%m'	# <- all processed URLs, bad or OK, to skip repeated, not redownload every rime
+log_completed	= get_log_path('completed')	# <- "src links -> dest path" logged per line + response headers dump
+log_last_pos	= get_log_path('last_pos')	# <- last known src log file sizes per line, rewritten every time
+log_no_response	= get_log_path('no_response')	# <- when server not found at all, or some weird exception, like SSL
+log_no_file	= get_log_path('no_file')	# <- when file not found, forbidden, or something, like "I'm Teapot"
+log_not_saved	= get_log_path('not_saved')	# <- failed saving for some reason
+log_blocked	= get_log_path('blocked')	# <- ISP firewall
+log_skipped	= get_log_path('skipped')	# <- skipped, according to the list above
+log_all_urls	= get_log_path('url_%Y-%m')	# <- all processed URLs, bad or OK, to skip repeated, not redownload every rime
 
 url_to_skip = [				# <- various bad or useless stuff, won't fix now, or forever
 	'//localhost/', '//l/', '//a/'					# <- localhost and its aliases
-,	re.compile(r'^(blob:|[\d+/]*$)', re.I)				# <- useless protocols
-,	re.compile(r'^(\w+:/+)?([^/?#]+\.)?captcha\d*\.\w+/+', re.I)	# <- useless server load
+,	get_rei(r'^(blob:|[\d+/]*$)')				# <- useless protocols
+,	get_rei(r'^(\w+:/+)?([^/?#]+\.)?captcha\d*\.\w+/+')	# <- useless server load
 
 # ,	'mega.co.nz/#', 'mega.nz/#', 'iqdb.org/?'			# <- other useless examples, uncomment to apply
-# ,	re.compile(r'^\w+:/+([^/]+\.)?google\.\w+/+', re.I)
-# ,	re.compile(r'^\w+:/+([^/]+\.)?google(\.co)?\.\w+/+searchbyimage', re.I)
+# ,	get_rei(r'^\w+:/+([^/]+\.)?google\.\w+/+')
+# ,	get_rei(r'^\w+:/+([^/]+\.)?google(\.co)?\.\w+/+searchbyimage')
 ]
 
 file_not_to_save = [
@@ -114,7 +132,7 @@ file_not_to_save = [
 ]
 
 add_headers_to = [				# <- fake useragent, POST option, etc
-	[['.'], {				# <- won't bother listing all the sites who banned python naming like itself
+	[['.', '/'], {				# <- won't bother listing all the sites who banned python naming like itself
 		'User-Agent': user_agent_firefox
 # }],	[['www.example.com'], {
 #		'Cookie': '; '.join([
