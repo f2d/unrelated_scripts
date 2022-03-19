@@ -63,6 +63,8 @@ line_separator = '\n'
 empty_line_separator = line_separator * 2
 content_type_separators = ['+', '-']
 exts_to_add_from_content_type = ['json', 'xml']
+exts_to_add_from_url = ['flac', 'jxl', 'jxr']
+known_image_exts = ['jxl', 'jxr']
 
 TEST = 0
 
@@ -606,11 +608,15 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 # twitpic, vk shared files, etc - indiscriminately grab any links:
 
 ,	{	'page': get_rei(r'''^
-			(\w+:/+(
-				twitpic\.com
-			|	[^:/?#]+\.jpg\.to
-			|	([^:/?#]+\.)?vk\.(com|ru)/doc[\w-]+
-			))
+			(?P<PageURL>
+				(?:\w+:/+)?
+				(?:[^:/?#]+\.)?
+				(?:
+					jpg\.to
+				|	twitpic\.com
+				|	vk\.(?:com|ru)/+doc[\w-]+
+				)
+			)
 			(?:[/?#]|$)
 		''')
 	,	'grab': get_rei(r'\s+(?:src|href)="?([^">\s]+)')
@@ -623,31 +629,38 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 # https://web.skype.com/xmmfallback?pic=0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae
 # https://api.asm.skype.com/v1/objects/0-weu-d11-183e0e666f79f30ccbcc39d1acc696ae/views/imgpsh_fullsize
 
-,	{	'page': get_rei(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>skype\.com/+)[^#]*?xmmfallback[^#]*?[?&]pic=(?P<ImageID>[^?&#]+)')
+,	{	'page': get_rei(r'''^
+			(?:\w+:/+)?
+			(?:[^:/?#]+\.)?
+			(?P<Domain>skype\.com/+)
+			[^#]*?xmmfallback
+			[^#]*?[?&]pic=
+			(?P<ImageID>[^?&#]+)
+		''')
 	,	'link': r'https://api.asm.skype.com/v1/objects/\g<ImageID>/views/imgpsh_fullsize'	# <- direct link to image instead of page, which contains no links and relies on JS
 	}
 
 # exhentai:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)e[x-]*hentai\.org/+g(/+\d+)+)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)e[x-]*hentai\.org/+g(?:/+\d+)+)')
 	,	'grab': get_rei(r'\s+href=[\'"]*([^\s\'">]+?hathdler[^\s\'">]+)')
 	}
 
 # ezgif:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?ezgif\.\w+)/+\w+(/+\w+)\.gif(?:[/?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>(?:\w+:/+(?:[^:/?#]+\.)?ezgif\.\w+)/+\w+(?:/+\w+)\.gif)(?:[/?#]|$)')
 	,	'grab': get_rei(r'<img(?:\s+[^>]*?)?\s+src="?/*([^">\s]+)"*(?:\s+[^>]*?)?\s+id="?target')
 	}
 
 # fastpic:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?fastpic\.ru/+(big|view)/+[^?#]*)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?fastpic\.ru/+(?:big|view)/+[^?#]*)')
 	,	'grab': pat_imgs
 	}
 
 # hqpix:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?hqpix.\w+/+image/+[^/?#]+)(?:[/?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?hqpix.\w+/+image/+[^/?#]+)(?:[/?#]|$)')
 	,	'grab': get_rei(r'<a\b[^<]*?\s+href="?([^">\s]+)[">\s][^<]*?\s+download=')
 	}
 
@@ -656,31 +669,31 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 # HTML sample from https://ibb.co/M8cc1my:
 # <img src="https://i.ibb.co/YDccdx4/scr00044.jpg" alt="scr00044" width="2560" height="1440" data-load="full">
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?(?:ibb|imgbb).com?/+\w+)(?:[/?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?(?:ibb|imgbb).com?/+\w+)(?:[/?#]|$)')
 	,	'grab': get_rei(r'<img(?:\s+[^>]*?)?\s+src="?/*([^">\s]+)"*(?:\s+[^>]*?)?\s+data-load="?full')
 	}
 
 # imgstun:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?imgstun.\w+)(/+\w+){3}(\.\w+){2}(?:[/?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>(?:\w+:/+(?:[^:/?#]+\.)?imgstun.\w+)(?:/+\w+){3}(?:\.\w+){2})(?:[/?#]|$)')
 	,	'grab': get_rei(r'</dd>[^<]*?<dt[^<]*?</dt><dd[^<]*?<input(?:\s+[^>]*?)?\s+value="?([^">\s]+)')
 	}
 
 # awesomescreenshot:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?awesomescreenshot\.com/+[^/]+)$')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?awesomescreenshot\.com/+[^/]+)$')
 	,	'grab': get_rei(r'\s+id="screenshotA"\s+href="?([^">\s]+)')
 	}
 
 # clip2net:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?(c2n\.\w+|clip2net\.\w+/+s)/+[^/]+)$')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?(?:c2n\.\w+|clip2net\.\w+/+s)/+[^/]+)$')
 	,	'grab': get_rei(r'\s+class="image-down-file"\s+href="?([^">\s]+?)(?:&fd=[^&]*)?[">\s]')
 	}
 
 # prntscrn:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?(prnt.sc|prntscrn?\.com)/+[^/]+)$')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?(?:prnt.sc|prntscrn?\.com)/+[^/]+)$')
 	,	'grab': get_rei(r'''
 			<meta\s+property=[\'"]*og:image[\'"]*\s+content=[\'"]*
 			([^\s\'">]+)
@@ -696,19 +709,19 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 
 # screencapture:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?screencapture\.ru/+file/+[^/]+)$')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?screencapture\.ru/+file/+[^/]+)$')
 	,	'grab': get_rei(r'\s+href="?([^\s\'">]+?/file/download/[^\s\'">]+)')
 	}
 
 # screencast:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?screencast\.com/+t/+[^/]+)$')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?screencast\.com/+t/+[^/]+)$')
 	,	'grab': get_rei(r'\s+class="?embeddedObject"?\s+src="?([^">\s]+)')
 	}
 
 # rghost:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink))/+(private/+)?(?P<ID>\d\w+)')
+,	{	'page': get_rei(r'^(?:\w+:/+(?:[^:/?#]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink))/+(?:private/+)?(?P<ID>\d\w+)')
 	,	'grab': get_rei(r'\s+href="((?:\w+:|/+\w+)/+(?:[^/?#.]+\.)?(?:rgho(?:st)?\.\w+|ad-l\.ink)/download/(?:private/)?\d\w+/[^">\s]+)')
 	,	'name': [
 			[0, r'rgh \g<ID> - ']
@@ -724,7 +737,7 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 
 # nofile.io:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?nofile\.io/+f/+[^/].+)$')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?nofile\.io/+f/+[^/].+)$')
 	,	'grab': get_rei(r'\s+downloadButton[^>]*?\s+href="?([^\s\'">]+)')
 	}
 
@@ -759,7 +772,7 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 
 # webmshare:
 
-,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+([^:/?#]+\.)?webm(share)?\.\w+/+\w+)(?:[/?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?webm(?:share)?\.\w+/+\w+)(?:[/?#]|$)')
 	,	'grab': get_rei(r'<source(?:\s+[^>]*?)?\s+src=[\'"]*/*([^\s\'">]+?)(?:/\d+)?[\s\'">]')
 	,	'name': [
 			[0, r'\g<PageURL> - ']
@@ -790,7 +803,7 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 # <video class="gif" poster="/pic/tweet_video_thumb%2FFJVma9TWUBEkwAr.jpg%3Asmall" controls="" autoplay="" muted="" loop="">
 # <source src="/pic/video.twimg.com%2Ftweet_video%2FFJVma9TWUBEkwAr.mp4" type="video/mp4" />
 
-,	{	'page': get_rei(r'^(\w+:/+(?:[^%:/=\s&?#]+\.)?nitter\.net/+[^?#]+)([?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^%:/=\s&?#]+\.)?nitter\.net/+[^?#]+)([?#]|$)')
 	,	'grab': get_rei(r'''
 			\s\w+="
 		(?:	\w+:/+			(?:[^%:/=\s&?#]+\.)?nitter\.net				)?
@@ -811,23 +824,24 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 
 # twitter:
 
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?t.co/+[^/]+)')
-	,	'grab': get_rei(r'URL="?([^"]+?)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?t\.co/+[^/]+)')
+	,	'grab': get_rei(r'(?:[\s;]URL="?|<title>)(?P<LinkURL>[^"<>\s]+)')
+	,	'link': r'\g<LinkURL>'
 	}
-,	{	'page': get_rei(r'^(\w+:/+([^:/?#]+\.)?twitter\.com/+[^/]+/+status/+[^/]+)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^:/?#]+\.)?twitter\.com/+[^/]+/+status/+[^/]+)')
 	,	'grab': get_rei(r'''
 		\s+(?:
 			data-url="?([^"]*?/status/\d+/photo/[^"?]*)
 		|	data-image-url="?([^">\s]+)
 		|	src="?([^">\s]+):small
-		|	background-image:url\(["']([^"'>\s]+/tweet_video_thumb/[^"'>\s]+)
+		|	background-image:\s*url\(["']([^"'>\s]+/tweet_video_thumb/[^"'>\s]+)
 		)
 		''')
 	}
 
 # twitter - grab video by thumb:
 
-,	{	'page': get_rei(r'^(\w+:/+)?([^:/?#]+\.)?(?P<Domain>twimg\.com/+tweet_video)_thumb(?P<ImageID>/+[^/.?#]+)([.?#]|$)')
+,	{	'page': get_rei(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?(?P<Domain>twimg\.com/+tweet_video)_thumb(?P<ImageID>/+[^/.?#]+)(?:[.?#]|$)')
 	,	'link': r'https://video.\g<Domain>\g<ImageID>.mp4'
 	}
 
@@ -837,7 +851,19 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 
 # tumblr:
 
-,	{	'page': get_rei(r'^(?P<Protocol>\w+:/+)([^:/?#]+\.)?(?P<Domain>tumblr\.com)/+video(?:_file)?(?:/+\w+:\w+)?/+(?P<UserName>\w+)/+(?P<PostID>\w+)(?:[/?#]|$)')
+,	{	'page': get_rei(r'''^
+			(?P<Protocol>\w+:/+)
+			([^:/?#]+\.)?
+			(?P<Domain>tumblr\.com)
+			/+video
+			(?:_file)?
+			(?:/+\w+:\w+)?
+			/+
+			(?P<UserName>\w+)
+			/+
+			(?P<PostID>\w+)
+			(?:[/?#]|$)
+		''')
 	,	'grab': get_rei(r'<source(?:\s+[^>]*?)?\s+src=[\'"]*(?P<Src>[^">\s]+)')
 	,	'name': [
 			[0, r'\g<Protocol>\g<UserName>.\g<Domain>/post/\g<PostID> - ']
@@ -1846,7 +1872,7 @@ def pass_url(app, url):
 
 	return 1
 
-def process_url(dest_root, url, utf='', prfx=''):
+def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 	global urls_done, urls_done_this_time, processed
 	processed += 1
 	finished = recheck = 0
@@ -1956,11 +1982,11 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 		if udl.find('http://') != 0:
 			cprint('Retrying with plain http:\n', 'yellow')
-			finished += process_url(dest_root, re.sub(pat_badp, 'http://', udl))
+			finished += process_url(dest_root, re.sub(pat_badp, 'http://', udl), unprfx=udl)
 
 		elif udl.find(default_web_proxy) != 0:
 			cprint('Retrying with proxy:\n', 'yellow')
-			finished += process_url(dest_root, get_proxified_url(udl))
+			finished += process_url(dest_root, get_proxified_url(unprfx or udl))
 	else:
 		try:
 			urldest = response.geturl()
@@ -2147,8 +2173,15 @@ def process_url(dest_root, url, utf='', prfx=''):
 
 							break
 
-				elif udl.find('.flac') > 0:
-					add_ext = 'flac'
+				else:
+					for x in exts_to_add_from_url:
+						if udl.find('.' + x) > 0:
+							add_ext = x
+
+							if x in known_image_exts:
+								subd = 'pix'
+
+							break
 
 				if add_ext and (
 					is_amp_in_ext
