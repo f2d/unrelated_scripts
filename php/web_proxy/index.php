@@ -373,15 +373,19 @@ if (
 
 //* Process response, received from request:
 
+	$src_status_prefix = 'X-Source-Status: ';
 	$src_header_prefix = 'X-Source-Header-';
 
 	foreach (preg_split('~\v+~u', $response_headers_text, 0, PREG_SPLIT_NO_EMPTY) as $header_line) {
 		header(
 			is_prefix($header_line, 'HTTP/')
-		||	is_prefix($header_line, $src_header_prefix)
-		||	false === strpos($header_line, ':')
-			? $header_line
-			: $src_header_prefix.$header_line
+		||	false === strpos($header_line, ': ')
+			? $src_status_prefix.$header_line
+			: (
+				is_prefix($header_line, $src_header_prefix)
+				? $header_line
+				: $src_header_prefix.$header_line
+			)
 		);
 	}
 
