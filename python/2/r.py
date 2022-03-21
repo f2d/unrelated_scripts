@@ -98,6 +98,7 @@ arg_move_web_pages      = 'w' in arg_flags
 arg_move_dirs_to_subdir_by_modtime = 'dir' in other_args
 
 arg_subdir_modtime_format = ''
+
 if 'y'   in other_args: arg_subdir_modtime_format += '/%Y'
 if 'ym'  in other_args: arg_subdir_modtime_format += '/%Y-%m'
 if 'm'   in other_args: arg_subdir_modtime_format += '/%m'
@@ -110,13 +111,16 @@ if arg_warning_to_error:
 	warnings.filterwarnings('error')
 
 j = len(arg_name_cut)
+
 if arg_name_cut in other_args:
 	arg_len = default_name_cut_length			# <- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
 else:
 	arg_len = 0
+
 	for a in other_args:
 		if a[0 : j] == arg_name_cut:
 			arg_len = int(a[j : ])
+
 			break
 
 print_duplicate_count=True
@@ -329,8 +333,11 @@ local_path_prefix = u'//?/'
 info_prfx = '\t'
 msg_prfx = '\n-\t'
 
-def is_type_str(s):
-	return isinstance(s, s_type) or isinstance(s, u_type)
+def is_type_int(v): return isinstance(v, int)
+def is_type_arr(v): return isinstance(v, a_type)
+def is_type_dic(v): return isinstance(v, d_type)
+def is_type_reg(v): return isinstance(v, r_type)
+def is_type_str(v): return isinstance(v, s_type) or isinstance(v, u_type)
 
 def dumpclean(obj):
 	if type(obj) == dict:
@@ -338,13 +345,16 @@ def dumpclean(obj):
 			if hasattr(v, '__iter__'):
 				print k
 				dumpclean(v)
-			else: print k, ':', v
+			else:
+				print k, ':', v
 	elif type(obj) == list:
 		for v in obj:
 			if hasattr(v, '__iter__'):
 				dumpclean(v)
-			else: print v
-	else: print obj
+			else:
+				print v
+	else:
+		print obj
 
 def print_url_groups(match, prefix_color='red'):
 	# print colored('URL:', prefix_color), url.group('URL')
@@ -510,11 +520,11 @@ def meet(obj, criteria, file_path_or_name=None):
 		return True if (
 			(obj is criteria) or
 			(obj == criteria) or (
-				(is_type_str(obj	) or obj	) and
-				(is_type_str(criteria	) or criteria	) and (
-					criteria.match(obj)		if isinstance(criteria, r_type) else
-					(obj in criteria)		if isinstance(criteria, a_type) else
-					(obj.find(criteria) >= 0)	if is_type_str(criteria) else
+				(is_type_str(obj     ) or obj     ) and
+				(is_type_str(criteria) or criteria) and (
+					criteria.match(obj)       if is_type_reg(criteria) else
+					(obj in criteria)         if is_type_arr(criteria) else
+					(obj.find(criteria) >= 0) if is_type_str(criteria) else
 					None
 				)
 			)
@@ -539,65 +549,78 @@ def get_sub(subj, rules):
 
 	name, meeting, board, file_path_or_name = subj
 
-	for r in rules:
-		if not r:
+	for rule in rules:
+		if not rule:
 			continue
 
-		if is_type_str(r):
-			return [r, '']
+		if is_type_str(rule):
+			return [rule, '']
 
-		if isinstance(r, a_type):
-			if len(r) > 1:
-				r0 = isinstance(r[0], r_type)
-				pattern = r[0 if r0 else 1]
+		if is_type_arr(rule):
+			if len(rule) > 1:
+				r0 = is_type_reg(rule[0])
+				pattern = rule[0 if r0 else 1]
 				met = None
+
 				for me in meeting:
 					if meet(me, pattern, file_path_or_name):
 						met = me
+
 						break
+
 				if met is not None:
-					if r[0] is None:
+					if rule[0] is None:
 						return None
 
 					dsub = rename = ''
 
 				# grab subfolder from URL parts:
+
 					if r0:
-						r1 = r[1]
-						r1a = r1 if isinstance(r1, a_type) else [r1]
+						r1 = rule[1]
+						r1a = r1 if is_type_arr(r1) else [r1]
 						for r1 in r1a:
 							try:
-								if r1 and isinstance(r1, s_type):
+								if r1 and is_type_str(r1):
 									dsub = (
 										re
-										.search(r[0], met)
+										.search(rule[0], met)
 										.expand(r1)
 									)
+
 									break
 							except:
 								continue
 					else:
+
 				# specific rules:
-						dsub = r[0]
+
+						dsub = rule[0]
+
 				# full filename replacement:
-						if len(r) > 3 and isinstance(r[2], r_type):
-							rename = re.sub(r[2], r[3], name)
+
+						if len(rule) > 3 and is_type_reg(rule[2]):
+							rename = re.sub(rule[2], rule[3], name)
+
 				# only append item ID to filename, if not yet:
-						elif len(r) > 2 and isinstance(r[1], r_type):
+
+						elif len(rule) > 2 and is_type_reg(rule[1]):
 							suffix = (
 								re
-								.search(r[1], met)
-								.expand(r[2])
+								.search(rule[1], met)
+								.expand(rule[2])
 							)
+
 							if name.find(suffix) < 0:
 								rename = (suffix+'.').join(name.rsplit('.', 1))
+
 						if TEST and rename:
 							print rename
 
 					return [dsub, rename]
 
 			elif board:
-				return [r[0], '']
+				return [rule[0], '']
 
 	return None
 
@@ -605,13 +628,11 @@ def print_name(name, prefix='', extra_line=True):
 	if extra_line:
 		print
 
-	if prefix:
-		prefix = '%s ' % prefix
-	else:
-		prefix = ''
+	mid_text = 'name in'
+	pre_text = '{0} {1}'.format(prefix, mid_text) if prefix else mid_text
 
 	for enc in ['utf-8', 'unicode-escape']:
-		cprint('{0}name in {1}:'.format(prefix, enc), 'yellow')
+		cprint('{0} {1}:'.format(pre_text, enc), 'yellow')
 		print name.encode(enc)
 
 def move_processed_target(src_path, path, name, dest_dir=None):
@@ -640,22 +661,38 @@ def move_processed_target(src_path, path, name, dest_dir=None):
 				print exception
 
 def process_dir(path, later=0):
+	names = os.listdir(path)
+	names_todo_later = process_names(path, names, later)
+
+	if names_todo_later:
+		process_names(path, names_todo_later)
+
+def process_names(path, names, later=0):
+
 	global n_i, n_fail, n_matched, n_moved, n_back, n_later, n_max_len
 	global not_existed, dup_lists_by_ID
 	global print_duplicate_count
 
-	names = os.listdir(path)
+	if later:
+		files_to_check_later = []
 
 	for name in names:
-		n_i += 1
+		if not later:
+			n_i += 1
+
 		src_path = get_long_abs_path(path+'/'+name)
 		src_path_or_name = (src_path if arg_print_full_path else name)
 
 		if os.path.isdir(src_path):
 			if arg_recurse_into_subdirs:
-				if TEST and arg_print_full_path:
-					print_name(name, 'Dir')
-				process_dir(src_path, later)
+				if later:
+					n_later += 1
+					files_to_check_later.append(name)
+				else:
+					if TEST and arg_print_full_path:
+						print_name(name, 'Dir')
+
+					process_dir(src_path, later)
 
 			if arg_move_dirs_to_subdir_by_modtime:
 				move_processed_target(src_path, path, name)
@@ -673,6 +710,7 @@ def process_dir(path, later=0):
 
 			if src_len > arg_len:
 				n_matched += 1
+
 				if n_max_len < src_len:
 					n_max_len = src_len
 
@@ -701,21 +739,23 @@ def process_dir(path, later=0):
 		if arg_move_types_by_ext and ext in dest_root_by_ext:
 			if later:
 				n_later += 1
+				files_to_check_later.append(name)
 			else:
 				d = dest_root_by_ext[ext]
 
-				if isinstance(d, a_type):
+				if is_type_arr(d):
 					for d_i in d:
-						if isinstance(d_i, d_type):
+						if is_type_dic(d_i):
 							test = d_i.get('match_name')
+
 							if test and not meet(name, test, src_path_or_name):
 								continue
 
 							d = d_i.get('dest_path') or dest_root
-							break
 						else:
 							d = d_i
-							break
+
+						break
 
 				if not is_type_str(d):
 					continue
@@ -783,10 +823,12 @@ def process_dir(path, later=0):
 					domain = d
 				else:
 					d = url.group('Domain')
+
 					if not d:
 						continue
 
 					dp = url.group('DomainPort')
+
 					if meet(dp+'.', test, src_path_or_name):	# <- "name." or "name:port." to match exact full name
 						domain = d
 					else:
@@ -794,16 +836,19 @@ def process_dir(path, later=0):
 						d = ''
 						for i in words:
 							d = (i+'.'+d) if d else i
+
 							if meet(d, test, src_path_or_name):
 								domain = d
+
 								break
+
 				if not domain:
 					continue
 
 				dest = (s[1] if (len(s) > 1) else domain)		# <- site bak root
 				dest += (
 					test[0]
-					if (isinstance(test, a_type) and dest[-2 : ] == '//')
+					if (is_type_arr(test) and dest[-2 : ] == '//')
 					else
 					domain
 					if (dest[-1 : ] == '/')
@@ -840,10 +885,12 @@ def process_dir(path, later=0):
 						continue
 
 					pat_page_name = p.get('page')
+
 					if not pat_page_name:
 						continue
 
 					page_match = re.search(pat_page_name, name)
+
 					if not page_match:
 						continue
 
@@ -862,26 +909,32 @@ def process_dir(path, later=0):
 					for child_name in names:
 						if pat_child_name:
 							child_match = re.search(pat_child_name, child_name)
+
 							if not child_match:
 								continue
 
 						child_path = path+'/'+child_name
 						child_ext = get_file_ext_from_path(child_name)
+
 						if (child_ext in ext_path_inside) or (not os.path.exists(child_path)):
 							continue
 
 						prfx = ''
+
 						if site_type == 'youtube':
 							if pat_child_name:
 								if page_ID != child_match.group('ID'):
 									continue
 
 							prfx = page_match.group('Prefix')+','
+
 							if os.path.isdir(child_path):
 								sub_names = os.listdir(child_path)
+
 								for sub_name in sub_names:
 									if pat_child_name:
 										sub_match = re.search(pat_child_name, sub_name)
+
 										if (not sub_match) or (page_ID != sub_match.group('ID')):
 											continue
 
@@ -1008,7 +1061,10 @@ def process_dir(path, later=0):
 							except Exception as exception:
 								print colored('Error printing:', 'red'), exception
 
-				elif not d in not_existed and not os.path.exists(d):
+				elif (
+					not d in not_existed
+				and	not os.path.exists(d)
+				):
 					print msg_prfx, colored('Path not found:', 'red'), d.encode(default_print_encoding)
 					not_existed.append(d)
 				break
@@ -1024,21 +1080,21 @@ def process_dir(path, later=0):
 				if not p:
 					continue
 
-				pat_match     = p.get('match')
-				pat_match_dir = p.get('match_dir')
+				path_match = name_match = subdir = None
+				pat_match_path = p.get('match_dir')
 
-				s = sd = subdir = None
+				if pat_match_path:
+					path_match = re.search(pat_match_path, path)
 
-				if pat_match_dir:
-					sd = re.search(pat_match_dir, path)
-
-					if not sd:
+					if not path_match:
 						continue
 
-				if pat_match:
-					s = re.search(pat_match, name)
+				pat_match_name = p.get('match')
 
-					if not s:
+				if pat_match_name:
+					name_match = re.search(pat_match_name, name)
+
+					if not name_match:
 						continue
 
 				pat_subdir = p.get('subdir')
@@ -1046,51 +1102,58 @@ def process_dir(path, later=0):
 				pat_date   = p.get('date')
 				pat_next   = p.get('next')
 
-				if s:
-					if pat_next and not (s.expand(pat_next) in names):
+				if name_match:
+					if pat_next and not (name_match.expand(pat_next) in names):
 						continue
 
 					if pat_dup_ID:
-						dup_ID = s.expand(pat_dup_ID)
+						dup_ID = name_match.expand(pat_dup_ID)
 
 						try:
-							dup_stamp = s.expand(pat_date)
+							dup_stamp = name_match.expand(pat_date)
 						except:
 							dup_stamp = 'last'
 
 						d = dup_lists_by_ID[dup_ID] if dup_ID in dup_lists_by_ID else None
+
 						if later:
 							n_later += 1
+							files_to_check_later.append(name)
+
 							if dup_stamp:
 								if d:
-									if isinstance(d, a_type) and not dup_stamp in d:
+									if is_type_arr(d) and not dup_stamp in d:
 										d.append(dup_stamp)
 								else:
 									d = dup_lists_by_ID[dup_ID] = {}
-								if isinstance(d, d_type):
+
+								if is_type_dic(d):
 									d[name] = dup_stamp or name
 							else:
 								if d:
 									d += '1'	# <- to simply check len() the same way
 								else:
 									d = dup_lists_by_ID[dup_ID] = '1'
+
 							if TEST:
-								lend = len(d.keys() if isinstance(d, d_type) else d)
+								lend = len(d.keys() if is_type_dic(d) else d)
 								print dup_ID.encode(default_print_encoding), colored('- dup #', 'yellow'), lend, dup_stamp.encode(default_print_encoding)
+
 							continue
+
 						elif not (
 							d
-						and	len(d.keys() if isinstance(d, d_type) else d)
+						and	len(d.keys() if is_type_dic(d) else d)
 						and	(
-								(isinstance(d, a_type) and dup_stamp in d)
-							or	(isinstance(d, d_type) and name in d)
+								(is_type_arr(d) and dup_stamp in d)
+							or	(is_type_dic(d) and name      in d)
 							)
 						):
 							continue
 
-					subdir = '/' + (s.expand(pat_subdir) if pat_subdir else s.group(1)).strip('/')
-				elif sd:
-					subdir = '/' + (sd.expand(pat_subdir) if pat_subdir else sd.group(1)).strip('/')
+					subdir = '/' + (name_match.expand(pat_subdir) if pat_subdir else name_match.group(1)).strip('/')
+				elif path_match:
+					subdir = '/' + (path_match.expand(pat_subdir) if pat_subdir else path_match.group(1)).strip('/')
 
 				if not subdir:
 					continue
@@ -1102,12 +1165,15 @@ def process_dir(path, later=0):
 					d = d[0 : -i]
 
 				d += subdir
+
 				if d == path:
 					continue
 
 				break
 
 			move_processed_target(src_path, path, name, d)
+
+	return files_to_check_later if later else None
 
 def run(later=0):
 	global n_later, dup_lists_by_ID
@@ -1118,8 +1184,9 @@ def run(later=0):
 		for i in dup_lists_by_ID:
 			d = dup_lists_by_ID[i]
 
-			if isinstance(d, a_type):
+			if is_type_arr(d):
 				len_d = len(d)
+
 				if len_d > 1:
 					if TEST:
 						print colored('ID:', 'yellow'), i
@@ -1127,22 +1194,26 @@ def run(later=0):
 				d.sort()
 				d.pop(0)		# <- leave alone the earliest at old place
 				len_d = len(d)
+
 				if len_d:
 					if TEST:
 						print len_d, colored('after sort:', 'green'), d
 						print
 				n_later -= 1
 
-			elif isinstance(d, d_type):
+			elif is_type_dic(d):
 				len_d = len(d.keys())
+
 				if len_d > 1:
 					if TEST:
 						print colored('ID:', 'yellow'), i
 						print len_d, colored('before sort:', 'yellow'), str(d).replace('u\'', '\nu\'')
 						print
 				name_0 = stamp_0 = None
+
 				for name in d:
 					stamp = d[name]
+
 					if (
 						not name_0
 					or	not stamp_0
@@ -1153,6 +1224,7 @@ def run(later=0):
 						stamp_0 = stamp
 				d.pop(name_0)		# <- leave alone the first by name of the earliest ones
 				len_d = len(d.keys())
+
 				if len_d:
 					if TEST:
 						print len_d, colored('after sort:', 'green'), str(d).replace('u\'', '\nu\'')
@@ -1180,5 +1252,4 @@ def run(later=0):
 
 	return n_later if DO else 0
 
-if run(1):
-	run()
+run(1) #and run(0)
