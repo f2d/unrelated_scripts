@@ -127,15 +127,17 @@ $is_relative_to_referer = false;
 $self_root = get_self_root();
 $self_hostname = get_value_or_empty($_SERVER, 'HTTP_HOST') ?: $default_hostname;
 $self_protocol = get_value_or_empty($_SERVER, 'REQUEST_SCHEME') ?: $default_protocol;
+
 $referer = get_value_or_empty($_SERVER, 'HTTP_REFERER');
 $target_url = get_path_after_prefix($_SERVER['REQUEST_URI'], $self_root);
-$try_protocol_prefixes = array('', 'raw/');
 
 $target_root_prefix =
 $target_path =
 $target_server =
 $target_protocol =
 $target_protocol_folder = '';
+
+$try_protocol_prefixes = array('', 'raw/');
 
 foreach ($try_protocol_prefixes as $must_get_raw_content => $raw_prefix)
 foreach ($proxified_protocols as $target_protocol => $target_server_substitute) {
@@ -329,8 +331,7 @@ if (
 	curl_setopt($curl_handle, CURLOPT_POST, 0);
 	curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, 1);
 	curl_setopt($curl_handle, CURLOPT_TIMEOUT, 120);
-	curl_setopt($curl_handle, CURLOPT_USERAGENT, $default_useragent);
-	// curl_setopt($curl_handle, CURLOPT_USERAGENT, IS_LOCALHOST ? "$default_useragent $_SERVER[PHP_SELF]" : $default_useragent);
+	curl_setopt($curl_handle, CURLOPT_USERAGENT, (IS_LOCALHOST ? "$default_useragent $_SERVER[PHP_SELF]" : $default_useragent));
 	// curl_setopt($curl_handle, CURLOPT_VERBOSE, 1);
 
 	if ($data_dir) {
@@ -350,6 +351,12 @@ if (
 	if ($if_time_text = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE')) {
 		curl_setopt($curl_handle, CURLOPT_TIMEVALUE, strtotime($if_time_text));
 	}
+
+//* Enable decoding of the response:
+//* Supported encodings are "identity", "deflate", and "gzip".
+//* If an empty string, "", is set, a header containing all supported encoding types is sent.
+
+	curl_setopt($curl_handle, CURLOPT_ENCODING, '');
 
 //* Run request:
 
