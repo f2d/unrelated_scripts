@@ -2037,9 +2037,11 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 					)
 				)
 
+				headers['X-Downloaded-Content-Length'] = str(filesize)
+				headers['X-Decoded-Content-Length'] = str(decoded_size)
+
 				content = decoded_content
 				filesize = decoded_size
-				headers['Content-Length-Decoded'] = str(filesize)
 
 			# check result:
 
