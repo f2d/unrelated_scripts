@@ -348,8 +348,17 @@ if (
 		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
 	}
 
-	if ($if_time_text = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE')) {
-		curl_setopt($curl_handle, CURLOPT_TIMEVALUE, strtotime($if_time_text));
+	if (
+		($old_time_text = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE'))
+	&&	($old_time_value = strtotime($old_time_text))
+	) {
+		curl_setopt($curl_handle, CURLOPT_TIMEVALUE, $old_time_value);
+	} else {
+		$old_time_value = 0;
+	}
+
+	if ($old_etag = get_value_or_empty($_SERVER, 'HTTP_IF_NONE_MATCH')) {
+		curl_setopt($curl_handle, CURLOPT_HTTPHEADER, array("If-None-Match: $old_etag"));
 	}
 
 //* Enable decoding of the response:
@@ -407,6 +416,11 @@ if (
 	?:	get_value_or_empty($response_headers, 'http')
 	);
 
+	$file_etag = (
+		get_value_or_empty($response_info, 'etag')
+	?:	get_value_or_empty($response_headers, 'etag')
+	);
+
 	$file_time = (
 		get_value_or_empty($response_info, 'filetime')
 	?:	get_value_or_empty($response_info, 'file_time')
@@ -416,12 +430,34 @@ if (
 
 	$file_time_text = gmdate(GMDATE_FORMAT, $file_time);
 
-	if (
-		($file_time !== -1)
+	$is_unchanged_time = (
+		$file_time > 0
 	&&	(
-			$http_code === 304
-		||	$file_time === $if_time_text
-		||	$file_time_text === $if_time_text
+			$old_time_text === $file_time
+		||	$old_time_text === $file_time_text
+		||	$old_time_value === $file_time
+		||	$old_time_value === $file_time_text
+		)
+	);
+
+	$is_unchanged_etag = (
+		$file_etag
+	&&	$file_etag === $old_etag
+	);
+
+	if (
+		$http_code === 304
+	||	(
+			(
+				$old_time_value
+			&&	$old_etag
+			) ? (
+				$is_unchanged_time
+			&&	$is_unchanged_etag
+			) : (
+				($old_time_value && $is_unchanged_time)
+			||	($old_etag && $is_unchanged_etag)
+			)
 		)
 	) {
 		header('HTTP/1.0 304 Not Modified');
@@ -438,11 +474,6 @@ if (
 	$file_type = (
 		get_value_or_empty($response_info, 'content_type')
 	?:	get_value_or_empty($response_headers, 'content-type')
-	);
-
-	$file_etag = (
-		get_value_or_empty($response_info, 'etag')
-	?:	get_value_or_empty($response_headers, 'etag')
 	);
 
 	$file_size = (
