@@ -318,6 +318,7 @@ if (
 
 	$t0 = microtime();
 
+	$send_headers = array();
 	$curl_handle = curl_init($target_request_url);
 
 	curl_setopt($curl_handle, CURLINFO_HEADER_OUT, 1);
@@ -348,17 +349,16 @@ if (
 		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
 	}
 
-	if (
-		($old_time_text = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE'))
-	&&	($old_time_value = strtotime($old_time_text))
-	) {
-		curl_setopt($curl_handle, CURLOPT_TIMEVALUE, $old_time_value);
-	} else {
-		$old_time_value = 0;
+	if ($old_date = get_value_or_empty($_SERVER, 'HTTP_IF_MODIFIED_SINCE')) {
+		$send_headers[] = 'If-Modified-Since: '.$old_date;
 	}
 
 	if ($old_etag = get_value_or_empty($_SERVER, 'HTTP_IF_NONE_MATCH')) {
-		curl_setopt($curl_handle, CURLOPT_HTTPHEADER, array("If-None-Match: $old_etag"));
+		$send_headers[] = 'If-None-Match: '.$old_etag;
+	}
+
+	if ($send_headers) {
+		curl_setopt($curl_handle, CURLOPT_HTTPHEADER, $send_headers);
 	}
 
 //* Enable decoding of the response:
@@ -428,16 +428,15 @@ if (
 	?:	get_value_or_empty($response_headers, 'last-modified')
 	);
 
-	$file_time_text = gmdate(GMDATE_FORMAT, $file_time);
-
-	$is_unchanged_time = (
+	$file_date = (
 		$file_time > 0
-	&&	(
-			$old_time_text === $file_time
-		||	$old_time_text === $file_time_text
-		||	$old_time_value === $file_time
-		||	$old_time_value === $file_time_text
-		)
+		? gmdate(GMDATE_FORMAT, $file_time)
+		: ''
+	);
+
+	$is_unchanged_date = (
+		$file_date
+	&&	$file_date === $old_date
 	);
 
 	$is_unchanged_etag = (
@@ -449,13 +448,13 @@ if (
 		$http_code === 304
 	||	(
 			(
-				$old_time_value
+				$old_date
 			&&	$old_etag
 			) ? (
-				$is_unchanged_time
+				$is_unchanged_date
 			&&	$is_unchanged_etag
 			) : (
-				($old_time_value && $is_unchanged_time)
+				($old_date && $is_unchanged_date)
 			||	($old_etag && $is_unchanged_etag)
 			)
 		)
@@ -491,7 +490,7 @@ if (
 		// if ($http_code == 405) header('HTTP/1.1 405 Not Allowed'); else
 		header('HTTP/1.1 200 OK, who cares about '.$http_code);
 
-		if ($file_time && $file_time !== -1) header('Last-Modified: '.$file_time_text);
+		if ($file_time && $file_time !== -1) header('Last-Modified: '.$file_date);
 		if ($file_etag && $file_etag !== -1) header('Etag: '.$file_etag);
 		if ($file_type && $file_type !== -1) header('Content-Type: '.$file_type);
 		if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);
