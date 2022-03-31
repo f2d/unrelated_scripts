@@ -36,6 +36,49 @@ function get_value_or_empty($array, $key) {
 	return '';
 }
 
+if (
+	isset($allowed_cookies)
+&&	is_array($allowed_cookies)
+&&	!empty($allowed_cookies)
+) {
+	$has_allowed_cookie = false;
+
+	foreach ($allowed_cookies as $key => $value) if (get_value_or_empty($_COOKIE, $key) === $value) {
+
+		$has_allowed_cookie = true;
+
+		break;
+	}
+
+	if (!$has_allowed_cookie) {
+		die(date('>>Y'));
+	}
+}
+
+define('DATE_FORMAT', 'Y-m-d H:i:s');
+define('GMDATE_FORMAT', 'D, d M Y H:i:s \G\M\T');	//* <- 'r' format gives "+0000" instead of "GMT"
+
+define('PAT_ETAG_ENCODING', '~[_-]+(?P<Encoding>br|gzip|deflate)(?P<Quote>"|&quot;)?$~i');
+define('PAT_ETAG_WEAK', '~^(?P<Weak>W/)(?P<Quote>"|&quot;)?~i');
+
+function get_all_etag_forms($etag) {
+	$etag_without_encoding = preg_replace(PAT_ETAG_ENCODING, '$2', $etag);
+	$old_etag_forms = (
+		array_unique(
+		array_filter(
+		array(
+			$etag
+		,	$etag_without_encoding
+		,	preg_replace(PAT_ETAG_WEAK, '$2', $etag)
+		,	preg_replace(PAT_ETAG_WEAK, '$2', $etag_without_encoding)
+		)))
+	);
+
+	sort($old_etag_forms);
+
+	return $old_etag_forms;
+}
+
 function is_prefix($text, $part) { return (strpos($text, $part) === 0); }
 function get_path_after_prefix($path, $prefix, $trim_chars = ':/.?') { return ltrim(substr($path, strlen($prefix)), $trim_chars); }
 function get_domain_and_last_part_from_url($url, $number_of_parts = 2) {
@@ -98,28 +141,6 @@ function get_self_root() {
 
 	return '';
 }
-
-if (
-	isset($allowed_cookies)
-&&	is_array($allowed_cookies)
-&&	!empty($allowed_cookies)
-) {
-	$has_allowed_cookie = false;
-
-	foreach ($allowed_cookies as $key => $value) if (get_value_or_empty($_COOKIE, $key) === $value) {
-
-		$has_allowed_cookie = true;
-
-		break;
-	}
-
-	if (!$has_allowed_cookie) {
-		die(date('>>Y'));
-	}
-}
-
-define('DATE_FORMAT', 'Y-m-d H:i:s');
-define('GMDATE_FORMAT', 'D, d M Y H:i:s \G\M\T');	//* <- 'r' format gives "+0000" instead of "GMT"
 
 $is_relative_to_request =
 $is_relative_to_referer = false;
@@ -354,7 +375,15 @@ if (
 	}
 
 	if ($old_etag = get_value_or_empty($_SERVER, 'HTTP_IF_NONE_MATCH')) {
-		$send_headers[] = 'If-None-Match: '.$old_etag;
+		$old_etag_forms = get_all_etag_forms($old_etag);
+
+//* Note: nginx returns "400 Bad Request" to a request with multiple ETags
+
+		// foreach ($old_etag_forms as $each_form) $send_headers[] = 'If-None-Match: '.$each_form;
+
+//* Try sending the most basic version, no weak prefix, no encoding suffix:
+
+		$send_headers[] = 'If-None-Match: '.$old_etag_forms[0];
 	}
 
 	if ($send_headers) {
@@ -435,13 +464,16 @@ if (
 	);
 
 	$is_unchanged_date = (
-		$file_date
+		$file_date && $old_date
 	&&	$file_date === $old_date
 	);
 
 	$is_unchanged_etag = (
-		$file_etag
-	&&	$file_etag === $old_etag
+		$file_etag && $old_etag
+	&&	(
+			$file_etag === $old_etag
+		||	array_diff(get_all_etag_forms($file_etag), $old_etag_forms)
+		)
 	);
 
 	if (
