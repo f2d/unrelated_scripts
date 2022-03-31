@@ -60,23 +60,33 @@ define('GMDATE_FORMAT', 'D, d M Y H:i:s \G\M\T');	//* <- 'r' format gives "+0000
 
 define('PAT_ETAG_ENCODING', '~[_-]+(?P<Encoding>br|gzip|deflate)(?P<Quote>"|&quot;)?$~i');
 define('PAT_ETAG_WEAK', '~^(?P<Weak>W/)(?P<Quote>"|&quot;)?~i');
+define('PAT_ETAG_SPLIT', '~,\s*~');
+
+function get_each_etag_forms($etag) {
+
+	$etag_without_encoding = preg_replace(PAT_ETAG_ENCODING, '$2', $etag);
+
+	return array(
+		$etag
+	,	$etag_without_encoding
+	,	preg_replace(PAT_ETAG_WEAK, '$2', $etag)
+	,	preg_replace(PAT_ETAG_WEAK, '$2', $etag_without_encoding)
+	);
+}
 
 function get_all_etag_forms($etag) {
-	$etag_without_encoding = preg_replace(PAT_ETAG_ENCODING, '$2', $etag);
-	$old_etag_forms = (
-		array_unique(
-		array_filter(
-		array(
-			$etag
-		,	$etag_without_encoding
-		,	preg_replace(PAT_ETAG_WEAK, '$2', $etag)
-		,	preg_replace(PAT_ETAG_WEAK, '$2', $etag_without_encoding)
-		)))
-	);
 
-	sort($old_etag_forms);
+	$etag_forms = array();
 
-	return $old_etag_forms;
+	foreach (array_map('get_each_etag_forms', preg_split(PAT_ETAG_SPLIT, $etag)) as $each_part_forms)
+	foreach ($each_part_forms as $each_form) {
+		$etag_forms[] = $each_form;
+	}
+
+	$etag_forms = array_unique(array_filter($etag_forms));
+	sort($etag_forms);
+
+	return $etag_forms;
 }
 
 function is_prefix($text, $part) { return (strpos($text, $part) === 0); }
@@ -377,13 +387,11 @@ if (
 	if ($old_etag = get_value_or_empty($_SERVER, 'HTTP_IF_NONE_MATCH')) {
 		$old_etag_forms = get_all_etag_forms($old_etag);
 
-//* Note: nginx returns "400 Bad Request" to a request with multiple ETags
+//* Note: nginx returns "400 Bad Request" to a request with multiple ETag lines.
+//* Try sending the most basic version, no weak prefix, no encoding suffix, or all forms comma-separated in one line:
 
-		// foreach ($old_etag_forms as $each_form) $send_headers[] = 'If-None-Match: '.$each_form;
-
-//* Try sending the most basic version, no weak prefix, no encoding suffix:
-
-		$send_headers[] = 'If-None-Match: '.$old_etag_forms[0];
+		// $send_headers[] = 'If-None-Match: '.$old_etag_forms[0];
+		$send_headers[] = 'If-None-Match: '.implode(', ', $old_etag_forms);
 	}
 
 	if ($send_headers) {
