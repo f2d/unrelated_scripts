@@ -76,14 +76,17 @@ function get_each_etag_forms($etag) {
 
 function get_all_etag_forms($etag) {
 
-	$etag_forms = array();
+//* https://stackoverflow.com/questions/526556/how-to-flatten-a-multi-dimensional-array-to-simple-one-in-php#comment98422873_14972714
 
-	foreach (array_map('get_each_etag_forms', preg_split(PAT_ETAG_SPLIT, $etag)) as $each_part_forms)
-	foreach ($each_part_forms as $each_form) {
-		$etag_forms[] = $each_form;
-	}
+	$etag_forms = (
+		array_unique(
+		array_filter(
+		array_merge(...
+		array_map('get_each_etag_forms',
+			preg_split(PAT_ETAG_SPLIT, $etag)
+		))))
+	);
 
-	$etag_forms = array_unique(array_filter($etag_forms));
 	sort($etag_forms);
 
 	return $etag_forms;
