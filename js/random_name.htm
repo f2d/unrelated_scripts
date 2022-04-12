@@ -1,0 +1,14 @@
+﻿<script>
+function new_name(length) {
+var	letters = 'abcdefghijklmnopqrstuvwzyx'
+,	name = ''
+,	name_length = length || Math.floor(Math.random()*24+6)
+,	e = document.createElement('p');
+	;
+	while (name_length--) name += letters[Math.floor(Math.random()*letters.length)];
+	e.textContent = name[0].toUpperCase() + name.slice(1).toLowerCase();
+	document.body.appendChild(e);
+}
+</script>
+<body onload="new_name()">
+<button onclick="new_name()">+
