@@ -32,6 +32,7 @@ timeout_request = 60
 
 # TODO: timeout_slow_dl = 0
 
+twitter_front_end = 'https://nitter.net/'
 default_web_proxy = 'http://u/raw/'
 default_encoding = 'utf_8'
 read_encoding = default_encoding+'|utf_16_le|utf_16_be|cp1251'

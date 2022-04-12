@@ -284,7 +284,7 @@ pat_badp = get_rei(r'^(\w+):/*')
 pat_cdfn = get_rei(r'filename\*?=(?:UTF-8\'+)?"?([^"\r\n>]+)')
 pat_exno = get_rei(r'\W')
 pat_host = get_rei(r'^(?P<Protocol>[^:]*:/+)?(?P<Domain>[^/@]+)(?P<Path>/.*)?$')
-pat_href = get_rei(r'\shref=[\'"]?([^\'"\s>]+)')
+pat_href = get_rei(r'\s+href=[\'"]?([^\'"\s>]+)')
 pat_imgs = get_rei(r'<img[^>]*?\s+src=[\'"]?([^"\s>]+)')
 pat_synt = get_rei(r'[\d/.,_-]+')
 pat_trim = get_rei(r'([.,]+|[*~]+|[_-]+|[()]+|/+)$')
@@ -416,7 +416,7 @@ pat2replace_before_checking = [			# <- strings before this can have any of "/pat
 ,	[get_rei(r'^(?P<NoDL>\w+:/+(?:[^:/?#]+\.)?dropbox\.com/s/[^?#]+)[?#]dl=.*$'		), r'\g<NoDL>']
 ,	[get_rei(r'(?P<Path>file.qip.ru/(?:file|photo)/[^?#]+)(?:\?.*)?$'			), r'\g<Path>?action=downloads']
 ,	[get_rei(r'shot\.qip\.ru[^-#]*-(?P<Prefix>.)(?P<File>[^/?#]+)(?P<Sub>/+.*)?$'		), r'f\g<Prefix>.s.qip.ru/\g<File>.png']
-,	[get_rei(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:fx)?twitter\.com/+(?P<Path>[^/?#])'		), r'https://nitter.net/\g<Path>']
+,	[get_rei(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:(?:fx)?twitter\.com|nitter(?:\.\w+)*)/+(?P<Path>[^/?#])'), twitter_front_end + r'\g<Path>']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)(?P<Format>[^&#%]+).*?$'		), r'\g<Path>.\g<Format>']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'					), r'\g<Path>:orig']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+profile_images?/+[^:?&#%]+)(?:_[^/:?&#%]+)(?P<File>\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'	), r'\g<Path>\g<File>']
@@ -803,10 +803,10 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 # <video class="gif" poster="/pic/tweet_video_thumb%2FFJVma9TWUBEkwAr.jpg%3Asmall" controls="" autoplay="" muted="" loop="">
 # <source src="/pic/video.twimg.com%2Ftweet_video%2FFJVma9TWUBEkwAr.mp4" type="video/mp4" />
 
-,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^%:/=\s&?#]+\.)?nitter\.net/+[^?#]+)([?#]|$)')
+,	{	'page': get_rei(r'^(?P<PageURL>\w+:/+(?:[^%:/=\s&?#]+\.)?nitter(?:\.\w+)*/+[^?#]+)([?#]|$)')
 	,	'grab': get_rei(r'''
 			\s\w+="
-		(?:	\w+:/+			(?:[^%:/=\s&?#]+\.)?nitter\.net				)?
+		(?:	\w+:/+			(?:[^%:/=\s&?#]+\.)?nitter(?:\.\w+)*				)?
 			/pic/
 		(?:	(?P<Domain>		(?:[^%:/=\s&?#]+\.)?twimg\.com	)	(?:/|%2F)+	)?
 			(?P<DirType>		[^%/.\s">]+			)	(?:/|%2F)+
@@ -950,7 +950,7 @@ pat2open_in_browser = [	# <- too complicated to grab, so handle it by a prepared
 pat2recheck_next_time = [
 	get_rei(r'^\w+:/+([^:/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+')
 ,	get_rei(r'^\w+:/+([^:/?#]+\.)?dropbox(usercontent)?\.\w+/')
-,	get_rei(r'^\w+:/+([^:/?#]+\.)?(t\.co|(fx)?twitter\.com|nitter\.net)/\w+')
+,	get_rei(r'^\w+:/+([^:/?#]+\.)?(t\.co|(fx)?twitter\.com|nitter(?:\.\w+)*)/\w+')
 ]
 
 #pat2etag = [	# <- TODO: request using ETag header from the copy saved before, will get "304: not modified" for unchanged without full dl
@@ -986,6 +986,7 @@ pat2replace_before_saving_file = [
 ,	[get_rei(r'(?P<Path>(?:\w+;,+)?(?:[^,&]+\.)?(?:joy)?reactor\.\w+,[^%]*)(?:[^%]*?(?P<Percent>[%])[a-z0-9]{2,4})+(?P<Suffix>[^%]*)$'), r'\g<Path>\g<Percent>(...)\g<Suffix>']	# <- tested in TCMD
 ,	[get_rei(r'(?P<Path>file.qip.ru,file,\w+),.*?&action=d\w+'			), r'\g<Path>']
 ,	[get_rei(r'(?P<Path>\.(?:cdninstagram\.com|fbcdn\.net)[,/]+[^;:&?#]+)[;:&?#].+$'), r'\g<Path>']			# <- remove URL arguments
+,	[get_rei(r'(?P<Arg>[&?#]token(-\w+)?)(=|%3D)[^&?#=]+?(?P<Ext>\.\w+)$'		), r'\g<Arg>=(...)\g<Ext>']
 ,	[get_rei(r'(?P<Tags>[;,][^;,]{32})[^;,]+(?P<By>_drawn_by_[^;,]+)$'		), r'\g<Tags>(...)\g<By>']	# <- overly long booru names, too many tags
 ,	[get_rei(r'\s+-\s+(?:https?;,+)?(\S+?[,.]\S*)(?P<Part2>\s+-\s+(?:https?;,+)?\1\S+)'	), r'\g<Part2>']	# <- child URL: duplicate parts
 ,	[get_rei(r'\s*-\s+of\s+(?P<Number>\d+)\s+-\s*'					), r' of \g<Number> - ']	# <- fix imgur album count
