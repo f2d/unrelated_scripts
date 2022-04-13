@@ -30,6 +30,9 @@ Use the up and down arrow keys to navigate between messages quickly. New message
 
 (function() {
 
+const	textCharSet = 'charset=utf-8';
+const	textTime = getTimeStamp();
+
 function getTimeStamp() {
 const	d = new Date();
 const	t = ['FullYear','Month','Date','Hours','Minutes','Seconds'];
@@ -68,7 +71,7 @@ const	size = blob.size;
 const	url = URL.createObjectURL(blob);
 const	a = document.createElement('a');
 	a.href = url;
-	a.download = filename;
+	a.download = filename = filename.trim().replace(regWhiteSpace, ' ').replace(regSanitizeFileName, '_');
 
 	console.log({ textTime, filename, size, url, blob });
 
@@ -93,8 +96,8 @@ let	elements;
 	return elements;
 }
 
-const	textCharSet = 'charset=utf-8';
-const	textTime = getTimeStamp();
+const	regSanitizeFileName = /[_\/\\:<>?*"]+/g;
+const	regWhiteSpace = /\s+/g;
 
 const	privateChannels = 'Private channels';
 const	channelPrefix = 'Messages in ';
