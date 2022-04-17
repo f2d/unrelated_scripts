@@ -25,9 +25,12 @@ add_group_and_user_if_not_yet()
 	fi
 }
 
+add_group_and_user_if_not_yet www-data www-data
 add_group_and_user_if_not_yet drawpile drawpile
 add_group_and_user_if_not_yet discord-bot taga
+add_group_and_user_if_not_yet twitter nitter
 
-chown -R drawpile:drawpile /srv/drawpile/
-chown -R taga:discord-bot  /srv/discord/taga/
+chown -R drawpile:drawpile /srv/drawpile
+chown -R taga:discord-bot  /srv/discord/taga
+chown -R nitter:twitter    /srv/nitter
 chown -R www-data:www-data /srv/www
