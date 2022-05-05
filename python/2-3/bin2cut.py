@@ -238,6 +238,14 @@ def get_bytes_length_text(value):
 def get_sorted_text_from_items(items, separator=', '):
 	return separator.join(sorted(set(items)))
 
+def get_dir_from_path(path):
+	path = normalize_slashes(path)
+
+	if path.find('/') >= 0:
+		return path.rsplit('/', 1)[0]
+
+	return ''
+
 def get_file_name_from_path(path):
 	path = normalize_slashes(path)
 
@@ -550,7 +558,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 				and	found_content_part
 				and	found_file_size > 0
 				):
-					dest_dir = dest_file_path.rsplit('/', 1)[0]
+					dest_dir = get_dir_from_path(dest_file_path)
 
 					if (
 						dest_dir
