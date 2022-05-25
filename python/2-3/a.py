@@ -2,6 +2,21 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# [v] TODO: option to keep only the smallest archive.
+# [v] 1. For each finished archive, if it is bigger or same as previous - delete the new one right away, to keep disk space usage lower.
+# [ ] 2. If the new archive is smaller, test it (with 7-Zip).
+# [ ] 3. If the test fails - delete the new one.
+# [ ] 4. If the test passes - delete the previous one.
+
+# TODO: better keeping of unique filenames and parts - prefix, suffix, params, dates, etc.
+# 1. Start creation with unique filename to avoid race conditions with simultaneous script runs writing to a same archive file.
+# -- Use script process ID = os.getpid() + script starting timestamp + each archive creation timestamp.
+# 2. Rename after finishing to a more clean and sensible unique name.
+
+# TODO: more robust preparation of command line.
+# 1. Append args to lists separated by type (compression, sources, destination, etc).
+# 2. Arrange args sorted as needed by each archiving program, to avoid failures (e.g. 7-zip cannot find filelist after -- with @..\name_list.txt).
+
 import datetime, glob, io, os, re, subprocess, sys, time
 
 # Use colored text if available:
@@ -300,6 +315,7 @@ def print_help():
 	,	'	' + def_name_separator + 'filename' + def_suffix_separator + 'suffix: add given suffix between timestamp and archive type.'
 	,	''
 	,	'	---- clean up:'
+	,	'	o: delete archives on the go, keep only the smallest one.'
 	,	'	d: delete subjects (source files) when done.'
 	,	'		(only by WinRAR, or 7-Zip since v17)'
 	,	'		(if by WinRAR, last archive is tested before deleting subjects)'
@@ -466,6 +482,7 @@ def run_batch_archiving(argv):
 
 				cmd_queue.append({
 					'exe_type': exe_type
+				,	'subj': subj
 				,	'dest': dest
 				,	'args': cmd_args + path_args
 				,	'suffix': (suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
@@ -767,6 +784,7 @@ def run_batch_archiving(argv):
 
 		for cmd in cmd_queue:
 			cmd_args = list(filter(bool, cmd['args']))
+			cmd_subj = cmd['subj']
 			cmd_dest = cmd['dest']
 			cmd_type = cmd['exe_type']
 			cmd_suffix = cmd['suffix']
@@ -800,7 +818,7 @@ def run_batch_archiving(argv):
 					and	archive_file_size < empty_archive_max_size
 					and	'0 0 0 files' in archive_file_summary
 					):
-						cprint('Warning: No files to archive, empty archive deleted.', 'red')
+						cprint('Warning: No files to archive, deleting empty archive.', 'red')
 
 						os.remove(cmd_dest)
 					else:
@@ -833,6 +851,29 @@ def run_batch_archiving(argv):
 						print_with_colored_prefix('Source total size:', '{}, {}'.format(content_size_text, content_counts_text))
 						print_with_colored_prefix('Archive file size:', '{}, {:.2f}%'.format(archive_size_text, compression_ratio))
 						print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
+
+						if 'o' in flags:
+							smallest_for_this_subj = smallest_archives_by_subj.get(cmd_subj)
+
+							if not smallest_for_this_subj:
+
+								smallest_archives_by_subj[cmd_subj] = {
+									'path' : d
+								,	'size' : archive_file_size
+								}
+
+							elif smallest_for_this_subj['size'] > archive_file_size:
+
+								cprint('New archive is smaller, deleting bigger old.', 'cyan')
+
+								os.remove(smallest_for_this_subj['path'])
+
+								smallest_for_this_subj['path'] = d
+								smallest_for_this_subj['size'] = archive_file_size
+							else:
+								cprint('Old archive is smaller, deleting bigger new.', 'red')
+
+								os.remove(d)
 
 				print('')
 
@@ -897,6 +938,8 @@ def run_batch_archiving(argv):
 	print_with_colored_prefix('argc:', argc)
 
 	common_flag_part = flag_parts_left.pop()
+
+	smallest_archives_by_subj = {}
 
 	if len(flag_parts_left) > 0:
 		combos = [(combo_flag_part + common_flag_part) for combo_flag_part in flag_parts_left]
