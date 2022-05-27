@@ -2,12 +2,6 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
-# [v] TODO: option to keep only the smallest archive.
-# [v] 1. For each finished archive, if it is bigger or same as previous - delete the new one right away, to keep disk space usage lower.
-# [ ] 2. If the new archive is smaller, test it (with 7-Zip).
-# [ ] 3. If the test fails - delete the new one.
-# [ ] 4. If the test passes - delete the previous one.
-
 # TODO: better keeping of unique filenames and parts - prefix, suffix, params, dates, etc.
 # 1. Start creation with unique filename to avoid race conditions with simultaneous script runs writing to a same archive file.
 # -- Use script process ID = os.getpid() + script starting timestamp + each archive creation timestamp.
@@ -435,7 +429,14 @@ def run_batch_archiving(argv):
 			if not exe_path:
 				exe_path = exe_paths['test'] = exe_paths['7z'].replace('7zG', '7z')
 
-			return subprocess.check_output(
+			return '' if subprocess.call(
+				[
+					exe_path
+				,	't'
+				,	file_path
+				]
+			,	startupinfo=minimized
+			) else subprocess.check_output(
 				[
 					exe_path
 				,	'l'
@@ -813,7 +814,13 @@ def run_batch_archiving(argv):
 					archive_file_size = os.path.getsize(cmd_dest)
 					archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(cmd_dest))
 
-					if (
+					print('')
+
+					if not archive_file_summary:
+						cprint('Error: Archive is broken or has unknown format, deleting it.', 'red')
+
+						os.remove(cmd_dest)
+					elif (
 						cmd_type == '7z'
 					and	archive_file_size < empty_archive_max_size
 					and	'0 0 0 files' in archive_file_summary
@@ -837,6 +844,7 @@ def run_batch_archiving(argv):
 
 							print(cmd_dest)
 							print(d)
+							print('')
 
 							os.rename(cmd_dest, d)
 

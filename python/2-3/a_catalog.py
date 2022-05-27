@@ -86,7 +86,7 @@ def run_catalog_batch_archiving(argv):
 	archive_label = get_label(root_path)
 
 	if archive_label:
-		return a.run_batch_archiving(['7r_sdm;=_catalog_htm>' + archive_label, '.', '..'])
+		return a.run_batch_archiving(['7r_sdom;=_catalog_htm>' + archive_label, '.', '..'])
 	else:
 		print('')
 		print('Nothing to archive.')
