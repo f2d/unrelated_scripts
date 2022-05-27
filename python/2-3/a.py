@@ -817,6 +817,8 @@ def run_batch_archiving(argv):
 					print('')
 
 					if not archive_file_summary:
+						error_count += 1
+
 						cprint('Error: Archive is broken or has unknown format, deleting it.', 'red')
 
 						os.remove(cmd_dest)
