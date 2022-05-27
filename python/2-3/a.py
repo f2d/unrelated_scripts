@@ -2,10 +2,11 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
-# TODO: better keeping of unique filenames and parts - prefix, suffix, params, dates, etc.
-# 1. Start creation with unique filename to avoid race conditions with simultaneous script runs writing to a same archive file.
-# -- Use script process ID = os.getpid() + script starting timestamp + each archive creation timestamp.
-# 2. Rename after finishing to a more clean and sensible unique name.
+# [v] TODO: better keeping of unique filenames and parts - prefix, suffix, params, dates, etc.
+# [v] 1. Start creation with unique filename to avoid race conditions with simultaneous script runs writing to a same archive file.
+# [v] -- Use script process ID = os.getpid() + script starting timestamp + each archive creation timestamp.
+# [v] 2. Rename after finishing to a more clean and sensible unique name.
+# [ ] -- Sort name parts by type in predefined order.
 
 # TODO: more robust preparation of command line.
 # 1. Append args to lists separated by type (compression, sources, destination, etc).
@@ -29,6 +30,7 @@ except ImportError:
 zstd_levels = [3, 17, 18, 19, 20, 21, 22]
 zstd_solid_block_sizes = [99, 256, 1024]
 
+process_id_text = str(os.getpid())
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 listfile_encoding = 'utf-8'
 
@@ -466,7 +468,11 @@ def run_batch_archiving(argv):
 						for arg in cmd_args
 					]
 
-				dest = get_unique_clean_path(dest, suffix, t0)
+				# dest = get_unique_clean_path(dest, suffix, t0)
+				dest = remove_trailing_dots_in_path_parts(dest + suffix)
+				dest_dir, dest_name = dest.rsplit('/', 1)
+				dest_temp = dest_dir + '/' + '_'.join([x.strip(';_') for x in [t0, process_id_text, dest_name]])
+
 				path_args = (
 					[
 						(
@@ -475,17 +481,20 @@ def run_batch_archiving(argv):
 							'-i'
 						) + subj
 					,	'--'
-					,	dest
+					,	dest_temp
 					]
 					if is_subj_list else
-					['--', dest, subj]
+					['--', dest_temp, subj]
 				)
 
 				cmd_queue.append({
 					'exe_type': exe_type
+				,	'args': cmd_args + path_args
 				,	'subj': subj
 				,	'dest': dest
-				,	'args': cmd_args + path_args
+				,	'dest_dir': dest_dir
+				,	'dest_name': dest_name
+				,	'dest_temp': dest_temp
 				,	'suffix': (suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
 				})
 
@@ -614,7 +623,7 @@ def run_batch_archiving(argv):
 		else:
 			minimized = None
 
-		is_subj_list = (subj[0] == '@')
+		is_subj_list = (subj[0].strip('"') == '@')
 		# foreach_date = flags.count('9')
 		foreach_dir  = '4' in flags
 		foreach_file = 'f' in flags
@@ -786,9 +795,10 @@ def run_batch_archiving(argv):
 		for cmd in cmd_queue:
 			cmd_args = list(filter(bool, cmd['args']))
 			cmd_subj = cmd['subj']
-			cmd_dest = cmd['dest']
-			cmd_type = cmd['exe_type']
 			cmd_suffix = cmd['suffix']
+			cmd_type = cmd['exe_type']
+			real_dest = cmd['dest']
+			temp_dest = cmd['dest_temp']
 
 			print(cmd_args_to_text(cmd_args))
 
@@ -810,9 +820,9 @@ def run_batch_archiving(argv):
 				,	'red' if result_code != 0 else 'cyan'
 				)
 
-				if os.path.exists(cmd_dest):
-					archive_file_size = os.path.getsize(cmd_dest)
-					archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(cmd_dest))
+				if os.path.exists(temp_dest):
+					archive_file_size = os.path.getsize(temp_dest)
+					archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(temp_dest))
 
 					print('')
 
@@ -821,7 +831,7 @@ def run_batch_archiving(argv):
 
 						cprint('Error: Archive is broken or has unknown format, deleting it.', 'red')
 
-						os.remove(cmd_dest)
+						os.remove(temp_dest)
 					elif (
 						cmd_type == '7z'
 					and	archive_file_size < empty_archive_max_size
@@ -829,26 +839,32 @@ def run_batch_archiving(argv):
 					):
 						cprint('Warning: No files to archive, deleting empty archive.', 'red')
 
-						os.remove(cmd_dest)
+						os.remove(temp_dest)
 					else:
 						c = cmd_suffix if ((def_suffix_separator in flags) and cmd_suffix) else '.'
-						d = cmd_dest
 						j = (
-							datetime.datetime.fromtimestamp(os.path.getmtime(d)).strftime(time_format)
+							datetime.datetime.fromtimestamp(os.path.getmtime(temp_dest)).strftime(time_format)
 							if 'm' in flags
 							else ''
 						) + def_suffix + c
 
 						if j != c:
-							d = j.join(d.rsplit(c, 1))
-							while os.path.exists(d):
-								d = '(2).'.join(d.rsplit('.', 1))
+							final_dest = j.join(real_dest.rsplit(c, 1))
+						else:
+							final_dest = real_dest
 
-							print(cmd_dest)
-							print(d)
+						i = 1
+
+						while os.path.exists(final_dest):
+							i += 1
+							final_dest = '({}).'.format(i).join(final_dest.rsplit('.', 1))
+
+						if final_dest and final_dest != temp_dest:
+							print(temp_dest)
+							print(final_dest)
 							print('')
 
-							os.rename(cmd_dest, d)
+							os.rename(temp_dest, final_dest)
 
 						summary_parts = archive_file_summary.split(' ', 4)
 						content_sum_size = int(summary_parts[2])
@@ -868,7 +884,7 @@ def run_batch_archiving(argv):
 							if not smallest_for_this_subj:
 
 								smallest_archives_by_subj[cmd_subj] = {
-									'path' : d
+									'path' : final_dest
 								,	'size' : archive_file_size
 								}
 
@@ -878,12 +894,12 @@ def run_batch_archiving(argv):
 
 								os.remove(smallest_for_this_subj['path'])
 
-								smallest_for_this_subj['path'] = d
+								smallest_for_this_subj['path'] = final_dest
 								smallest_for_this_subj['size'] = archive_file_size
 							else:
 								cprint('Old archive is smaller, deleting bigger new.', 'red')
 
-								os.remove(d)
+								os.remove(final_dest)
 
 				print('')
 
