@@ -471,7 +471,14 @@ def run_batch_archiving(argv):
 				# dest = get_unique_clean_path(dest, suffix, t0)
 				dest = remove_trailing_dots_in_path_parts(dest + suffix)
 				dest_dir, dest_name = dest.rsplit('/', 1)
-				dest_temp = dest_dir + '/' + '_'.join([x.strip(';_') for x in [t0, process_id_text, dest_name]])
+				dest_temp = dest_dir + '/' + re.sub(pat_temp, '_', '_'.join([
+					t0
+				,	process_id_text
+				,	'tmp'
+				# ,	dest_name
+				# ,	str(len(dest_name))
+				,	suffix
+				])).strip('_')
 
 				path_args = (
 					[
@@ -648,6 +655,7 @@ def run_batch_archiving(argv):
 		)
 
 		pat_whitespace = re.compile(r'\s+', re.S)
+		pat_temp = re.compile(r'([^\w.-]|_)+', re.S)
 		pat_inex = re.compile(r'^(?P<InEx>-[ix])(?P<Recurse>r[0-]*)?(?P<Value>[!@].*)$', re.I)
 		rest_winrar = []
 
@@ -890,14 +898,20 @@ def run_batch_archiving(argv):
 
 							elif smallest_for_this_subj['size'] > archive_file_size:
 
-								cprint('New archive is smaller, deleting bigger old.', 'cyan')
+								cprint('New archive is smaller: {} < {}, deleting bigger old.'.format(
+									archive_file_size
+								,	smallest_for_this_subj['size']
+								), 'cyan')
 
 								os.remove(smallest_for_this_subj['path'])
 
 								smallest_for_this_subj['path'] = final_dest
 								smallest_for_this_subj['size'] = archive_file_size
 							else:
-								cprint('Old archive is smaller, deleting bigger new.', 'red')
+								cprint('Old archive is smaller or same: {} <= {}, deleting new.'.format(
+									smallest_for_this_subj['size']
+								,	archive_file_size
+								), 'magenta')
 
 								os.remove(final_dest)
 
@@ -911,13 +925,13 @@ def run_batch_archiving(argv):
 		if error_count > 0:
 			if 'k' in flags:
 				print(' '.join([
-					colored('----	----	Done {} archives,'.format(cmd_count), 'green')
+					colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
 				,	colored('{} errors.'.format(error_count), 'red')
 				,	'See messages above.'
 				]))
 			else:
 				print(' '.join([
-					colored('----	----	Done {} archives,'.format(cmd_count), 'green')
+					colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
 				,	colored('{} errors.'.format(error_count), 'red')
 				,	'Press Enter to continue.'
 				]))
@@ -927,9 +941,9 @@ def run_batch_archiving(argv):
 				else:
 					input()
 		elif 'c' in flags:
-			cprint('----	----	Total {} commands.'.format(cmd_count), 'green')
+			cprint('----	----	Total {} command(s).'.format(cmd_count), 'green')
 		else:
-			cprint('----	----	Done {} archives.'.format(cmd_count), 'green')
+			cprint('----	----	Done {} archive(s).'.format(cmd_count), 'green')
 
 		return 0 if error_count == 0 and cmd_count > 0 else -1
 
