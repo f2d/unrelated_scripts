@@ -233,6 +233,8 @@ if "%test_arg_unquoted%" == "" goto test_loop_start
 
 set "test_arg_filtered=%test_arg_unquoted:>=%"
 set "test_arg_filtered=%test_arg_filtered:<=%"
+set "test_arg_filtered=%test_arg_filtered:&=%"
+set "test_arg_filtered=%test_arg_filtered:|=%"
 
 if not "%test_arg_unquoted%" == "%test_arg_filtered%" goto use_fallback_args
 

@@ -40,7 +40,7 @@ flags_group_by_num_any_sep = '12.,'
 flags_group_by_num_dot = '12.'
 flags_all_solid_types = '7res'
 flags_all_types = 'anwz'
-must_quote_chars = ' ,;>='
+must_quote_chars = ' ,;<>=&|'
 
 def_name_fallback = 'default'
 def_name_separator = '='
