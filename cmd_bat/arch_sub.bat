@@ -17,13 +17,13 @@ if not "%~1" == "-" ^
 set "archive_types=%~1"
 
 rem ---------------------------------------------------------------------------
-rem	//* files handling: default = _dm;> = this:
+rem	//* files handling: default = _dom;> = this:
 rem	//* 1) "_" start minimized
 rem	//* 2) "9" max compression setting (already a default)
 rem	//* 3) ";>" create "folder_name;_date_time,type_comment.ext"
 rem	//* 4) "d" delete source files
 
-set "archive_handling=_dm^;^>"
+set "archive_handling=_dom^;^>"
 if not "%~2" == "" ^
 if not "%~2" == "-" ^
 set "archive_handling=%~2"
