@@ -309,6 +309,7 @@ def print_help():
 	,	'	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
 	,	'	' + def_suffix_separator + ': put timestamp before archive type suffix.'
 	,	'	' + def_name_separator + 'filename' + def_suffix_separator + 'suffix: add given suffix between timestamp and archive type.'
+	,	'		(",=suffix" is autoreplaced into ",[suffix]", for usage with arch_sub.bat)'
 	,	''
 	,	'	---- clean up:'
 	,	'	o: delete archives on the go, keep only the smallest one.'
@@ -610,6 +611,9 @@ def run_batch_archiving(argv):
 			flags += def_suffix_separator
 
 		def_name, def_suffix = split_text_in_two(def_name, def_suffix_separator)
+
+		if def_suffix[0 : 2] == ',=':
+			def_suffix = ',[' + def_suffix.strip(',=_[]') + ']'
 
 		subj = normalize_slashes(argv_subj if argv_subj and len(argv_subj) > 0 else def_subj)
 		dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
