@@ -31,48 +31,51 @@ print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 
 optional_arg_prefixes = ['-', '/']
 
-pat_part_start       = br'(?P<Start>'
-pat_part_end         = br'(?P<End>'
-pat_part_vary_start  = br'(?P<Vary>.(?!'
-pat_part_vary_end    = br')*'
-pat_part_extra_vary  = br'(?P<Vary>.*?)'
-pat_part_extra_start = br'^'
-pat_part_extra_end_marked  = br'(?P<Extra>\d+)?$'
-pat_part_extra_end_guessed = br'(?P<Extra>\d{4,})?$'
+pat_part_content = br'(?P<Content>'
+pat_part_start   = br'(?P<Start>'
+pat_part_end     = br'(?P<End>'
+pat_part_close   = br')'
+pat_part_multifile_vary_start = br'(?P<Vary>.(?!'
+pat_part_multifile_vary_end   = br'))*'
+pat_part_singlefile_start = br'^'
+pat_part_singlefile_vary  = br'(?P<Vary>.*?)'
+pat_part_singlefile_extra_start  = br'(?P<Extra>'
+pat_part_singlefile_extra_bytes  = br'.{1,9}'
+pat_part_singlefile_extra_digits = br'\d{1,99}'
+pat_part_singlefile_extra_guess  = br'\d{6,99}'	# <- not really sure, user should be careful
+pat_part_singlefile_extra_end    = br')?$'
+
+pat_parts_by_ext = {
 
 # GIF magic bytes:
 # start	GIF87a
 # or	GIF89a
 # end	NUL ;
 
-pat_part_gif = (br'''
-	(?P<Content>
-		(?P<Start>
+	'gif' : {
+		'start' : br'''
 			\x47\x49\x46\x38
 			[\x37\x39]
 			\x61
-		)(?P<Vary>.*?
-		)(?P<End>
+		'''
+	,	'end' : br'''
 			\x00\x3B
-		)
-	)
-''')
+		'''
+	}
 
 # JPEG magic bytes:
 # start	яШяа
 # end	яЩ
 
-pat_part_jpg = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'jpg' : {
+		'start' : br'''
 			\xFF\xD8\xFF
 			[\xE0\xE1\xEE\xDB]
-		)(?P<Vary>.*?
-		)(?P<End>
+		'''
+	,	'end' : br'''
 			\xFF\xD9
-		)
-	)
-''')
+		'''
+	}
 
 # PNG magic bytes:
 # start	‰PNG
@@ -80,97 +83,75 @@ pat_part_jpg = (br'''
 # end	IEND
 #	®B`‚
 
-pat_part_png = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'png' : {
+		'start' : br'''
 			\x89\x50\x4E\x47
 			\x0D\x0A\x1A\x0A
-		)(?P<Vary>.*?
-		)(?P<End>
+		'''
+	,	'end' : br'''
 			\x49\x45\x4E\x44
 			\xAE\x42\x60\x82
-		)
-	)
-''')
+		'''
+	}
 
 # WEBP magic bytes:
 # start	RIFF (3 bytes vary) NUL WEBPVP8
 
-pat_part_webp = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'webp' : {
+		'start' : br'''
 			\x89\x50\x4E\x47
-			...\x00
+			.   .   .   \x00
 			\x57\x45\x42\x50
 			\x56\x50\x38
-		)(?P<Vary>.*?)
-	)
-''')
+		'''
+	}
 
 # MOV magic bytes:
 # start	NUL NUL NUL 0x14 ftypqt SPACE SPACE
 
-pat_part_mov = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'mov' : {
+		'start' : br'''
 			\x00\x00\x00\x14
 			\x66\x74\x79\x70
 			\x71\x74\x20\x20
-		)(?P<Vary>.*?)
-	)
-''')
+		'''
+	}
 
 # MP4 magic bytes:
 # start	NUL NUL NUL 0x18 ftypmp42
 
-pat_part_mp4 = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'mp4' : {
+		'start' : br'''
 			\x00\x00\x00\x18
 			\x66\x74\x79\x70
 			\x6D\x70\x34\x32
-		)(?P<Vary>.*?)
-	)
-''')
+		'''
+	}
 
 # M4V magic bytes:
 # start	NUL NUL NUL 0x20 ftypM4V SPACE
 
-pat_part_m4v = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'm4v' : {
+		'start' : br'''
 			\x00\x00\x00\x20
 			\x66\x74\x79\x70
 			\x4D\x34\x56\x20
-		)(?P<Vary>.*?)
-	)
-''')
+		'''
+	}
 
 # MKV magic bytes:
 # start	SUB EЯЈ
 # end	м† (only in webm?)
 
-pat_part_mkv = (br'''
-	(?P<Content>
-		(?P<Start>
+,	'mkv' : {
+		'start' : br'''
 			\x1A\x45\xDF\xA3
-		)(?P<Vary>.*?
-		)(?P<End>
+		'''
+	,	'end' : br'''
 			\xEC\x86
-		)
-	)
-''')
+		'''
+	}
 
-pat_part_by_ext = {
-	'gif' : pat_part_gif
-,	'jpg' : pat_part_jpg
-,	'png' : pat_part_png
-,	'webp' : pat_part_webp
-
-,	'm4v' : pat_part_m4v
-,	'mkv' : pat_part_mkv
-,	'mov' : pat_part_mov
-,	'mp4' : pat_part_mp4
 }
 
 file_ext_aliases_by_ext = {
@@ -185,15 +166,18 @@ file_exts_by_type = {
 
 pat_file_content = {}
 
+pat_non_digit = re.compile(br'\D')
 pat_conseq_slashes = re.compile(r'[\\/]+')
 pat_local_prefix = re.compile(r'(?P<Prefix>^[\\/]+[?][\\/]+)(?P<Path>.*?)$')
 
-local_path_prefix = u'//?/'
+# local_path_prefix = u'//?/'
+local_path_prefix = u''
 timestamp_format = r'%Y-%m-%d %H:%M:%S'
 tz_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} %z %Z'
 gm_timestamp_format = r'%Y-%m-%d %H:%M:%S{f} GMT'
 
 a_type = type([])
+d_type = type({})
 s_type = type('')
 u_type = type(u'')
 b_type = type(b'')
@@ -204,7 +188,24 @@ def is_iterable(v): return isinstance(v, Iterable)
 def is_type_int(v): return isinstance(v, int)
 def is_type_arr(v): return isinstance(v, a_type)
 def is_type_bin(v): return isinstance(v, b_type)
+def is_type_dic(v): return isinstance(v, d_type)
 def is_type_str(v): return isinstance(v, s_type) or isinstance(v, u_type)
+
+def get_hex_text_from_bytes(byte_string):
+	try:
+		# Since Python 3.5:
+		# https://stackoverflow.com/a/36149089
+
+		text = byte_string.hex()
+
+	except AttributeError:
+
+		# Equivalent in Python 2.x:
+		# https://stackoverflow.com/a/54747809
+
+		text = byte_string.encode('hex')
+
+	return text.upper()
 
 def get_timestamp_text(time_value):
 	return time.strftime(timestamp_format, time.localtime(time_value))
@@ -338,10 +339,10 @@ def print_help():
 		''
 	,	colored('* Description:', 'yellow')
 	,	'	Find and extract files of known formats stored as is inside other files.'
-	,	'	Or truncate extraneous digits at the end of files of known formats (for deduplication).'
+	,	'	Or truncate extraneous data at the end of files of known formats (for deduplication).'
 	,	''
 	,	colored('* Known file formats:', 'yellow')
-	,	'	' + get_sorted_text_from_items(pat_part_by_ext.keys())
+	,	'	' + get_sorted_text_from_items(pat_parts_by_ext.keys())
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
@@ -356,9 +357,6 @@ def print_help():
 	,	colored(' -s --silent', 'magenta') + '   : print nothing, usable for calling from another script.'
 	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
 	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
-	,	colored(' -e --truncate', 'magenta') + ' : cut extra digits from content'
-		+	' (added to bypass duplicate file checks),'
-		+	' and add them to saved file name.'
 	,	colored(' -l --long-time', 'magenta') + '  : print long detailed timestamps with fractional seconds and timezone.'
 	,	colored(' -m --keep-time', 'magenta') + '  : set modification time of saved file to be same as original file.'
 	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
@@ -366,6 +364,16 @@ def print_help():
 	,	colored(' -f --in-folder', 'magenta') + '  : save extracted files to original folder. '
 		+	colored('<dest>', 'cyan')
 		+	' argument is not needed.'
+
+	,	colored(' -e --truncate', 'magenta') + '     : cut extraneous bytes from content,'
+		+	' added there to bypass duplicate file checks, and discard them.'
+
+	,	colored(' -x --truncate-hex', 'magenta') + ' : cut extraneous bytes from content,'
+		+	' and add them to saved file name as hex, like "(xFF...)".'
+
+	,	colored(' -n --truncate-num', 'magenta') + ' : cut extraneous digits from content,'
+		+	' and add them to saved file name as is, like "(dNN...)".'
+
 	,	colored(' -c --content-in-arg', 'magenta') + ' : read content directly from '
 		+	colored('<source>', 'cyan')
 		+	' argument, not as path, and return a list of dictionaries, each with new file name and extracted content.'
@@ -508,10 +516,18 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 					if arg_in_place
 					else
 					fix_slashes(
-						u'{prefix}(d{suffix}).{ext}'
+						u'{prefix}{suffix}.{ext}'
 						.format(
 							prefix=dest_path
-						,	suffix=int(found_extra_data)
+						,	suffix=(
+								'(d{})'.format(int(found_extra_data))
+								if arg_truncate_n and not re.search(pat_non_digit, found_extra_data)
+								else
+								'(x{})'.format(get_hex_text_from_bytes(found_extra_data))
+								if arg_truncate_x
+								else
+								''
+							)
 						,	ext=(src_file_ext or file_type or each_ext)
 						)
 						if arg_truncate and found_extra_data
@@ -742,10 +758,13 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 	arg_remove_old = ('removeold'    in optional_args or 'd' in optional_args)
 	arg_silent     = ('silent'       in optional_args or 's' in optional_args)
 	arg_truncate   = ('truncate'     in optional_args or 'e' in optional_args)
+	arg_truncate_x = ('truncatehex'  in optional_args or 'x' in optional_args)
+	arg_truncate_n = ('truncatenum'  in optional_args or 'n' in optional_args)
 	arg_verbose    = ('verbose'      in optional_args or 'b' in optional_args)
 
 	arg_quiet = arg_quiet or arg_silent
 	arg_verbose = arg_verbose and not arg_quiet
+	arg_truncate = arg_truncate or arg_truncate_x or arg_truncate_n
 
 	src_content = get_path_arg_from(0, fix_path=False) if arg_content else None
 	src_path    = get_path_arg_from(0) if not arg_content else None
@@ -801,33 +820,83 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 	else:
 		process_only_exts = None
 
-	for each_ext, each_pat in pat_part_by_ext.items():
+	if arg_truncate:
+		pat_part_singlefile_extra_data = br'|'.join(
+			filter(
+				bool
+			,	[
+					pat_part_singlefile_extra_digits if arg_truncate_n else None
+				,	pat_part_singlefile_extra_bytes  if arg_truncate_x else None
+				]
+			)
+		)
+
+	for each_ext, each_pat_parts in pat_parts_by_ext.items():
 
 		if process_only_exts and not each_ext in process_only_exts:
 			continue
 
-		pattern = each_pat
+		start_mark_magic_bytes = (
+			each_pat_parts.get('start') if is_type_dic(each_pat_parts) else
+			each_pat_parts[0] if is_type_arr(each_pat_parts) else
+			each_pat_parts
+		)
 
-		if arg_truncate:
-			pattern = (
-				pat_part_extra_start
-			+	pattern
-			+	(
-					pat_part_extra_end_marked if pat_part_end in pattern else
-					pat_part_extra_end_guessed
+		end_mark_magic_bytes = (
+			each_pat_parts.get('end') if is_type_dic(each_pat_parts) else
+			each_pat_parts[1] if is_type_arr(each_pat_parts) else
+			None
+		)
+
+		pat_part_start_with_mark = (
+			pat_part_start
+		+	start_mark_magic_bytes
+		+	pat_part_close
+		)
+
+		pat_part_end_with_mark = (
+			pat_part_end
+		+	end_mark_magic_bytes
+		+	pat_part_close
+		) if end_mark_magic_bytes else None
+
+		pattern = (
+			pat_part_singlefile_start
+		+	pat_part_content
+		+	pat_part_start_with_mark
+		+	pat_part_singlefile_vary
+		+	(
+				(
+					pat_part_end_with_mark
+				+	pat_part_close		# <- end of actual content
+				+	(
+						pat_part_singlefile_extra_start
+					+	pat_part_singlefile_extra_data
+					+	pat_part_singlefile_extra_end
+					)
+				) if end_mark_magic_bytes
+				else (
+					pat_part_close
+				+	pat_part_singlefile_extra_start
+				+	pat_part_singlefile_extra_guess
+				+	pat_part_singlefile_extra_end
 				)
 			)
 
-		elif pat_part_extra_vary in pattern:
-			pattern_parts = pattern.split(pat_part_extra_vary)
-			pattern_magic_bytes = pattern_parts[0].split(pat_part_start, 1)[1]
-			pattern = (
-				pattern_parts[0]
-			+	pat_part_vary_start
-			+	pattern_magic_bytes
-			+	pat_part_vary_end
-			+	pattern_parts[1]
+		) if arg_truncate else (
+
+			pat_part_content
+		+	pat_part_start_with_mark
+		+	pat_part_multifile_vary_start
+		+	start_mark_magic_bytes		# <- avoid till the end of each sub-file
+		+	pat_part_multifile_vary_end
+		+	(
+				pat_part_end_with_mark
+				if end_mark_magic_bytes
+				else b''
 			)
+		+	pat_part_close			# <- end of actual content
+		)
 
 		pat_file_content[each_ext] = regex = re.compile(pattern, re.X | re.DOTALL)
 
