@@ -101,15 +101,18 @@ def print_help():
 		+	colored(' [<mask>] [<mask>] ...', 'magenta')
 	,	''
 	,	colored('<flags>', 'cyan') + ': string of letters in any order.'
-	,	'	a: Apply changes. Otherwise just show expected values.'
 	,	'	s: Silent, print nothing.'
 	,	'	q: Quiet, print only final sum.'
 	,	'	v: Verbose, print more intermediate information for debug.'
 	,	''
+	,	'	a: Apply changes if source date is after (later than) found.'
+	,	'	b: Apply changes if source date is before (earlier than) found.'
+	,	'		Otherwise just show expected values.'
+	,	''
 	,	'	r: Recursively go into subfolders.'
 	,	'	e: Delete empty folders.'
 	,	''
-	,	'	d: Set each folder mod-time to latest file inside, before own.'
+	,	'	d: Set each folder mod-time to latest file inside, if before/after own.'
 	,	'	f: Set each text file mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
 	,	''
 	,	'	u: Set each file mod-time to 1st found Unix-time stamp (first 10 digits) in filename.'
@@ -348,9 +351,15 @@ def run_batch_retime(argv):
 							print_exception('Error printing path info for:', path_name)
 
 					if arg_apply:
-						count_files_changed += 1
+						modtime_value = os.path.getmtime(path_name)
 
-						os.utime(path_name, (timestamp_value, timestamp_value))
+						if (
+							(arg_apply_to_after  and modtime_value > timestamp_value)
+						or	(arg_apply_to_before and modtime_value < timestamp_value)
+						):
+							count_files_changed += 1
+
+							os.utime(path_name, (timestamp_value, timestamp_value))
 
 				if arg_folders_modtime_by_files:
 					modtime_value = os.path.getmtime(path_name)
@@ -439,7 +448,10 @@ def run_batch_retime(argv):
 					except Exception as exception:
 						print_exception('Error printing path info for:', path)
 
-				if arg_apply:
+				if arg_apply and (
+					(arg_apply_to_after  and modtime_value > timestamp_value)
+				or	(arg_apply_to_before and modtime_value < timestamp_value)
+				):
 					count_dirs_changed += 1
 
 					os.utime(path, (timestamp_value, timestamp_value))
@@ -463,7 +475,10 @@ def run_batch_retime(argv):
 
 	masks = argv[1 : ]
 
-	arg_apply = 'a' in flags
+	arg_apply_to_after = 'a' in flags
+	arg_apply_to_before = 'b' in flags
+	arg_apply = arg_apply_to_after or arg_apply_to_before
+
 	arg_recurse = 'r' in flags
 	arg_silent = 's' in flags
 	arg_quiet = 'q' in flags
