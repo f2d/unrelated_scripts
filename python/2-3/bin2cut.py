@@ -40,7 +40,8 @@ pat_part_multifile_vary_end   = br'))*'
 pat_part_singlefile_start = br'^'
 pat_part_singlefile_vary  = br'(?P<Vary>.*?)'
 pat_part_singlefile_extra_start  = br'(?P<Extra>'
-pat_part_singlefile_extra_bytes  = br'.{1,9}'
+pat_part_singlefile_extra_bytes  = br'(?P<Repeated>.{1,32}?)(?P=Repeated)*'	# <- trim unlimited repeats of limited length, save with count
+pat_part_singlefile_extra_nulls  = br'\x00+'	# <- trim any count of null bytes, save as count
 pat_part_singlefile_extra_digits = br'\d{1,99}'
 pat_part_singlefile_extra_guess  = br'\d{6,99}'	# <- not really sure, user should be careful
 pat_part_singlefile_extra_end    = br')?$'
@@ -167,6 +168,7 @@ file_exts_by_type = {
 pat_file_content = {}
 
 pat_non_digit = re.compile(br'\D')
+pat_non_null = re.compile(br'[^\x00]')
 pat_conseq_slashes = re.compile(r'[\\/]+')
 pat_local_prefix = re.compile(r'(?P<Prefix>^[\\/]+[?][\\/]+)(?P<Path>.*?)$')
 
@@ -455,6 +457,38 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 
 		return content
 
+	def get_text_suffix_from_data(byte_string, found=None):
+
+		if arg_truncate_n:
+
+			if not re.search(pat_non_digit, byte_string):
+				return '(d{})'.format(int(byte_string))
+
+		if arg_truncate_x:
+
+			if len(byte_string) > 1 and not re.search(pat_non_null, byte_string):
+				return '(x00x{})'.format(len(byte_string))
+
+			try:
+				unrepeated_data = found.group('Repeated')
+
+			except IndexError:
+				unrepeated_data = None
+
+			if unrepeated_data:
+				unrepeated_byte_count = len(unrepeated_data)
+				total_byte_count = len(byte_string)
+				repeats_count = int(total_byte_count // unrepeated_byte_count)
+
+				unrepeated_text_with_count = '{}x{}'.format(get_hex_text_from_bytes(unrepeated_data), repeats_count)
+
+				if len(unrepeated_text_with_count) <= total_byte_count * 2:
+					return '(x{})'.format(unrepeated_text_with_count)
+
+			return '(x{})'.format(get_hex_text_from_bytes(byte_string))
+
+		return ''
+
 	def extract_from_file(source, dest_path):
 
 		if arg_content:
@@ -501,11 +535,11 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 
 			for found in each_pat.finditer(content):
 
-				found_content_part = found.group('Content')
-				found_extra_data = found.group('Extra') if arg_truncate else None
+				if arg_truncate:
+					found_extra_data = found.group('Extra')
 
-				if arg_truncate and not found_extra_data:
-					continue
+					if not found_extra_data:
+						continue
 
 				file_counts['found'] += 1
 				found_count_in_src_file += 1
@@ -519,15 +553,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 						u'{prefix}{suffix}.{ext}'
 						.format(
 							prefix=dest_path
-						,	suffix=(
-								'(d{})'.format(int(found_extra_data))
-								if arg_truncate_n and not re.search(pat_non_digit, found_extra_data)
-								else
-								'(x{})'.format(get_hex_text_from_bytes(found_extra_data))
-								if arg_truncate_x
-								else
-								''
-							)
+						,	suffix=get_text_suffix_from_data(found_extra_data, found)
 						,	ext=(src_file_ext or file_type or each_ext)
 						)
 						if arg_truncate and found_extra_data
@@ -542,14 +568,16 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 				)
 
 				dest_file_exists = not arg_content and os.path.exists(dest_file_path)
+
+				found_content_part = found.group('Content')
 				found_file_size = len(found_content_part)
 
 				found_files_to_save.append(
 					{
-						"name" : get_file_name_from_path(dest_file_path)
-					,	"path" : dest_file_path
-					,	"size" : found_file_size
-					,	"content" : found_content_part
+						'name' : get_file_name_from_path(dest_file_path)
+					,	'path' : dest_file_path
+					,	'size' : found_file_size
+					,	'content' : found_content_part
 					}
 					if arg_content
 					else
@@ -826,6 +854,7 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 				bool
 			,	[
 					pat_part_singlefile_extra_digits if arg_truncate_n else None
+				,	pat_part_singlefile_extra_nulls  if arg_truncate_x else None
 				,	pat_part_singlefile_extra_bytes  if arg_truncate_x else None
 				]
 			)
