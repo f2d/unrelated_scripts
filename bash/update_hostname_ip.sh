@@ -29,6 +29,8 @@ then
 	exit 2
 fi
 
+target_addr=${target_hostname}
+
 if [ "${update_hosts_file}" == "true" ]
 then
 	# https://unix.stackexchange.com/a/20793
