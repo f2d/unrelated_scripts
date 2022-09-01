@@ -83,6 +83,10 @@ const	a = document.createElement('a');
 	}, 12345);
 }
 
+function getChannelId() {
+	return location.pathname.split('/').filter(function(v) { return !!v; }).pop();
+}
+
 function getElementsByAnyTagName() {
 let	elements;
 
@@ -109,6 +113,7 @@ const	unknownChannelName = '(unknown channel)';
 
 let	serverName = '';
 let	channelName = '';
+let	channelNameClean = '';
 
 for (const element of getElementsByAnyTagName('nav')) {
 const	name = element.getAttribute('aria-label');
@@ -156,7 +161,11 @@ const	name = element.getAttribute('aria-label');
 				? name.slice(0, -channelSuffix.length)
 				: name
 			);
+			channelNameClean = channelName.replace(/\W+$/,'');
 		}
+
+		if (channelNameClean === 'art-adult') channelName = 'art-talk-nsfw';
+		if (channelNameClean === 'art-lite') channelName = 'art-talk-sfw';
 
 		console.log({ textTime, name, serverName, channelName });
 
@@ -166,7 +175,7 @@ const	name = element.getAttribute('aria-label');
 		,	(
 				(serverName || unknownServerName).trim()
 			+	'#'
-			+	(channelName || unknownChannelName).trim()
+			+	(channelName || getChannelId() || unknownChannelName).trim()
 			+	';_'
 			+	textTime
 			+	','
