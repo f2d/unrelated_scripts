@@ -1,4 +1,14 @@
 
+/*
+	Usage:
+Copypaste this script into web-browser console,
+It will expand all visible collapsed branches of comment tree, one by one with delays to allow loading.
+If needed, repeat by pressing [Up] in the console and then [Enter] key again, until the total shows "0".
+
+CSS classes (bottom list) and link texts (top list) are written for specific sites like vk.com, naked-science.ru and pikabu.ru.
+Change these lists as needed for other sites.
+*/
+
 (function() {
 	var linksTotalCount = 0;
 	var linkTexts = [
@@ -51,7 +61,7 @@
 
 					setTimeout(
 						getClickCallback(linkElement, linksTotalCount),
-						linksTotalCount * 500 + Math.random() * 200
+						linksTotalCount * 300 + Math.random() * 200
 					);
 
 					break;
