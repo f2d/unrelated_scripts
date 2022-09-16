@@ -17,12 +17,17 @@ Change these lists as needed for other sites.
 		'story__read-more-label',		//* pikabu.ru
 		'shesht-comments-block-form-readmore',	//* naked-science.ru
 		'toggle-comment',			//* naked-science.ru
+		'ytd-continuation-item-renderer',	//* youtube.com/watch
+		'more-button',				//* youtube.com/watch
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
 		'mw-collapsible-text',	//* wiktionary.org
 	];
 
 	var targetTextParts = [
+		' REPL',		//* youtube.com/watch
+		'Read more',		//* youtube.com/watch
+		'show more replies',	//* youtube.com/watch
 		'see more',		//* vk.com
 		'показать',		//* ru.wiktionary.org
 		'показать полностью',	//* pikabu.ru
@@ -81,10 +86,13 @@ Change these lists as needed for other sites.
 				}
 
 				if (linkTextContent = linkElement.textContent) {
-					var linkTextContent = linkTextContent.toLowerCase();
+					var linkTextLowerCase = linkTextContent.toLowerCase();
 
 					for (var linkText of targetTextParts)
-					if (linkTextContent.indexOf(linkText) >= 0) {
+					if (
+						linkTextContent.indexOf(linkText) >= 0
+					||	linkTextLowerCase.indexOf(linkText) >= 0
+					) {
 						++linksOfClassCount;
 						++linksTotalCount;
 
