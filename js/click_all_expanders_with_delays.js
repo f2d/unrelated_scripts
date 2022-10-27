@@ -58,7 +58,10 @@ Change these lists as needed for other sites.
 				e.click();
 			}
 
-			if (i === linksTotalCount) {
+			if (
+				!window.stopOpeningExpanders
+			&&	i === linksTotalCount
+			) {
 				console.log('Retrying...');
 
 				setTimeout(openAllVisibleExpanders, 1234);
