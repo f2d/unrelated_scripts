@@ -14,26 +14,33 @@ Change these lists as needed for other sites.
 	var targetCssClasses = [
 		'comment-toggle-children_collapse',	//* pikabu.ru
 		'comment-hidden-group__toggle',		//* pikabu.ru
+		'community-info-block__read-more-label',//* pikabu.ru
 		'story__read-more-label',		//* pikabu.ru
 		'shesht-comments-block-form-readmore',	//* naked-science.ru
 		'toggle-comment',			//* naked-science.ru
 		'ytd-continuation-item-renderer',	//* youtube.com/watch
 		'more-button',				//* youtube.com/watch
+		'comment__load-more',	//* dtf.ru
+		'button',		//* reddit
+		'expand',		//* reddit
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
 		'mw-collapsible-text',	//* wiktionary.org
 	];
 
 	var targetTextParts = [
-		' REPL',		//* youtube.com/watch
+		/\d+\s+repl(y|ies)/i,	//* youtube.com/watch
 		'Read more',		//* youtube.com/watch
 		'show more replies',	//* youtube.com/watch
 		'see more',		//* vk.com
+		'load more comment',	//* reddit
+		'[+]',			//* reddit
 		'показать',		//* ru.wiktionary.org
 		'показать полностью',	//* pikabu.ru
 		'раскрыть ветку',	//* pikabu.ru
 		'ещё комментари',	//* pikabu.ru, naked-science.ru
 		'еще комментари',
+		'комментари',		//* dtf.ru
 	];
 
 	function openAllVisibleExpanders() {
@@ -90,8 +97,12 @@ Change these lists as needed for other sites.
 
 					for (var linkText of targetTextParts)
 					if (
-						linkTextContent.indexOf(linkText) >= 0
-					||	linkTextLowerCase.indexOf(linkText) >= 0
+						typeof linkText === 'string'
+						? (
+							linkTextContent.includes(linkText)
+						||	linkTextLowerCase.includes(linkText)
+						)
+						: linkText.test(linkTextContent))
 					) {
 						++linksOfClassCount;
 						++linksTotalCount;
