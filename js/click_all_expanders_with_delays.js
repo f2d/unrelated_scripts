@@ -35,12 +35,9 @@ Change these lists as needed for other sites.
 		'see more',		//* vk.com
 		'load more comment',	//* reddit
 		'[+]',			//* reddit
-		'показать',		//* ru.wiktionary.org
-		'показать полностью',	//* pikabu.ru
+		'показать',		//* ru.wiktionary.org, pikabu.ru
 		'раскрыть ветку',	//* pikabu.ru
-		'ещё комментари',	//* pikabu.ru, naked-science.ru
-		'еще комментари',
-		'комментари',		//* dtf.ru
+		'комментари',		//* dtf.ru, pikabu.ru, naked-science.ru
 	];
 
 	function openAllVisibleExpanders() {
@@ -102,7 +99,7 @@ Change these lists as needed for other sites.
 							linkTextContent.includes(linkText)
 						||	linkTextLowerCase.includes(linkText)
 						)
-						: linkText.test(linkTextContent))
+						: linkText.test(linkTextContent)
 					) {
 						++linksOfClassCount;
 						++linksTotalCount;
