@@ -13,7 +13,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 # - Configuration and defaults ------------------------------------------------
 
@@ -52,15 +52,42 @@ def print_help():
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
 		+	colored(' <source> <dest> <mask>', 'cyan')
-		+	colored(' [<mask>] [<!mask>] ...', 'magenta')
+		+	colored(' [<mask>] [!<mask>] [...]', 'magenta')
+# TODO:	,	'\n\t\t'.join([
+# TODO:			'	{0}'
+# TODO:			+	colored(' --save-file=<dest1> --include-if-name=<mask1>', 'cyan')
+# TODO:			+	colored(' --read-file=<source1>', 'cyan')
+# TODO:		,		colored(' [--read-file=<source2>]', 'magenta')
+# TODO:			+	colored(' [--save-file=<dest2> [--include-if-name=<mask2>]', 'magenta')
+# TODO:		,		colored(' [...]', 'magenta')
+# TODO:		])
 	,	''
 	,	colored('<source>', 'cyan') + ': path to file to read.'
-	,	colored('<dest>', 'cyan') + ': path to file to write. If equals "TEST", do not write.'
-	,	colored('<mask>', 'cyan') + ': wildcard to include files, whose names matches any of these.'
-	,	colored('<!mask>', 'cyan') + ': wildcard to exclude files, whose names matches any of these.'
+	,	colored('<dest>', 'cyan') + ':   path to file to write. If equals "TEST", do not write.'
+	,	colored('<mask>', 'cyan') + ':   include files with name matching any of these masks.'
+	,	colored('!', 'magenta') + colored('<mask>', 'cyan') + ':  exclude files matching any of these masks.'
+# TODO:	,	colored('--include-if-name=',       'magenta') + colored('<mask>', 'cyan') + ' ' +
+# TODO:		colored('--include-if-content=',    'magenta') + colored('<mask>', 'cyan') + ' ' +
+# TODO:		colored('--include-content-lines=', 'magenta') + colored('<mask>', 'cyan')
+# TODO:	,	colored('--exclude-if-name=',       'magenta') + colored('<mask>', 'cyan') + ' ' +
+# TODO:		colored('--exclude-if-content=',    'magenta') + colored('<mask>', 'cyan') + ' ' +
+# TODO:		colored('--exclude-content-lines=', 'magenta') + colored('<mask>', 'cyan')
+# TODO:	,	colored('--list-file=', 'magenta') + colored('<path>', 'cyan') + ': text file with additional list of prefixed one-line arguments.'
+# TODO:	,	colored('--read-file=', 'magenta') + colored('<path>', 'cyan') + ': archive file to read, in given order.'
+# TODO:	,	colored('--save-file=', 'magenta') + colored('<path>', 'cyan') + ': archive file to write, associated with all masks after it until the next save file.'
 	,	''
-	,	'	Source, dest and at least one mask are required.'
-	,	'	All masks are checked and the last met hit (include/exclude) wins.'
+	,	'	At least one source, destination and mask filter are required.'
+# TODO:	,	'	There may be any number of source, destination, list file and/or mask arguments.'
+# TODO:	,	'	Unprefixed arguments on fixed positions are only allowed in the command line, for simple cases and backward compatibility.'
+# TODO:	,	'	Unprefixed lines in list files are ignored and may be used as comments.'
+# TODO:	,	'	Lines in list files have the same format as arguments, but only one per line, with no quotes or escaping, and dashed prefixes are required.'
+# TODO:	,	''
+	,	'	All masks are checked in given order, include or exclude is decided by the last matched mask.'
+# TODO:	,	'	First all masks are checked to decide on inclusion of an archived file itself.'
+# TODO:	,	'	Then separately decide on each file content line.'
+# TODO:	,	'	If file is included and content is filtered, but no lines in result, then file is not added.'
+# TODO:	,	'	If only inclusion masks are defined, then exclude all else, and vice versa.'
+# TODO:	,	'	All source files are read in given order, defining order of included archived files in result.'
 	,	''
 	,	'	Mask can be a:'
 	,	'	- full pathname (never starts with a slash)'
@@ -72,6 +99,7 @@ def print_help():
 		+			colored(regex_mod_args, 'cyan')
 		+		']'
 	,	''
+	,	'	Regular expressions may be used to match any special characters like dash, = or !.'
 	,	'	Regular expressions may need escape for Windows cmd like this:'
 	,	colored('		"!/^^/*(lib^|opt^|root^|usr^|var^|srv)(/^|$)/i"', 'cyan')
 	,	''
@@ -80,8 +108,10 @@ def print_help():
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} old.tar TEST *.txt'
-	,	'	{0} old.tar.gz new.tar.bz2 !*.txt "root/sub/*.txt"'
+	,	'	{0} old.tar.gz new.tar.bz2 "!*.txt" "root/sub/*.txt"'
 	,	'	{0} ./old.tar.xz /tmp/new.tar "!/^var/run.*$/i"'
+# TODO:	,	'	{0} --read-file=old.tar --save-file=1.tar "--include-if-name=1.*" --save-file=2.tar "--include-if-name=2.*"'
+# TODO:	,	'	{0} --list-file=arg_list.txt'
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))

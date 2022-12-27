@@ -15,7 +15,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 def print_with_colored_prefix(prefix, value, color=None):
 	print('{} {}'.format(colored(prefix, color or 'yellow'), value))

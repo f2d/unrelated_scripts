@@ -23,7 +23,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 # - Configuration and defaults ------------------------------------------------
 
@@ -448,7 +448,7 @@ def run_batch_archiving(argv):
 			,	startupinfo=minimized
 			).rsplit('--'.encode(print_encoding), 1)[1].decode(print_encoding).strip()
 
-		def queue(cmd_queue, dest, subj, foreach=False):
+		def queue(cmd_queue, dest, subj, foreach_dir_or_file=False):
 
 			def append_cmd(cmd_queue, paths, suffix, opt_args=None):
 				subj, dest = paths
@@ -508,7 +508,7 @@ def run_batch_archiving(argv):
 
 				return 1
 
-			name = (def_name + ',' + subj) if (foreach and def_name and subj) else (def_name or subj)
+			name = (def_name + ',' + subj) if (foreach_dir_or_file and def_name and subj) else (def_name or subj)
 
 			is_subj_mask = ('*' in subj) or ('?' in subj)
 			is_subj_mass = is_subj_mask or is_subj_list or os.path.isdir(subj)
@@ -638,8 +638,8 @@ def run_batch_archiving(argv):
 		# foreach_date = flags.count('9')
 		foreach_dir  = '4' in flags
 		foreach_file = 'f' in flags
-		foreach = (foreach_dir or foreach_file) and not is_subj_list
-		foreach_ID = ''.join([(x if x in flags else '') for x in flags_group_by_num_any_sep])
+		foreach_dir_or_file = (foreach_dir or foreach_file) and not is_subj_list
+		foreach_ID_flags = ''.join([x for x in flags_group_by_num_any_sep if x in flags])
 
 		exe_paths = get_exe_paths()
 
@@ -679,7 +679,7 @@ def run_batch_archiving(argv):
 				rest_winrar.append(arg)
 
 		if not (
-			foreach
+			foreach_dir_or_file
 		or	'-r' in rest_winrar
 		or	'-r-' in rest_winrar
 		or	'-r0' in rest_winrar
@@ -714,7 +714,7 @@ def run_batch_archiving(argv):
 
 # - Fill batch queue ----------------------------------------------------------
 
-		if foreach or foreach_ID:
+		if foreach_dir_or_file or foreach_ID_flags:
 			names = list(map(
 				normalize_slashes
 			,	glob.glob(subj) if ('*' in subj or '?' in subj) else
@@ -722,18 +722,18 @@ def run_batch_archiving(argv):
 				[subj]
 			))
 
-			if foreach_ID:
+			if foreach_ID_flags:
 				dots = ''
 				d = '.,'
 				for i in d:
-					if i in foreach_ID:
+					if i in foreach_ID_flags:
 						dots += i
 				d = '\d' + dots
 				pat_ID = re.compile(r'^(\D*\d[' + d + ']*)([^' + d + ']|$)' if dots else r'^(\D*\d+)(\D|$)')
 
-				if '2' in foreach_ID:
+				if '2' in foreach_ID_flags:
 					no_group = def_name or def_name_fallback
-					other_to_1 = '1' in foreach_ID
+					other_to_1 = '1' in foreach_ID_flags
 					d = {}
 
 					for subj in names:
@@ -783,7 +783,7 @@ def run_batch_archiving(argv):
 				if foreach_dir != foreach_file and foreach_dir != os.path.isdir(subj):
 					continue
 
-				del_warn += queue(cmd_queue, dest, subj, foreach=True)
+				del_warn += queue(cmd_queue, dest, subj, foreach_dir_or_file=True)
 		else:
 			del_warn += queue(cmd_queue, dest, subj)
 

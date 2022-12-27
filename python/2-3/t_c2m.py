@@ -13,7 +13,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 # - Configuration and defaults ------------------------------------------------
 

@@ -14,7 +14,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 # https://stackoverflow.com/a/47625614
 if sys.version_info[0] >= 3:

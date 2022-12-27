@@ -2,6 +2,12 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# TODO: 1. skip readonly/hidden/system files, to avoid modifying files used for torrents, etc.
+# TODO: 2. trim repeatedly, because some files may have multiple repeating patterns each ending with format-specific EOF mark.
+# TODO: 3. collapse repeating digit runs: br'(?P<Digits>\d{1,64}?)(?P=Digits)*', including already present suffixes in filename?
+# TODO: 4. collapse separately parts of long runs, like "111111111111111111111234", to shorten filename suffix?
+# TODO: 5. for trim - try checking only start and end of file, may be faster for very big files (over 1 GB).
+
 import os, re, sys, time
 
 try:
@@ -19,7 +25,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 # https://stackoverflow.com/a/47625614
 if sys.version_info[0] >= 3:

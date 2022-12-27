@@ -12,7 +12,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 from r_config import get_rei, re_ix, re_iux
 from r_config import default_print_encoding, default_name_cut_length, default_read_bytes

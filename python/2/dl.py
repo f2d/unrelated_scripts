@@ -1,6 +1,16 @@
 ﻿#!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
+# TODO: decode URL-encoded via a byte-sequence:
+# 1. Find all URL-encoded sequences of max length in the filename.
+# 2. Keep unique, sort by length descending.
+# 3. Try decoding each, starting from position 0.
+# 4. On each failure decrement decoded slice length from max down to 0.
+# 5. After success, add decoded text as a replacement value for corresponding URL-encoded subsequence.
+# 6. After success or failure, step to decoded length (if any) + 1 and try again from there.
+# 7. Replace all subsequences in the sequence.
+# 8. Replace all sequences in the source text.
+
 from dl_config import *
 
 from email.utils import parsedate
@@ -38,7 +48,7 @@ try:
 
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint(*list_args, **keyword_args): print(list_args[0])
+	def cprint (*list_args, **keyword_args): print (list_args[0])
 
 # https://stackoverflow.com/a/17510727
 try:
@@ -416,7 +426,7 @@ pat2replace_before_checking = [			# <- strings before this can have any of "/pat
 ,	[get_rei(r'^(?P<NoDL>\w+:/+(?:[^:/?#]+\.)?dropbox\.com/s/[^?#]+)[?#]dl=.*$'		), r'\g<NoDL>']
 ,	[get_rei(r'(?P<Path>file.qip.ru/(?:file|photo)/[^?#]+)(?:\?.*)?$'			), r'\g<Path>?action=downloads']
 ,	[get_rei(r'shot\.qip\.ru[^-#]*-(?P<Prefix>.)(?P<File>[^/?#]+)(?P<Sub>/+.*)?$'		), r'f\g<Prefix>.s.qip.ru/\g<File>.png']
-,	[get_rei(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:(?:fx)?twitter\.com|nitter(?:\.\w+)*)/+(?P<Path>[^/?#])'), twitter_front_end + r'\g<Path>']
+,	[get_rei(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:(?:\w*x)?twitter\.com|nitter(?:\.\w+)*)/+(?P<Path>[^/?#])'), twitter_front_end + r'\g<Path>']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)(?P<Format>[^&#%]+).*?$'		), r'\g<Path>.\g<Format>']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'					), r'\g<Path>:orig']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+profile_images?/+[^:?&#%]+)(?:_[^/:?&#%]+)(?P<File>\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'	), r'\g<Path>\g<File>']
@@ -438,8 +448,8 @@ pat2replace_before_dl = [			# <- strings after this are sent to web servers
 # ,	[get_rei(r'^https(?P<NoProtocol>:/+(?:[^:/?#]+\.)?(?:googleusercontent|h(?:abra)?stor(?:age)?|vk|youtu(?:be)?|danbooru)\.)'), r'http\g<NoProtocol>']	# <- remove https
 ,	[get_rei(r'(?P<NoDL>dropbox\.com/s/[^?#]+)\?.*$'			), r'\g<NoDL>?dl=1']
 ,	[get_rei(r'img\.5cm\.ru/view/i5'					), r'i5.5cm.ru/i']
-,	[get_rei(r'//(?:www\.)?2-?ch\.(?:cm|ec|hk|pm|re|ru|so|tf|wf|yt)/+'	), r'//2ch.life/']
-,	[get_rei(r'//(?:www\.)?dobrochan\.(?:ru|org|com)/+'			), r'//dobrochan.com/']
+,	[get_rei(r'^(?P<Protocol>\w+):/+(?:www\.)?dobrochan\.(?:ru|org|com)(?:$|/+)'			), r'\g<Protocol>://dobrochan.com/']
+,	[get_rei(r'^(?P<Protocol>\w+):/+(?:www\.)?2-?ch\.(?:cm|ec|hk|pm|re|ru|so|tf|wf|yt|life)(?:$|/+)'), r'\g<Protocol>://2ch.hk/']	# <- 2ch.life needs CloudFlare cookies
 # ,	[get_rei(r'(?P<Site>vocaroo\.com)/i/s'), r'\g<Site>/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
 ,	[get_rei(r'^(?:\w+:/+(?:[^:/?#]+\.)?(?:vocaroo\.com|voca\.ro)/+)(?P<File>[^/?&#]+)$'), r'https://media.vocaroo.com/mp3/\g<File>']
 ]
@@ -1291,7 +1301,7 @@ def get_obj_pretty_print(obj):
 
 		return json.dumps(d, sort_keys=True, indent=4, default=repr)
 
-	except Exception, e:
+	except Exception as e:
 		write_exception_traceback(e)
 
 		return str(obj)
@@ -1952,6 +1962,11 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 	except HTTPError as e:
 		print colored('Server could not fulfill the request. Error code:', 'red'), e.code, '\n'
 
+		headers = e.headers or e.hdrs
+
+		if headers:
+			try_print(colored('Response headers:', 'red'), headers)
+
 		write_file(log_no_file, [log_stamp(), '%d' % e.code, tab_separator]+udn)
 
 		if (
@@ -2019,7 +2034,8 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 					o = gzip.GzipFile(fileobj=i)
 					decoded_content = o.read()
 
-			except IOError as e:
+			# except Exception as e:
+			except (IOError, ValueError) as e:
 				write_exception_traceback()
 
 				write_file(log_no_file, [log_stamp()]+udn+[e, empty_line_separator])
@@ -2265,6 +2281,8 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 					,	filename
 					# ,	'--in-folder'
 					,	'--truncate'
+					,	'--truncate-num'
+					,	'--truncate-hex'
 					,	'--picture'
 					])
 
@@ -2358,9 +2376,11 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 				try:
 					run_batch_extract([
 						saved
-					# ,	'-defmp'
+					# ,	'-defmpnx'
 					,	'--in-folder'
 					,	'--truncate'
+					,	'--truncate-num'
+					,	'--truncate-hex'
 					,	'--picture'
 					,	'--keep-time'
 					,	'--remove-old'
