@@ -7,6 +7,7 @@
 # TODO: 3. collapse repeating digit runs: br'(?P<Digits>\d{1,64}?)(?P=Digits)*', including already present suffixes in filename?
 # TODO: 4. collapse separately parts of long runs, like "111111111111111111111234", to shorten filename suffix?
 # TODO: 5. for trim - try checking only start and end of file, may be faster for very big files (over 1 GB).
+# TODO: 6. option to untrim from filename, but don't overwrite the file - create anew and set modtime, as it might be hardlinked elsewhere.
 
 import os, re, sys, time
 
@@ -43,13 +44,15 @@ pat_part_end     = br'(?P<End>'
 pat_part_close   = br')'
 pat_part_multifile_vary_start = br'(?P<Vary>.(?!'
 pat_part_multifile_vary_end   = br'))*'
-pat_part_singlefile_start = br'^'
-pat_part_singlefile_vary  = br'(?P<Vary>.*?)'
+pat_part_singlefile_start     = br'^'
+pat_part_singlefile_vary      = br'(?P<Vary>.*?)'
 pat_part_singlefile_extra_start  = br'(?P<Extra>'
-pat_part_singlefile_extra_bytes  = br'(?P<Repeated>.{1,32}?)(?P=Repeated)*'	# <- trim unlimited repeats of limited length, save with count
-pat_part_singlefile_extra_nulls  = br'\x00+'	# <- trim any count of null bytes, save as count
-pat_part_singlefile_extra_digits = br'\d{1,99}'
-pat_part_singlefile_extra_guess  = br'\d{6,99}'	# <- not really sure, user should be careful
+pat_part_singlefile_extra_digits_repeat = br'(?P<RepeatedDigits>\d{1,32}?)(?P=RepeatedDigits)+'
+pat_part_singlefile_extra_bytes_repeat  = br'(?P<Repeated>.{1,32}?)(?P=Repeated)+' # <- trim unlimited repeats of limited length, save with count
+pat_part_singlefile_extra_bytes  = br'.{1,32}'
+pat_part_singlefile_extra_digits = br'\d{1,32}'
+pat_part_singlefile_extra_guess  = br'\d{6,32}'	# <- not sure where the content ends really, user should be careful
+pat_part_singlefile_extra_nulls  = br'\x00+'	# <- trim any count of null bytes, save with count
 pat_part_singlefile_extra_end    = br')?$'
 
 pat_parts_by_ext = {
@@ -376,11 +379,14 @@ def print_help():
 	,	colored(' -e --truncate', 'magenta') + '     : cut extraneous bytes from content,'
 		+	' added there to bypass duplicate file checks, and discard them.'
 
-	,	colored(' -x --truncate-hex', 'magenta') + ' : cut extraneous bytes from content,'
-		+	' and add them to saved file name as hex, like "(xFF...)".'
-
 	,	colored(' -n --truncate-num', 'magenta') + ' : cut extraneous digits from content,'
 		+	' and add them to saved file name as is, like "(dNN...)".'
+
+	,	colored(' -0 --truncate-null', 'magenta') + ' : cut extraneous null bytes from content,'
+		+	' and add them to saved file name as is, like "(x00...)".'
+
+	,	colored(' -x --truncate-hex', 'magenta') + ' : cut extraneous bytes from content,'
+		+	' and add them to saved file name as hex, like "(xFF...)", including null bytes.'
 
 	,	colored(' -c --content-in-arg', 'magenta') + ' : read content directly from '
 		+	colored('<source>', 'cyan')
@@ -465,33 +471,39 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 
 	def get_text_suffix_from_data(byte_string, found=None):
 
-		if arg_truncate_n:
+		def get_text_suffix_from_repeated_data(format_prefix='d', unique_part_name='Repeated', format_callback=int):
+			try:
+				unique_part = found.group(unique_part_name)
 
-			if not re.search(pat_non_digit, byte_string):
-				return '(d{})'.format(int(byte_string))
+			except IndexError:
+				unique_part = None
+
+			full_text = str(format_callback(byte_string))
+
+			if unique_part:
+				unique_byte_count = len(unique_part)
+				total_byte_count = len(byte_string)
+				repeats_count = int(total_byte_count // unique_byte_count)
+
+				text_part_with_count = '{}x{}'.format(format_callback(unique_part), repeats_count)
+
+				if len(text_part_with_count) <= len(full_text):
+					return '({}{})'.format(format_prefix, text_part_with_count)
+
+			return '({}{})'.format(format_prefix, full_text)
+
+		if arg_truncate_0 and not re.search(pat_non_null, byte_string):
+
+			return '(x00x{})'.format(len(byte_string)) if len(byte_string) > 1 else '(x00)'
+
+		if arg_truncate_n and not re.search(pat_non_digit, byte_string):
+
+			# return '(d{})'.format(int(byte_string))
+			return get_text_suffix_from_repeated_data('d', 'RepeatedDigits', int)
 
 		if arg_truncate_x:
 
-			if len(byte_string) > 1 and not re.search(pat_non_null, byte_string):
-				return '(x00x{})'.format(len(byte_string))
-
-			try:
-				unrepeated_data = found.group('Repeated')
-
-			except IndexError:
-				unrepeated_data = None
-
-			if unrepeated_data:
-				unrepeated_byte_count = len(unrepeated_data)
-				total_byte_count = len(byte_string)
-				repeats_count = int(total_byte_count // unrepeated_byte_count)
-
-				unrepeated_text_with_count = '{}x{}'.format(get_hex_text_from_bytes(unrepeated_data), repeats_count)
-
-				if len(unrepeated_text_with_count) <= total_byte_count * 2:
-					return '(x{})'.format(unrepeated_text_with_count)
-
-			return '(x{})'.format(get_hex_text_from_bytes(byte_string))
+			return get_text_suffix_from_repeated_data('x', 'Repeated', get_hex_text_from_bytes)
 
 		return ''
 
@@ -794,11 +806,13 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 	arg_truncate   = ('truncate'     in optional_args or 'e' in optional_args)
 	arg_truncate_x = ('truncatehex'  in optional_args or 'x' in optional_args)
 	arg_truncate_n = ('truncatenum'  in optional_args or 'n' in optional_args)
+	arg_truncate_0 = ('truncatenull' in optional_args or '0' in optional_args)
 	arg_verbose    = ('verbose'      in optional_args or 'b' in optional_args)
 
 	arg_quiet = arg_quiet or arg_silent
 	arg_verbose = arg_verbose and not arg_quiet
-	arg_truncate = arg_truncate or arg_truncate_x or arg_truncate_n
+	arg_truncate_0 = arg_truncate_0 or arg_truncate_x
+	arg_truncate = arg_truncate or arg_truncate_0 or arg_truncate_n or arg_truncate_x
 
 	src_content = get_path_arg_from(0, fix_path=False) if arg_content else None
 	src_path    = get_path_arg_from(0) if not arg_content else None
@@ -856,13 +870,20 @@ def run_batch_extract(argv, *list_args, **keyword_args):
 
 	if arg_truncate:
 		pat_part_singlefile_extra_data = br'|'.join(
-			filter(
-				bool
-			,	[
-					pat_part_singlefile_extra_digits if arg_truncate_n else None
-				,	pat_part_singlefile_extra_nulls  if arg_truncate_x else None
-				,	pat_part_singlefile_extra_bytes  if arg_truncate_x else None
-				]
+			(
+				[
+					pat_part_singlefile_extra_nulls
+				] if arg_truncate_0 else []
+			) + (
+				[
+					pat_part_singlefile_extra_digits_repeat
+				,	pat_part_singlefile_extra_digits
+				] if arg_truncate_n else []
+			) + (
+				[
+					pat_part_singlefile_extra_bytes_repeat
+				,	pat_part_singlefile_extra_bytes
+				] if arg_truncate_x else []
 			)
 		)
 
