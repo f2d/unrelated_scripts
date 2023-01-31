@@ -35,10 +35,13 @@ Change these lists as needed for other sites.
 		'see more',		//* vk.com
 		'load more comment',	//* reddit
 		'[+]',			//* reddit
+		'loading...',		//* reddit
 		'показать',		//* ru.wiktionary.org, pikabu.ru
 		'раскрыть ветку',	//* pikabu.ru
 		'комментари',		//* dtf.ru, pikabu.ru, naked-science.ru
 	];
+
+	var clickedElements = [];
 
 	function openAllVisibleExpanders() {
 		var linksTotalCount = 0;
@@ -78,6 +81,7 @@ Change these lists as needed for other sites.
 
 				while (testElement) if (
 					testElement.hidden
+				||	clickedElements.includes(testElement)
 				||	(
 						(style = testElement.style)
 					&&	(
@@ -106,6 +110,8 @@ Change these lists as needed for other sites.
 					) {
 						++linksOfClassCount;
 						++linksTotalCount;
+
+						clickedElements.push(linkElement);
 
 						setTimeout(
 							getClickCallback(linkElement, linksTotalCount),
