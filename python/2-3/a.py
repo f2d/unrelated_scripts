@@ -125,26 +125,25 @@ def get_exe_paths():
 	,	''
 	]
 
+	subdirs_rar = ['WinRAR']
+	subdirs_7z = [
+		'7-Zip-ZS'
+	,	'7-Zip_ZS'
+	,	'7-Zip ZS'
+	,	'7_Zip_ZS'
+	,	'7zip-ZS'
+	,	'7zip_ZS'
+	,	'7zip ZS'
+	,	'7zipZS'
+	,	'7-Zip'
+	,	'7zip'
+	]
+
 	exe_try_types = {
-		'7z': {
-			'subdirs': [
-				'7-Zip-ZS'
-			,	'7-Zip_ZS'
-			,	'7-Zip ZS'
-			,	'7_Zip_ZS'
-			,	'7zip-ZS'
-			,	'7zip_ZS'
-			,	'7zip ZS'
-			,	'7zipZS'
-			,	'7-Zip'
-			,	'7zip'
-			]
-		,	'filenames': ['7zG']
-		}
-	,	'rar': {
-			'subdirs': ['WinRAR']
-		,	'filenames': ['WinRAR']
-		}
+		'7z'      : { 'subdirs': subdirs_7z, 'filenames': ['7zG'] }
+	,	'7z_cmd'  : { 'subdirs': subdirs_7z, 'filenames': ['7z'] }
+	,	'rar'     : { 'subdirs': subdirs_rar, 'filenames': ['WinRAR'] }
+	,	'rar_cmd' : { 'subdirs': subdirs_rar, 'filenames': ['Rar'] }
 	}
 
 	exe_try_filename_suffixes = ['.exe', '']
@@ -162,9 +161,10 @@ def get_exe_paths():
 						root_dir = env_dir
 
 				for subdir in type_part['subdirs']:
-					for filename in type_part['filenames']:
-						for subdir_suffix in exe_try_subdir_suffixes:
+					for subdir_suffix in exe_try_subdir_suffixes:
+						for filename in type_part['filenames']:
 							for filename_suffix in exe_try_filename_suffixes:
+
 								path = fix_slashes(
 									root_dir + '/' +
 									subdir + subdir_suffix + '/' +
@@ -240,9 +240,9 @@ def print_help():
 	,	'	Or quote/escape anything beyond latin letters and digits just in case.'
 	,	''
 	,	colored('* Current executable paths to be used (found or fallback):', 'yellow')
-	] + [
-		'	{}:	{}'.format(k, v) for k, v in exe_paths.items()
-	] + [
+	] + sorted([
+		'	{}	: {}'.format(k, v) for k, v in exe_paths.items()
+	]) + [
 		''
 	,	colored('* Flags (switch letters, concatenate in any order, any case):', 'yellow')
 	,	'	c: check resulting command lines without running them.'
@@ -427,25 +427,23 @@ def run_batch_archiving(argv):
 	def run_batch_part(argv_flag):
 
 		def get_archive_file_summary(file_path):
-			exe_path = exe_paths.get('test')
-
-			if not exe_path:
-				exe_path = exe_paths['test'] = exe_paths['7z'].replace('7zG', '7z')
 
 			return '' if subprocess.call(
 				[
-					exe_path
+					exe_paths['rar_cmd' if 'l' in flags and file_path.rsplit('.') == 'rar' else '7z_cmd']
 				,	't'
 				,	file_path
 				]
 			,	startupinfo=minimized
+
 			) else subprocess.check_output(
 				[
-					exe_path
+					exe_paths['7z_cmd']
 				,	'l'
 				,	file_path
 				]
 			,	startupinfo=minimized
+
 			).rsplit('--'.encode(print_encoding), 1)[1].decode(print_encoding).strip()
 
 		def queue(cmd_queue, dest, subj, foreach_dir_or_file=False):
