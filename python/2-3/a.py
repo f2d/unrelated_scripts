@@ -430,7 +430,7 @@ def run_batch_archiving(argv):
 
 			return '' if subprocess.call(
 				[
-					exe_paths['rar_cmd' if 'l' in flags and file_path.rsplit('.') == 'rar' else '7z_cmd']
+					exe_paths['rar_cmd' if 'l' in flags and file_path.rsplit('.', 1)[1] == 'rar' else '7z_cmd']
 				,	't'
 				,	file_path
 				]
