@@ -26,11 +26,12 @@ pat_text_date = r'''
 	(?P<Day>\d\d)
 	(?:
 				\D
-		(?P<Hours>\d\d)	[^a-z\d]
+		(?P<Hours>\d\d)	(?:h|[^a-z\d])
 		(?P<Minutes>\d\d)
 		(?:
-				[^a-z\d]
+				(?:m|[^a-z\d])
 			(?P<Seconds>\d\d)
+				s?
 		)?
 	)?
 	(?:$|\D)
@@ -41,9 +42,9 @@ pat_text_date_full_compact = r'''
 	(?P<Year>\d{4})		[^a-z\d]?
 	(?P<Month>\d{2})	[^a-z\d]?
 	(?P<Day>\d{2})		\D?
-	(?P<Hours>\d{2})	[^a-z\d]?
-	(?P<Minutes>\d{2})	[^a-z\d]?
-	(?P<Seconds>\d{2})
+	(?P<Hours>\d{2})	(?:h|[^a-z\d])?
+	(?P<Minutes>\d{2})	(?:m|[^a-z\d])?
+	(?P<Seconds>\d{2})	s?
 	(?:$|\D)
 '''
 
