@@ -113,7 +113,8 @@ def print_help():
 	,	'	r: Recursively go into subfolders.'
 	,	'	e: Delete empty folders.'
 	,	''
-	,	'	d: Set each folder mod-time to latest file inside, if before/after own.'
+	,	'	d: Set each folder mod-time to latest file inside.'
+	,	'	i: Set each folder mod-time to latest folder inside.'
 	,	'	f: Set each text file mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
 	,	''
 	,	'	u: Set each file mod-time to 1st found Unix-time stamp (first 10 digits) in filename.'
@@ -126,9 +127,9 @@ def print_help():
 	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for time checking, if anything else exists.'
 	,	''
 	,	colored('* Examples:', 'yellow')
-	,	'	{0} drf'
+	,	'	{0} dirf'
 	,	'	{0} adry'
-	,	'	{0} adr "*.txt"'
+	,	'	{0} abdir "*.txt"'
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))
@@ -137,8 +138,12 @@ def print_exception(title, path):
 	print('')
 	traceback.print_exc()
 
-	print('')
-	print_with_colored_prefix(title, path, 'red')
+	try:
+		print('')
+		print_with_colored_prefix(title, path, 'red')
+
+	except UnicodeEncodeError:
+		print_with_colored_prefix(title, '<Unprintable path: UnicodeEncodeError>', 'red')
 
 	print('')
 
@@ -229,17 +234,29 @@ def run_batch_retime(argv):
 				if arg_recurse:
 					modtime_value = process_folder(path_name)
 
+					if arg_delete_empty_folders:
+						if (
+							modtime_value
+						and	modtime_value < 0
+						):
+							empty_folders_inside_to_delete += 1
+
+					elif arg_dirs_modtime_by_dirs:
+						if (
+							modtime_value
+						or	modtime_value < 0
+						):
+							modtime_value = os.path.getmtime(path_name)
+
 					if (
-						modtime_value
-					and	modtime_value < 0
-					):
-						empty_folders_inside_to_delete += 1
-					elif (
 						modtime_value
 					and	modtime_value > 0
 					and	modtime_value > last_file_time
 					):
 						last_file_time = modtime_value
+
+						if arg_dirs_modtime_by_dirs and last_file_time_of_included < modtime_value:
+							last_file_time_of_included = modtime_value
 
 			elif os.path.isfile(path_name):
 				count_files_checked += 1
@@ -362,7 +379,7 @@ def run_batch_retime(argv):
 
 							os.utime(path_name, (timestamp_value, timestamp_value))
 
-				if arg_folders_modtime_by_files:
+				if arg_dirs_modtime_by_files:
 					modtime_value = os.path.getmtime(path_name)
 
 					if (
@@ -414,7 +431,7 @@ def run_batch_retime(argv):
 
 			return -1
 
-		if arg_folders_modtime_by_files:
+		if arg_dirs_modtime_by_dirs or arg_dirs_modtime_by_files:
 
 			timestamp_value = last_file_time_of_included or last_file_time
 			modtime_value = os.path.getmtime(path)
@@ -424,8 +441,9 @@ def run_batch_retime(argv):
 			and	timestamp_value
 			and	timestamp_value > t_min_valid
 			and	(
-					modtime_value > timestamp_value
-				or	modtime_value < t_min_valid
+					modtime_value < t_min_valid
+				or	(arg_apply_to_after  and modtime_value > timestamp_value)
+				or	(arg_apply_to_before and modtime_value < timestamp_value)
 				)
 			):
 				if arg_verbose:
@@ -487,7 +505,8 @@ def run_batch_retime(argv):
 	arg_verbose = arg_verbose_testing or not (arg_silent or arg_quiet)
 
 	arg_delete_empty_folders = 'e' in flags
-	arg_folders_modtime_by_files = 'd' in flags
+	arg_dirs_modtime_by_dirs = 'i' in flags
+	arg_dirs_modtime_by_files = 'd' in flags
 	arg_files_modtime_by_content = 'f' in flags
 	arg_files_modtime_by_name_ymdhms = 'y' in flags
 	arg_files_modtime_by_name_unixtime = 'u' in flags
