@@ -19,54 +19,6 @@ except ImportError:
 
 read_encodings = 'utf_8|utf_16_le|utf_16_be|cp1251'.split('|')
 
-pat_text_date = r'''
-	(?:^|\D)
-	(?P<Year>\d{4})		[^a-z\d]
-	(?P<Month>\d\d)		[^a-z\d]
-	(?P<Day>\d\d)
-	(?:
-				\D
-		(?P<Hours>\d\d)	(?:h|[^a-z\d])
-		(?P<Minutes>\d\d)
-		(?:
-				(?:m|[^a-z\d])
-			(?P<Seconds>\d\d)
-				s?
-		)?
-	)?
-	(?:$|\D)
-'''
-
-pat_text_date_full_compact = r'''
-	(?:^|\D)
-	(?P<Year>\d{4})		[^a-z\d]?
-	(?P<Month>\d{2})	[^a-z\d]?
-	(?P<Day>\d{2})		\D?
-	(?P<Hours>\d{2})	(?:h|[^a-z\d])?
-	(?P<Minutes>\d{2})	(?:m|[^a-z\d])?
-	(?P<Seconds>\d{2})	s?
-	(?:$|\D)
-'''
-
-pat_text_time_epoch = r'''
-#	(?:^|\D)
-	(?:^|[^a-z\d])
-	(?P<Epoch>\d{10})
-#	(?P<Milliseconds>\d{3})?
-	(?P<Etc>\d{1,6})?
-	(?:$|[^a-z\d])
-#	(?:$|\D)
-'''
-
-pat_time = re.compile(pat_text_time_epoch, re.I | re.X)
-pat_date = re.compile(pat_text_date, re.I | re.X)
-pat_date_full_compact = re.compile(pat_text_date_full_compact, re.I | re.X)
-
-try:
-	pat_date_binary = re.compile(bytes(pat_text_date, 'utf_8'), re.I | re.X)
-except TypeError:
-	pat_date_binary = pat_date
-
 exp_date = [
 	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:\g<Seconds>'
 ,	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:00'
@@ -123,9 +75,13 @@ def print_help():
 	,	'		Note: timestamps in names may be compact (yyyymmdd),'
 	,	'		while timestamps in content must have delimiters (yyyy-mm-dd).'
 	,	''
+	,	'	1: Set each file mod-time to 1st found time on the last line in file name/content.'
 	,	'	l: Set each file mod-time to last found time in file name/content.'
 	,	'	m: Set each file mod-time to latest found time in file name/content.'
 	,	'	n: Set each file mod-time to earliest found time in file name/content.'
+	,	'		Note: last in the whole file, not 1st on the last line,'
+	,	'		may be found after any log-formatted timestamps,'
+	,	'		including partial timestamps (e.g. dates, y-m-d only) in log content.'
 	,	''
 	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for time checking, if anything else exists.'
 	,	''
@@ -230,6 +186,7 @@ def run_batch_retime(argv):
 			and	(
 					not result
 				or	arg_files_modtime_last
+				or	arg_files_modtime_1st_in_last_line
 				or	(arg_files_modtime_max and result < timestamp_text)
 				or	(arg_files_modtime_min and result > timestamp_text)
 				)
@@ -510,6 +467,56 @@ def run_batch_retime(argv):
 	arg_files_modtime_max = 'm' in flags
 	arg_files_modtime_min = 'n' in flags
 	# arg_zip_by_files_inside = 'z' in flags
+
+	pat_part_end_of_line_or_timestamp = (
+		r'(?:$|[^\d\r\n][^\r\n]*)' if arg_files_modtime_1st_in_last_line else
+		r'(?:$|\D)'
+	)
+
+	pat_text_date = r'''
+		(?:^|\D)
+		(?P<Year>\d{4})		[^a-z\d]
+		(?P<Month>\d\d)		[^a-z\d]
+		(?P<Day>\d\d)
+		(?:
+					\D
+			(?P<Hours>\d\d)	(?:h|[^a-z\d])
+			(?P<Minutes>\d\d)
+			(?:
+					(?:m|[^a-z\d])
+				(?P<Seconds>\d\d)
+					s?
+			)?
+		)?
+	''' + pat_part_end_of_line_or_timestamp
+
+	pat_text_date_full_compact = r'''
+		(?:^|\D)
+		(?P<Year>\d{4})		[^a-z\d]?
+		(?P<Month>\d{2})	[^a-z\d]?
+		(?P<Day>\d{2})		\D?
+		(?P<Hours>\d{2})	(?:h|[^a-z\d])?
+		(?P<Minutes>\d{2})	(?:m|[^a-z\d])?
+		(?P<Seconds>\d{2})	s?
+	''' + pat_part_end_of_line_or_timestamp
+
+	pat_text_time_epoch = r'''
+	#	(?:^|\D)
+		(?:^|[^a-z\d])
+		(?P<Epoch>\d{10})
+	#	(?P<Milliseconds>\d{3})?
+		(?P<Etc>\d{1,6})?
+		(?:$|[^a-z\d])
+	# ''' + pat_part_end_of_line_or_timestamp
+
+	pat_time = re.compile(pat_text_time_epoch, re.I | re.X)
+	pat_date = re.compile(pat_text_date, re.I | re.X)
+	pat_date_full_compact = re.compile(pat_text_date_full_compact, re.I | re.X)
+
+	try:
+		pat_date_binary = re.compile(bytes(pat_text_date, 'utf_8'), re.I | re.X)
+	except TypeError:
+		pat_date_binary = pat_date
 
 	counts = {
 		'dirs_changed' : 0
