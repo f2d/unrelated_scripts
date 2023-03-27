@@ -600,23 +600,38 @@ def get_sub(subj, rules):
 				# specific rules:
 
 						dsub = rule[0]
+						rename = name
 
 				# full filename replacement:
 
-						if len(rule) > 3 and is_type_reg(rule[2]):
-							rename = re.sub(rule[2], rule[3], name)
+						if len(rule) > 3:
+							if is_type_reg(rule[2]) and is_type_str(rule[3]):
+								rename = re.sub(rule[2], rule[3], rename)
+
+							for replacement in rule[2 : ]:
+								if (
+									is_type_arr(replacement)
+								and	len(replacement) > 1
+								and	is_type_reg(replacement[0])
+								and	is_type_str(replacement[1])
+								):
+									rename = re.sub(replacement[0], replacement[1], rename)
 
 				# only append item ID to filename, if not yet:
 
-						elif len(rule) > 2 and is_type_reg(rule[1]):
-							suffix = (
-								re
-								.search(rule[1], met)
-								.expand(rule[2])
-							)
+						if len(rule) > 2:
+							if is_type_reg(rule[1]) and is_type_str(rule[2]):
+								suffix = (
+									re
+									.search(rule[1], met)
+									.expand(rule[2])
+								)
 
-							if name.find(suffix) < 0:
-								rename = (suffix+'.').join(name.rsplit('.', 1))
+								if rename.find(suffix) < 0:
+									rename = (suffix+'.').join(rename.rsplit('.', 1))
+
+						if rename == name:
+							rename = ''
 
 						if TEST and rename:
 							try:
