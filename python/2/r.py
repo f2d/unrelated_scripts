@@ -619,7 +619,14 @@ def get_sub(subj, rules):
 								rename = (suffix+'.').join(name.rsplit('.', 1))
 
 						if TEST and rename:
-							print rename
+							try:
+								print 'Rename:', rename
+
+							except UnicodeEncodeError:
+								cprint('<not showing unprintable unicode>', 'red')
+
+								# https://stackoverflow.com/a/62658901
+								print 'Rename:', rename.encode('utf-8').decode('ascii', 'ignore')
 
 					return [dsub, rename]
 
