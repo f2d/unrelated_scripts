@@ -142,6 +142,8 @@ sub_git_projects = [
 pat_by_ext_twMediaDownloader = get_rei(r'^\w+-\d+-\d+_\d+-(img|gif\d+)\.\w+$')
 pat_by_ext_coub_DL_button = get_rei(r'^\d+_(ifunny|looped)_\d+\.\w+$')
 
+replace_title_tail_unmht = [get_rei(r' - [\w-]+(\.\w+)$'), r'\1']
+
 
 
 
@@ -485,6 +487,21 @@ sites = [
 
 #--[ more stuff ]--------------------------------------------------------------
 
+,	[
+		['animetosho.org']
+	,	'_torrents/'
+	,	{
+			'sub': [
+				['_search'	,['search']]
+			,	['_series'	,['series']]
+			,	['_episode'	,['episode']]
+			,	['_episodes'	,['episodes']]
+			,	['_torrent_info',get_rei(r'^/*view/+(?:[^!#]*?)[/.]+([a-z]?\d+)(?:$|[#?])'), r' - \1', replace_title_tail_unmht]
+			,	['_torrent_info',['view']]
+			,	['_file'	,['file']]
+			]
+		}
+	]
 ,	[get_rei(r'(^|\.)anidex\.\w+$'			),'_torrents/anidex.info']
 ,	[get_rei(r'(^|\.)bakabt\.\w+$'			),'_torrents/bakabt.me']
 ,	[get_rei(r'(^|\.)isohunt\.\w+$'			),'_torrents/isohunt.to']
