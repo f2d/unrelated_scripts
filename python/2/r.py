@@ -452,6 +452,10 @@ def read_zip_file(src_path, return_source_html=False):
 								print info_prfx, colored('MAFF/ZIP test, content file:', 'yellow'), path, '\n'
 
 							result = zip_file.read(path)	# <- return source HTML
+
+					elif '<?xml' in result and '<RDF:RDF' in result:
+						result = result.replace('&amp;', '&')
+
 					return result
 
 		except zipfile.BadZipfile as exception:
