@@ -94,7 +94,7 @@ def print_help():
 	help_text_lines = [
 		''
 	,	colored('* Description:', 'yellow')
-	,	'	For each file or folder find the latest timestamp inside and apply it on container.'
+	,	'	For each file and/or folder, find the latest timestamp inside and set it as modification time of the container.'
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
@@ -106,8 +106,8 @@ def print_help():
 	,	'	q: Quiet, print only final sum.'
 	,	'	v: Verbose, print more intermediate information for debug.'
 	,	''
-	,	'	a: Apply changes if source date is after (later than) found.'
-	,	'	b: Apply changes if source date is before (earlier than) found.'
+	,	'	a: Apply changes if mod-time is after (later than) found.'
+	,	'	b: Apply changes if mod-time is before (earlier than) found.'
 	,	'		Otherwise just show expected values.'
 	,	''
 	,	'	r: Recursively go into subfolders.'
@@ -115,14 +115,17 @@ def print_help():
 	,	''
 	,	'	d: Set each folder mod-time to latest file inside.'
 	,	'	i: Set each folder mod-time to latest folder inside.'
-	,	'	f: Set each text file mod-time to latest (yyyy?mm?dd(?HH?MM(?SS))) timestamp inside.'
+	# ,	'TODO ->	z: Set each zip file mod-time to latest file inside.'
 	,	''
-	,	'	u: Set each file mod-time to 1st found Unix-time stamp (first 10 digits) in filename.'
-	,	'	y: Set each file mod-time to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in filename.'
-	,	'	l: Set each file mod-time to last found time in filename.'
-	,	'	m: Set each file mod-time to latest found time in filename.'
-	,	'	n: Set each file mod-time to earliest found time in filename.'
-	# ,	'TODO ->	z: For each zip file set its mod-time to latest file inside.'
+	,	'	f: Set each file mod-time to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in its content.'
+	,	'	y: Set each file mod-time to 1st found date-time stamp (yyyy?mm?dd(?HH?MM(?SS))) in its name.'
+	,	'	u: Set each file mod-time to 1st found Unix-time stamp (first 10 consecutive digits) in its name.'
+	,	'		Note: timestamps in names may be compact (yyyymmdd),'
+	,	'		while timestamps in content must have delimiters (yyyy-mm-dd).'
+	,	''
+	,	'	l: Set each file mod-time to last found time in file name/content.'
+	,	'	m: Set each file mod-time to latest found time in file name/content.'
+	,	'	n: Set each file mod-time to earliest found time in file name/content.'
 	,	''
 	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for time checking, if anything else exists.'
 	,	''
@@ -161,59 +164,119 @@ def fix_timestamp_text(text):
 def get_timestamp_value(text):
 	return time.mktime(datetime.datetime.strptime(fix_timestamp_text(text), fmt_date).timetuple())
 
-def read_file(path, mode='r'):
-	global arg_verbose
-
-	if not os.path.isfile(path):
-		return ''
-
-	try:
-		if 'b' in mode:
-			file = open(path, mode)
-			file_content = file.read()
-		else:
-			file = None
-			file_content = ''
-
-			for enc in read_encodings:
-				if file:
-					file.close()
-
-				try:
-					file = io.open(path, mode, encoding=enc)
-					file_content = file.read()
-
-					break
-
-				except UnicodeDecodeError:
-					continue
-
-	# except PermissionError:
-	# There was no PermissionError in Python 2.7, it was introduced in the Python 3.3 stream with PEP 3151.
-	# https://stackoverflow.com/a/18199529
-
-	except (IOError, OSError) as exception:
-		if arg_verbose:
-			print_exception('Error reading contents of file:', path)
-
-	if file:
-		file.close()
-
-	return file_content
-
 # - Main job function ---------------------------------------------------------
 
 def run_batch_retime(argv):
 
-	global arg_verbose, arg_verbose_testing
-	global count_dirs_checked, count_dirs_changed, count_dirs_deleted, count_dirs_errors
-	global count_files_checked, count_files_changed, count_files_read, count_files_errors
+	def check_time_in(last_time, text, pat=None):
+
+		result = last_time
+
+		if arg_verbose_testing:
+			print('')
+			cprint('File size:', 'yellow')
+			print(len(text))
+
+		for match in re.finditer(pat or pat_date, text):
+			timestamp_text = ''
+
+			if arg_verbose_testing:
+				cprint('Timestamp match:', 'magenta')
+				print(match)
+
+			for partial_format in exp_date:
+				try:
+					timestamp_text = match.expand(partial_format)
+
+				except TypeError:
+					timestamp_text = match.expand(bytes(partial_format, 'utf_8')).decode('utf_8')
+
+				except (KeyError, IndexError):
+					continue
+
+				except re.error:
+					if arg_verbose_testing:
+						print_exception(
+							'Text "{match}" does not match pattern "{pattern}" in file:'
+							.format(
+								match=match.group(0)
+							,	pattern=partial_format
+							)
+						,	path_name
+						)
+
+				except Exception as exception:
+					if arg_verbose:
+						print_exception('Error matching time text from file:', path_name)
+
+					continue
+
+				if arg_verbose_testing:
+					cprint('Timestamp text:', 'cyan')
+					print(timestamp_text or None)
+
+				break
+
+			if not timestamp_text:
+				timestamp_text = get_timestamp_text(int(
+					match.group('Epoch')
+				or	match.group(1)
+				or	match.group(0)
+				))
+
+			if (
+				timestamp_text
+			and	timestamp_text < t_now
+			and	(
+					not result
+				or	arg_files_modtime_last
+				or	(arg_files_modtime_max and result < timestamp_text)
+				or	(arg_files_modtime_min and result > timestamp_text)
+				)
+			):
+				result = timestamp_text
+		return result
+
+	def read_file(path, mode='r'):
+
+		if not os.path.isfile(path):
+			return ''
+
+		try:
+			if 'b' in mode:
+				file = open(path, mode)
+				file_content = file.read()
+			else:
+				file = None
+				file_content = ''
+
+				for enc in read_encodings:
+					if file:
+						file.close()
+
+					try:
+						file = io.open(path, mode, encoding=enc)
+						file_content = file.read()
+
+						break
+
+					except UnicodeDecodeError:
+						continue
+
+		# except PermissionError:
+		# There was no PermissionError in Python 2.7, it was introduced in the Python 3.3 stream with PEP 3151.
+		# https://stackoverflow.com/a/18199529
+
+		except (IOError, OSError) as exception:
+			if arg_verbose:
+				print_exception('Error reading contents of file:', path)
+
+		if file:
+			file.close()
+
+		return file_content
 
 	def process_folder(path):
-
-		global arg_verbose, arg_verbose_testing
-		global count_dirs_checked, count_dirs_changed, count_dirs_deleted, count_dirs_errors
-		global count_files_checked, count_files_changed, count_files_read, count_files_errors
 
 		modtime_value = empty_folders_inside_to_delete = 0
 		last_file_time = last_file_time_of_included = 0
@@ -221,7 +284,7 @@ def run_batch_retime(argv):
 		try:
 			names = os.listdir(path)
 		except:
-			count_dirs_errors += 1
+			counts['dirs_errors'] += 1
 
 			return
 
@@ -229,7 +292,7 @@ def run_batch_retime(argv):
 			path_name = path + '/' + name
 
 			if os.path.isdir(path_name):
-				count_dirs_checked += 1
+				counts['dirs_checked'] += 1
 
 				if arg_recurse:
 					modtime_value = process_folder(path_name)
@@ -259,75 +322,7 @@ def run_batch_retime(argv):
 							last_file_time_of_included = modtime_value
 
 			elif os.path.isfile(path_name):
-				count_files_checked += 1
-
-				def check_time_in(last_time, text, pat=None):
-					result = last_time
-
-					if arg_verbose_testing:
-						print('')
-						cprint('File size:', 'yellow')
-						print(len(text))
-
-					for match in re.finditer(pat or pat_date, text):
-						timestamp_text = ''
-
-						if arg_verbose_testing:
-							cprint('Timestamp match:', 'magenta')
-							print(match)
-
-						for partial_format in exp_date:
-							try:
-								timestamp_text = match.expand(partial_format)
-
-							except TypeError:
-								timestamp_text = match.expand(bytes(partial_format, 'utf_8')).decode('utf_8')
-
-							except (KeyError, IndexError):
-								continue
-
-							except re.error:
-								if arg_verbose_testing:
-									print_exception(
-										'Text "{match}" does not match pattern "{pattern}" in file:'
-										.format(
-											match=match.group(0)
-										,	pattern=partial_format
-										)
-									,	path_name
-									)
-
-							except Exception as exception:
-								if arg_verbose:
-									print_exception('Error matching time text from file:', path_name)
-
-								continue
-
-							if arg_verbose_testing:
-								cprint('Timestamp text:', 'cyan')
-								print(timestamp_text or None)
-
-							break
-
-						if not timestamp_text:
-							timestamp_text = get_timestamp_text(int(
-								match.group('Epoch')
-							or	match.group(1)
-							or	match.group(0)
-							))
-
-						if (
-							timestamp_text
-						and	timestamp_text < t_now
-						and	(
-								not result
-							or	arg_files_modtime_last
-							or	(arg_files_modtime_max and result < timestamp_text)
-							or	(arg_files_modtime_min and result > timestamp_text)
-							)
-						):
-							result = timestamp_text
-					return result
+				counts['files_checked'] += 1
 
 				timestamp_value = 0
 				timestamp_text = ''
@@ -351,15 +346,15 @@ def run_batch_retime(argv):
 						if arg_verbose:
 							print_exception('Error reading time text from file:', path_name)
 
-						count_files_errors += 1
+						counts['files_errors'] += 1
 
 				if timestamp_value > t_min_valid:
-					count_files_read += 1
+					counts['files_read'] += 1
 
 					if arg_verbose:
 						try:
 							print(' '.join([
-								colored(count_files_read, 'yellow')
+								colored(counts['files_read'], 'yellow')
 							,	timestamp_text
 							,	colored(timestamp_value, 'yellow')
 							,	path_name
@@ -375,7 +370,7 @@ def run_batch_retime(argv):
 							(arg_apply_to_after  and modtime_value > timestamp_value)
 						or	(arg_apply_to_before and modtime_value < timestamp_value)
 						):
-							count_files_changed += 1
+							counts['files_changed'] += 1
 
 							os.utime(path_name, (timestamp_value, timestamp_value))
 
@@ -411,11 +406,11 @@ def run_batch_retime(argv):
 				if arg_apply:
 					os.rmdir(path)
 
-				count_dirs_deleted += 1
+				counts['dirs_deleted'] += 1
 
 				if arg_verbose:
 					print(' '.join([
-						str(count_dirs_deleted)
+						str(counts['dirs_deleted'])
 					,	colored(
 							'empty folder deleted:' if arg_apply else
 							'empty folder found:'
@@ -427,7 +422,7 @@ def run_batch_retime(argv):
 				if arg_verbose:
 					print_exception('Error deleting empty folder:', path)
 
-				count_dirs_errors += 1
+				counts['dirs_errors'] += 1
 
 			return -1
 
@@ -471,7 +466,7 @@ def run_batch_retime(argv):
 					(arg_apply_to_after  and modtime_value > timestamp_value)
 				or	(arg_apply_to_before and modtime_value < timestamp_value)
 				):
-					count_dirs_changed += 1
+					counts['dirs_changed'] += 1
 
 					os.utime(path, (timestamp_value, timestamp_value))
 
@@ -510,13 +505,22 @@ def run_batch_retime(argv):
 	arg_files_modtime_by_content = 'f' in flags
 	arg_files_modtime_by_name_ymdhms = 'y' in flags
 	arg_files_modtime_by_name_unixtime = 'u' in flags
+	arg_files_modtime_1st_in_last_line = '1' in flags
 	arg_files_modtime_last = 'l' in flags
 	arg_files_modtime_max = 'm' in flags
 	arg_files_modtime_min = 'n' in flags
 	# arg_zip_by_files_inside = 'z' in flags
 
-	count_dirs_checked = count_dirs_changed = count_dirs_deleted = count_dirs_errors = 0
-	count_files_checked = count_files_changed = count_files_read = count_files_errors = 0
+	counts = {
+		'dirs_changed' : 0
+	,	'dirs_checked' : 0
+	,	'dirs_deleted' : 0
+	,	'dirs_errors' : 0
+	,	'files_changed' : 0
+	,	'files_checked' : 0
+	,	'files_errors' : 0
+	,	'files_read' : 0
+	}
 
 	t_now = str(datetime.datetime.now())	# <- '2011-05-03 17:45:35.177000', from http://stackoverflow.com/a/5877368
 
@@ -530,18 +534,18 @@ def run_batch_retime(argv):
 		print('')
 		cprint('- Done:', 'green')
 
-		if count_dirs_checked:	print_with_colored_suffix(count_dirs_checked,	'folders checked.',		'cyan')
-		if count_files_checked:	print_with_colored_suffix(count_files_checked,	'files checked.',		'cyan')
-		if count_files_read:	print_with_colored_suffix(count_files_read,	'files contain timestamps.',	'cyan')
+		if counts['dirs_checked']:	print_with_colored_suffix(counts['dirs_checked'],	'folders checked.',		'cyan')
+		if counts['files_checked']:	print_with_colored_suffix(counts['files_checked'],	'files checked.',		'cyan')
+		if counts['files_read']:	print_with_colored_suffix(counts['files_read'],		'files contain timestamps.',	'cyan')
 
-		if count_dirs_errors:	print_with_colored_suffix(count_dirs_errors,	'folders skipped with error.',	'red')
-		if count_files_errors:	print_with_colored_suffix(count_files_errors,	'files skipped with error.',	'red')
+		if counts['dirs_errors']:	print_with_colored_suffix(counts['dirs_errors'],	'folders skipped with error.',	'red')
+		if counts['files_errors']:	print_with_colored_suffix(counts['files_errors'],	'files skipped with error.',	'red')
 
-		if count_dirs_changed:	print_with_colored_suffix(count_dirs_changed,	'folders changed.',		'green')
-		if count_files_changed:	print_with_colored_suffix(count_files_changed,	'files changed.',		'green')
+		if counts['dirs_changed']:	print_with_colored_suffix(counts['dirs_changed'],	'folders changed.',		'green')
+		if counts['files_changed']:	print_with_colored_suffix(counts['files_changed'],	'files changed.',		'green')
 
-		if count_dirs_deleted:	print_with_colored_suffix(
-			count_dirs_deleted
+		if counts['dirs_deleted']:	print_with_colored_suffix(
+			counts['dirs_deleted']
 		,	'empty folders deleted.' if arg_apply else
 			'empty folders to delete.'
 		,	'magenta'
