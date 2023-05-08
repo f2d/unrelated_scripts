@@ -23,6 +23,7 @@ Change these lists as needed for other sites.
 		'comment__load-more',	//* dtf.ru
 		'button',		//* reddit
 		'expand',		//* reddit
+		'PostTextMore',		//* vk.com
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
 		'mw-collapsible-text',	//* wiktionary.org
@@ -32,6 +33,7 @@ Change these lists as needed for other sites.
 		/\d+\s+repl(y|ies)/i,	//* youtube.com/watch
 		'Read more',		//* youtube.com/watch
 		'show more replies',	//* youtube.com/watch
+		'Show more',		//* vk.com
 		'see more',		//* vk.com
 		'load more comment',	//* reddit
 		'[+]',			//* reddit
