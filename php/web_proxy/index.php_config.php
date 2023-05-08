@@ -30,6 +30,15 @@ $allowed_cookies = array(
 
 
 
+//* Don't pass any cookies named here from client to server:
+
+$skip_client_cookies = array(
+//	'example-pass-key-name'
+// ,	'q'
+);
+
+
+
 //* Folder to store cookies given by target servers, etc:
 
 $data_dirs = array(

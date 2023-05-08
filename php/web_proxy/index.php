@@ -369,6 +369,16 @@ if (
 	curl_setopt($curl_handle, CURLOPT_USERAGENT, (IS_LOCALHOST ? "$default_useragent $_SERVER[PHP_SELF]" : $default_useragent));
 	// curl_setopt($curl_handle, CURLOPT_VERBOSE, 1);
 
+	if ($_COOKIE) {
+		$client_cookies = array();
+
+		foreach ($_COOKIE as $key => $value) if (!in_array($skip_client_cookies, $key)) {
+			$client_cookies[] = "$key=$value";
+		}
+
+		curl_setopt($curl_handle, CURLOPT_COOKIE, implode('; ', $client_cookies));
+	}
+
 	if ($data_dir) {
 		curl_setopt($curl_handle, CURLOPT_COOKIEFILE, $cookie_file);
 		curl_setopt($curl_handle, CURLOPT_COOKIEJAR, $cookie_file);
