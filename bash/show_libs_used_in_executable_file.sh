@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "LD_TRACE_LOADED_OBJECTS=1 $1"
+LD_TRACE_LOADED_OBJECTS=1 $1
