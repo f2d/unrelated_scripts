@@ -43,6 +43,7 @@ sub_dirs=(
 	"drawpile-srv"
 	"duplicity"
 	"nginx"
+	"nginx-access"
 )
 
 for i in "${sub_dirs[@]}"
@@ -76,6 +77,7 @@ then
 	cd "${log_dir}"
 
 	source "${script_dir}/update_hostname_ip.sh" ${ftp_hostname}
+	ftp_hostname=${target_addr}
 
 	# Old way to use a static script file with hardcoded login/password/hostname:
 	# lftp -f "${script_dir}/upload_bak_logs.ftp"
