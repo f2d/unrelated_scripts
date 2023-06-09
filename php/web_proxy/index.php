@@ -550,7 +550,10 @@ if (
 		if ($file_time && $file_time !== -1) header('Last-Modified: '.$file_date);
 		if ($file_etag && $file_etag !== -1) header('Etag: '.$file_etag);
 		if ($file_type && $file_type !== -1) header('Content-Type: '.$file_type);
-		if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);
+
+//* If original "Content-Length" refers to encoded response, it will truncate decoded content, so don't use it, use actual length later:
+
+		// if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);
 
 //* The file is intended for download, not view:
 
@@ -575,6 +578,7 @@ if (
 		&&	$file_type
 		&&	(
 				false !== strpos($file_type, 'html')
+			||	false !== strpos($file_type, 'xhtml')
 			||	false !== strpos($file_type, 'xml')
 			// ||	false !== strpos($file_type, 'text')
 			// ||	preg_match('~[<](html|head|body)[\r\n\s/>]~isu', $response_content)
@@ -760,9 +764,12 @@ response headers:
 -->
 '.trim($replaced_content);
 
-			header('Content-Length: '.strlen($response_content));
 			header('HTTP/1.1 203 Transformed content, original status '.$http_code);
 		}
+
+//* Use actual final content length to avoid truncation:
+
+		header('Content-Length: '.strlen($response_content));
 
 		die($response_content);
 	} else {
