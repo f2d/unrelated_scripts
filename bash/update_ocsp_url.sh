@@ -32,10 +32,13 @@ ocsp_responder_hostname="${ocsp_responder_url#*:\/\/}"
 new_conf_content="
 # Autoupdated by shell script at $(date '+%F_%H-%M-%S.%N')
 
-set \$backend_hostname ${ocsp_responder_hostname};
 set \$backend_protocol ${ocsp_responder_protocol};
+set \$backend_hostname ${ocsp_responder_hostname};
 
-proxy_pass ${ocsp_responder_url};
+# proxy_pass ${ocsp_responder_url};
+# Use nginx variables in proxy_pass to resolve at runtime to avoid ipv6 errors:
+# https://trac.nginx.org/nginx/ticket/723
+proxy_pass \$backend_protocol://\$backend_hostname;
 "
 
 echo "- New content for ${ocsp_conf_file_path}:"
