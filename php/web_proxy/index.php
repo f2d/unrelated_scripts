@@ -7,7 +7,7 @@
 //* It works best from web root folder and with all paths autoredirected to it on a separate (sub)domain name dedicated to it.
 //* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url".
 
-require(basename($_SERVER['PHP_SELF']).'_config.php');
+require($_SERVER['SCRIPT_FILENAME'].'_config.php');
 
 define('NL', "\n");
 define('IS_LOCALHOST', $_ENV['LOCAL_CLIENT'] ?? ($_SERVER['SERVER_ADDR'] === $_SERVER['REMOTE_ADDR']));
@@ -372,7 +372,11 @@ if (
 	if ($_COOKIE) {
 		$client_cookies = array();
 
-		foreach ($_COOKIE as $key => $value) if (!in_array($skip_client_cookies, $key)) {
+		foreach ($_COOKIE as $key => $value) if (
+			!isset($skip_client_cookies)
+		||	!is_array($skip_client_cookies)
+		||	!in_array($key, $skip_client_cookies)
+		) {
 			$client_cookies[] = "$key=$value";
 		}
 
