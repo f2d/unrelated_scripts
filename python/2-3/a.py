@@ -262,6 +262,9 @@ def print_help():
 	,	'		(in some rare cases can give smaller files at level 20 even than LZMA2)'
 	,	'	90: use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
 	,	'		(a fast alternative for no compression in 7z format)'
+	,	'	p: use eSplitter for MHTML files with 7-Zip.'
+	,	'		(compress base64-decoded binary data separately from text)'
+	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
 	,	''
 	,	'	---- group subjects into separate archives:'
 	,	'	(each name is appended with comma to "=filename" from arguments)'
@@ -410,6 +413,84 @@ def pad_list(a, minimum_len=2, pad_value=''):
 def split_text_in_two(text, separator):
 	return pad_list((text or '').split(separator, 1))
 
+def get_7z_method_args(flags):
+
+	if 'p' in flags:
+
+# https://www.tc4shell.com/en/7zip/edecoder/
+# Example: 0=eSplitter 1=PPMD:x9:mem1g:o32 2=LZMA2:x9:d128m:mt1 3=LZMA:x9:d1m:lc8:lp0:pb0 b0s0:1 b0s1:2 b0s2:3
+
+		main_compression_method = (
+			'ZSTD:x={}:mt'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else
+			'LZMA2:x=9:mt2:d={dict}:fb={word}'.format(
+				dict=pick_lzma_dict_size_from_flags(flags)
+			,	word=pick_lzma_word_size_from_flags(flags)
+			)
+		)
+
+		return [
+			'-m0=eSplitter'
+		,	'-m1={}'.format(main_compression_method)	# <- packing parameters for text data.
+		,	'-m2={}'.format(main_compression_method)	# <- packing parameters for decoded binary data.
+		,	'-m3={}'.format(main_compression_method)
+		,	'-mb0s0:1'
+		,	'-mb0s1:2'
+		,	'-mb0s2:3'
+		]
+	else:
+		return [
+			'-m0=zstd'
+		,	'-mmt=on'
+		,	'-mx={}'.format(pick_zstd_level_from_flags(flags))
+		] if '9' in flags else [
+			'-m0=lzma2'
+		,	'-mx=9'
+		,	'-mmt=2'
+		,	'-md={}'.format(pick_lzma_dict_size_from_flags(flags))
+		,	'-mfb={}'.format(pick_lzma_word_size_from_flags(flags))
+		]
+
+def get_7z_shared_method_args(flags):	# <- does not work the same without m:params included in each -m arg
+
+	main_compression_method = ('zstd' if '9' in flags else 'lzma2')
+
+	return (
+		[
+			'-m0=eSplitter'
+		,	'-m1={}'.format(main_compression_method)	# <- packing parameters for text data.
+		,	'-m2={}'.format(main_compression_method)	# <- packing parameters for decoded binary data.
+		,	'-m3={}'.format(main_compression_method)
+		,	'-mb0s0:1'
+		,	'-mb0s1:2'
+		,	'-mb0s2:3'
+		] if 'p' in flags else [
+			'-m0={}'.format(main_compression_method)
+		]
+	) + (
+		[
+			'-mmt=on'
+		,	'-mx={}'.format(pick_zstd_level_from_flags(flags))
+		] if '9' in flags else [
+			'-mmt=2'
+		,	'-mx=9'
+		,	'-md={}'.format(pick_lzma_dict_size_from_flags(flags))
+		,	'-mfb={}'.format(pick_lzma_word_size_from_flags(flags))
+		]
+	)
+
+def pick_lzma_dict_size_from_flags(flags):
+	return (
+		'1g'   if 'g' in flags else
+		'256m' if '6' in flags else
+		'64m'
+	)
+
+def pick_lzma_word_size_from_flags(flags):
+	return (
+		'256' if '6' in flags else
+		'273'
+	)
+
 def pick_zstd_level_from_flags(flags):
 	last_index = len(zstd_levels) - 1
 	flag_count = flags.count('9')
@@ -538,12 +619,18 @@ def run_batch_archiving(argv):
 			paths = list(map(fix_slashes, [subj, dest_name]))
 
 			dest_name_part_dedup		= ',dedup' if 'l' in flags else ''
+			dest_name_part_esplit		= ',eSplit' if 'p' in flags else ''
 			dest_name_part_uncompressed	= ',store' if '0' in flags else ''
 			dest_name_part_dict_size	= ',d=1g' if 'g' in flags else ',d=256m' if '6' in flags else ''
 			dest_name_part_zstd		= ',zstd={}'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else ''
 
 			if '7' in flags:
-				ext = (dest_name_part_zstd or dest_name_part_uncompressed or dest_name_part_dict_size) + '.7z'
+				ext = dest_name_part_esplit + (
+					dest_name_part_zstd
+				or	dest_name_part_uncompressed
+				or	dest_name_part_dict_size
+				) + '.7z'
+
 				solid = 0
 				solid_block_size = ('={}m'.format(zstd_solid_block_sizes[
 					2 if 'g' in flags else
@@ -563,7 +650,11 @@ def run_batch_archiving(argv):
 			if 'w' in flags: append_cmd(cmd_queue, paths, ',winrar' + ext)
 
 			if 'r' in flags:
-				ext = (dest_name_part_uncompressed or dest_name_part_dict_size) + dest_name_part_dedup + '.rar'
+				ext = (
+					dest_name_part_uncompressed
+				or	dest_name_part_dict_size
+				) + dest_name_part_dedup + '.rar'
+
 				solid = 0
 
 				if is_subj_mass and not dest_name_part_uncompressed:
@@ -643,15 +734,19 @@ def run_batch_archiving(argv):
 
 		cmd_template = {}
 		cmd_template['7z'] = (
-			[exe_paths['7z'], 'a', '-stl', '-ssw', '-mqs']
-		+	(
-				['-m0=zstd',  '-mmt=on', '-mx={}'.format(pick_zstd_level_from_flags(flags))] if '9' in flags else
-				['-mx=0',     '-mmt=off'] if '0' in flags else
-				['-m0=lzma2', '-mmt=2', '-mx=9'] + (
-					['-md=1g',   '-mfb=273'] if 'g' in flags else
-					['-md=256m', '-mfb=256'] if '6' in flags else
-					['-md=64m',  '-mfb=273']
-				)
+			[
+				exe_paths['7z']
+			,	'a'
+			# ,	'-bt'	# <- Show execution time statistics, only for 'b' command.
+			# ,	'-slt'	# <- Show technical information, only for 'l' command.
+			,	'-mqs'	# <- Sort files by type in solid archives.
+			# ,	'-sns'	# <- Currently 7-Zip can store NTFS alternate streams only to WIM archives.
+			,	'-ssw'	# <- Compress files open for writing.
+			,	'-stl'	# <- Set archive timestamp from the most recently modified file.
+			]
+		+	(		# Compression method, number of threads, dictionary size:
+				['-mx=0', '-mmt=off'] if '0' in flags and not '9' in flags else
+				get_7z_method_args(flags)
 			)
 		+	rest
 		)
@@ -685,8 +780,15 @@ def run_batch_archiving(argv):
 			rest_winrar.append('-r0')
 
 		cmd_template['rar'] = (
-			[exe_paths['rar'], 'a', '-tl', '-dh', '-ma5', '-qo+']
-		+	(
+			[
+				exe_paths['rar']
+			,	'a'
+			,	'-dh'	# <- Open shared files.
+			,	'-ma5'	# <- Version of archiving format.
+			,	'-qo+'	# <- Add quick open information.
+			,	'-tl'	# <- Set archive time to newest file.
+			]
+		+	(		# Compression method, number of threads, dictionary size:
 				['-m0', '-mt1'] if '0' in flags else
 				['-m5', '-mt4'] + (
 					['-md1g'] if 'g' in flags else
@@ -695,11 +797,11 @@ def run_batch_archiving(argv):
 				)
 			)
 		+	(
-				['-oi:0'] if 'l' in flags else
+				['-oi:0'] if 'l' in flags else	# <- Save identical files as references.
 				['-oi-']
 			)
 		+	(
-				['-ibck'] if minimized else
+				['-ibck'] if minimized else	# <- Run WinRAR in background.
 				[]
 			)
 		+	rest_winrar
@@ -889,6 +991,7 @@ def run_batch_archiving(argv):
 						print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
 
 						if 'o' in flags:
+							obsolete_file_path = None
 							smallest_for_this_subj = smallest_archives_by_subj.get(cmd_subj)
 
 							if not smallest_for_this_subj:
@@ -900,22 +1003,29 @@ def run_batch_archiving(argv):
 
 							elif smallest_for_this_subj['size'] > archive_file_size:
 
+								obsolete_file_path = smallest_for_this_subj['path']
+
 								cprint('New archive is smaller: {} < {}, deleting bigger old.'.format(
 									archive_file_size
 								,	smallest_for_this_subj['size']
 								), 'cyan')
 
-								os.remove(smallest_for_this_subj['path'])
-
 								smallest_for_this_subj['path'] = final_dest
 								smallest_for_this_subj['size'] = archive_file_size
 							else:
+								obsolete_file_path = final_dest
+
 								cprint('Old archive is smaller or same: {} <= {}, deleting new.'.format(
 									smallest_for_this_subj['size']
 								,	archive_file_size
 								), 'magenta')
 
-								os.remove(final_dest)
+							if obsolete_file_path:
+								try:
+									os.remove(obsolete_file_path)
+
+								except FileNotFoundError:
+									cprint('Warning: No file to delete.', 'red')
 
 				print('')
 
