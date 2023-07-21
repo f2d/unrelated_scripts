@@ -259,12 +259,14 @@ def print_help():
 	,	'	9, ..., 999999: use Zstandard compression method with 7-Zip.'
 	,	'		(repeat the flag for slower and higher levels, {}-{})'.format(zstd_levels[1], zstd_levels[len(zstd_levels) - 1])
 	,	'		(a lot faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20)'
-	,	'		(in some rare cases Zstd level 17 is smaller than level 20, and 2+ times faster in all cases)'
-	,	'		(in some rare cases Zstd level 20 can give even smaller files than LZMA2 level 9)'
+	,	'		(in some rare cases Zstd level 17 archive is smaller than level 20, and 2+ times faster in all cases)'
+	,	'		(in some rare cases Zstd level 20 archive is even smaller than LZMA2 level 9)'
+	,	'		("6" and "g" switches without "e" set solid block size for Zstd, instead of dictionary size)'
 	,	'	90: use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
 	,	'		(a fast alternative for no compression in 7z format)'
 	,	'	p: use eSplitter for MHTML files with 7-Zip.'
 	,	'		(compress base64-decoded binary data separately from text)'
+	,	'		(only supported in 7z format)'
 	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
 	,	''
 	,	'	---- group subjects into separate archives:'
@@ -562,17 +564,35 @@ def run_batch_archiving(argv):
 				cmd_args = cmd_template[exe_type] + (opt_args or [])
 
 				if suffix.find('.zip') >= 0:
+
+					skip_args = [
+						'-mqs'
+					,	'-md='
+					,	'-ms='
+					,	'-m0='
+					,	'-m1='
+					,	'-m2='
+					,	'-m3='
+					]
+
 					cmd_args = [
 						(
-							None if arg[0 : 4] == '-mqs'
-						else	None if arg[0 : 4] == '-md='
-						else	None if arg[0 : 4] == '-m0='
+							None if arg[0 : 4] in skip_args
 						else	('-mx=0' if '0' in flags else '-mx=9') if arg[0 : 4] == '-mx='
 						else	(None if '0' in flags else '-mfb=256') if arg[0 : 5] == '-mfb='
 						else	arg
 						)
 						for arg in cmd_args
 					]
+
+				elif suffix.find('.7z') and '-ms=e' in cmd_args:
+					cmd_args = [
+						(
+							None if arg[0 : 4] == '-mqs'
+						else	arg
+						)
+						for arg in cmd_args
+					] + ['-mqs']
 
 				# dest = get_unique_clean_path(dest, suffix, t0)
 				dest = remove_trailing_dots_in_path_parts(dest + suffix)
@@ -761,10 +781,13 @@ def run_batch_archiving(argv):
 			,	'a'
 			# ,	'-bt'	# <- Show execution time statistics, only for 'b' command.
 			# ,	'-slt'	# <- Show technical information, only for 'l' command.
-			,	'-mqs'	# <- Sort files by type in solid archives.
 			# ,	'-sns'	# <- Currently 7-Zip can store NTFS alternate streams only to WIM archives.
 			,	'-ssw'	# <- Compress files open for writing.
 			,	'-stl'	# <- Set archive timestamp from the most recently modified file.
+			,	(
+					'-mqs-' if 'p' in flags else	# <- Sort files by full name, all supposed to be MHT type.
+					'-mqs'				# <- Sort files by type (name extension) in solid archives.
+				)
 			]
 		+	(		# Compression method, number of threads, dictionary size:
 				['-mx=0', '-mmt=off'] if '0' in flags and not '9' in flags else
