@@ -28,7 +28,7 @@ except ImportError:
 # - Configuration and defaults ------------------------------------------------
 
 zstd_levels = [3, 17, 18, 19, 20, 21, 22]
-zstd_solid_block_sizes = [99, 256, 1024]
+# zstd_solid_block_sizes = [99, 256, 1024]
 
 process_id_text = str(os.getpid())
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
@@ -258,8 +258,9 @@ def print_help():
 	,	'	G: very big compression settings (1 GB dictionary, 273 B word size).'
 	,	'	9, ..., 999999: use Zstandard compression method with 7-Zip.'
 	,	'		(repeat the flag for slower and higher levels, {}-{})'.format(zstd_levels[1], zstd_levels[len(zstd_levels) - 1])
-	,	'		(a lot faster than LZMA/LZMA2 at both compression and decompression)'
-	,	'		(in some rare cases can give smaller files at level 20 even than LZMA2)'
+	,	'		(a lot faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20)'
+	,	'		(in some rare cases Zstd level 17 is smaller than level 20, and 2+ times faster in all cases)'
+	,	'		(in some rare cases Zstd level 20 can give even smaller files than LZMA2 level 9)'
 	,	'	90: use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
 	,	'		(a fast alternative for no compression in 7z format)'
 	,	'	p: use eSplitter for MHTML files with 7-Zip.'
@@ -421,9 +422,11 @@ def get_7z_method_args(flags):
 # Example: 0=eSplitter 1=PPMD:x9:mem1g:o32 2=LZMA2:x9:d128m:mt1 3=LZMA:x9:d1m:lc8:lp0:pb0 b0s0:1 b0s1:2 b0s2:3
 
 		main_compression_method = (
-			'ZSTD:x={}:mt'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else
-			'LZMA2:x=9:mt2:d={dict}:fb={word}'.format(
-				dict=pick_lzma_dict_size_from_flags(flags)
+			'ZSTD:x{}:mt4'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else
+			'LZMA{version}:x9:mt{threads}:d{dict}:fb{word}'.format(
+				version=pick_lzma_version_from_flags(flags)
+			,	threads=pick_lzma_threads_from_flags(flags)
+			,	dict=pick_lzma_dict_size_from_flags(flags)
 			,	word=pick_lzma_word_size_from_flags(flags)
 			)
 		)
@@ -436,12 +439,13 @@ def get_7z_method_args(flags):
 		,	'-mb0s0:1'
 		,	'-mb0s1:2'
 		,	'-mb0s2:3'
+		,	'-mmt=on'
 		]
 	else:
 		return [
 			'-m0=zstd'
-		,	'-mmt=on'
 		,	'-mx={}'.format(pick_zstd_level_from_flags(flags))
+		,	'-mmt=on'
 		] if '9' in flags else [
 			'-m0=lzma2'
 		,	'-mx=9'
@@ -450,9 +454,12 @@ def get_7z_method_args(flags):
 		,	'-mfb={}'.format(pick_lzma_word_size_from_flags(flags))
 		]
 
-def get_7z_shared_method_args(flags):	# <- does not work the same without m:params included in each -m arg
+def get_7z_shared_method_args(flags):	# <- does not work the same without mN:params included in each -mN arg
 
-	main_compression_method = ('zstd' if '9' in flags else 'lzma2')
+	main_compression_method = (
+		'ZSTD' if '9' in flags else
+		'LZMA{}'.format(pick_lzma_version_from_flags(flags))
+	)
 
 	return (
 		[
@@ -468,14 +475,32 @@ def get_7z_shared_method_args(flags):	# <- does not work the same without m:para
 		]
 	) + (
 		[
-			'-mmt=on'
-		,	'-mx={}'.format(pick_zstd_level_from_flags(flags))
+			'-mx={}'.format(pick_zstd_level_from_flags(flags))
+		,	'-mmt=on'
 		] if '9' in flags else [
-			'-mmt=2'
-		,	'-mx=9'
+			'-mx=9'
+		,	'-mmt={}'.format(pick_lzma_threads_from_flags(flags))
 		,	'-md={}'.format(pick_lzma_dict_size_from_flags(flags))
 		,	'-mfb={}'.format(pick_lzma_word_size_from_flags(flags))
 		]
+	)
+
+def pick_lzma_version_from_flags(flags):
+	return (
+		# 1 if 'g' in flags else
+		2
+	)
+
+def pick_lzma_threads_from_flags(flags):
+	return (
+		1 if 'g' in flags else
+		2
+	)
+
+def pick_lzma_word_size_from_flags(flags):
+	return (
+		'256' if '6' in flags else
+		'273'
 	)
 
 def pick_lzma_dict_size_from_flags(flags):
@@ -485,10 +510,11 @@ def pick_lzma_dict_size_from_flags(flags):
 		'64m'
 	)
 
-def pick_lzma_word_size_from_flags(flags):
+def pick_zstd_solid_block_size_from_flags(flags):
 	return (
-		'256' if '6' in flags else
-		'273'
+		'1g'   if 'g' in flags else
+		'256m' if '6' in flags else
+		'99m'
 	)
 
 def pick_zstd_level_from_flags(flags):
@@ -632,11 +658,7 @@ def run_batch_archiving(argv):
 				) + '.7z'
 
 				solid = 0
-				solid_block_size = ('={}m'.format(zstd_solid_block_sizes[
-					2 if 'g' in flags else
-					1 if '6' in flags else
-					0
-				])) if '9' in flags else ''
+				solid_block_size = '={}'.format(pick_zstd_solid_block_size_from_flags(flags)) if '9' in flags else ''
 
 				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
 					if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
@@ -787,22 +809,23 @@ def run_batch_archiving(argv):
 			,	'-ma5'	# <- Version of archiving format.
 			,	'-qo+'	# <- Add quick open information.
 			,	'-tl'	# <- Set archive time to newest file.
+			,	(
+					'-ibck' if minimized else	# <- Run WinRAR in background.
+					None
+				), (
+					'-oi:0' if 'l' in flags else	# <- Save identical files as references.
+					'-oi-'
+				)
 			]
 		+	(		# Compression method, number of threads, dictionary size:
 				['-m0', '-mt1'] if '0' in flags else
-				['-m5', '-mt4'] + (
-					['-md1g'] if 'g' in flags else
-					['-md256m'] if '6' in flags else
-					[]
-				)
-			)
-		+	(
-				['-oi:0'] if 'l' in flags else	# <- Save identical files as references.
-				['-oi-']
-			)
-		+	(
-				['-ibck'] if minimized else	# <- Run WinRAR in background.
-				[]
+				['-m5', '-mt4',
+					(
+						'-md1g' if 'g' in flags else
+						'-md256m' if '6' in flags else
+						None
+					)
+				]
 			)
 		+	rest_winrar
 		)
