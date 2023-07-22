@@ -573,6 +573,7 @@ def run_batch_archiving(argv):
 					,	'-m1='
 					,	'-m2='
 					,	'-m3='
+					,	'-mb0'
 					]
 
 					cmd_args = [
