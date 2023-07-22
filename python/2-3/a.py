@@ -425,6 +425,7 @@ def get_7z_method_args(flags):
 
 		main_compression_method = (
 			'ZSTD:x{}:mt4'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else
+			'Copy' if '0' in flags else
 			'LZMA{version}:x9:mt{threads}:d{dict}:fb{word}'.format(
 				version=pick_lzma_version_from_flags(flags)
 			,	threads=pick_lzma_threads_from_flags(flags)
@@ -460,6 +461,7 @@ def get_7z_shared_method_args(flags):	# <- does not work the same without mN:par
 
 	main_compression_method = (
 		'ZSTD' if '9' in flags else
+		'Copy' if '0' in flags else
 		'LZMA{}'.format(pick_lzma_version_from_flags(flags))
 	)
 
@@ -791,7 +793,7 @@ def run_batch_archiving(argv):
 				)
 			]
 		+	(		# Compression method, number of threads, dictionary size:
-				['-mx=0', '-mmt=off'] if '0' in flags and not '9' in flags else
+				['-mx=0', '-mmt=off'] if '0' in flags and not ('9' in flags or 'p' in flags) else
 				get_7z_method_args(flags)
 			)
 		+	rest
