@@ -50,6 +50,9 @@ def_dest = '..'
 
 dest_name_replacements = ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']
 
+pat_line_break = re.compile(r'(\r\n|\r|\n)+')
+pat_suffix_solid = re.compile(r',s=\w+')
+
 exit_codes = {
 
 # Source: http://sevenzip.sourceforge.jp/chm/cmdline/exit_codes.htm
@@ -81,12 +84,15 @@ exit_codes = {
 	}
 }
 
-# - Declare functions ---------------------------------------------------------
+# - Utility functions ---------------------------------------------------------
 
 # Nested loop breaker:
 # Source: https://stackoverflow.com/a/189664
 class GetOutOfLoop( Exception ):
 	pass
+
+def normalize_line_breaks(text):
+	return re.sub(pat_line_break, '\n', text)
 
 def normalize_slashes(path):
 	return path.replace('\\', '/')
@@ -537,25 +543,54 @@ def run_batch_archiving(argv):
 
 	def run_batch_part(argv_flag):
 
-		def get_archive_file_summary(file_path):
+		def get_archive_file_summary(file_path, archive_params_dict=None):
 
-			return '' if subprocess.call(
+			test_result_code = subprocess.call(
 				[
 					exe_paths['rar_cmd' if 'l' in flags and file_path.rsplit('.', 1)[1] == 'rar' else '7z_cmd']
 				,	't'
 				,	file_path
 				]
 			,	startupinfo=minimized
+			)
 
-			) else subprocess.check_output(
+			if test_result_code:
+				return ''
+
+			listing_output = subprocess.check_output(
 				[
 					exe_paths['7z_cmd']
 				,	'l'
 				,	file_path
 				]
 			,	startupinfo=minimized
+			).decode(print_encoding)
 
-			).rsplit('--'.encode(print_encoding), 1)[1].decode(print_encoding).strip()
+			output_lines = normalize_line_breaks(listing_output).strip().split('\n')
+
+			if archive_params_dict and archive_params_dict['suffix']:
+
+				archive_params_found = is_archive_solid = is_single_solid_block = False
+
+				for line in output_lines:
+					if archive_params_found:
+						if line[0] == '-':
+							break
+
+						elif line == 'Solid = +':
+							is_archive_solid = True
+
+						elif line == 'Blocks = 1':
+							is_single_solid_block = True
+
+					elif line == '--':
+						archive_params_found = True
+
+				if is_archive_solid and is_single_solid_block:
+
+					archive_params_dict['suffix'] = re.sub(pat_suffix_solid, ',s', archive_params_dict['suffix'])
+
+			return output_lines[-1 : ][0]
 
 		def queue(cmd_queue, dest, subj, foreach_dir_or_file=False):
 
@@ -983,7 +1018,7 @@ def run_batch_archiving(argv):
 
 				if os.path.exists(temp_dest):
 					archive_file_size = os.path.getsize(temp_dest)
-					archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(temp_dest))
+					archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(temp_dest, cmd))
 
 					print('')
 
@@ -1002,15 +1037,22 @@ def run_batch_archiving(argv):
 
 						os.remove(temp_dest)
 					else:
-						c = cmd_suffix if ((def_suffix_separator in flags) and cmd_suffix) else '.'
-						j = (
+						add_suffix = cmd['suffix'].rstrip('.') if cmd_suffix else ''
+						add_timestamp = (
 							datetime.datetime.fromtimestamp(os.path.getmtime(temp_dest)).strftime(time_format)
 							if 'm' in flags
 							else ''
-						) + def_suffix + c
+						)
+						add_timestamp_first = add_timestamp and (def_suffix_separator in flags)
 
-						if j != c:
-							final_dest = j.join(real_dest.rsplit(c, 1))
+						if add_timestamp or add_suffix or def_suffix:
+							final_dest = (
+								(add_timestamp if add_timestamp_first else '')
+							+	(def_suffix or '')
+							+	(add_suffix or '')
+							+	(add_timestamp if not add_timestamp_first else '')
+							+	'.'
+							).join(real_dest.rsplit(cmd_suffix or '.', 1))
 						else:
 							final_dest = real_dest
 
