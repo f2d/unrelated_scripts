@@ -1014,11 +1014,13 @@ def run_batch_archiving(argv):
 						else:
 							final_dest = real_dest
 
-						i = 1
+						if os.path.exists(final_dest):
+							i = 1
+							final_dest_parts = final_dest.rsplit('.', 1)
 
-						while os.path.exists(final_dest):
-							i += 1
-							final_dest = '({}).'.format(i).join(final_dest.rsplit('.', 1))
+							while os.path.exists(final_dest):
+								i += 1
+								final_dest = '({}).'.format(i).join(final_dest_parts)
 
 						if final_dest and final_dest != temp_dest:
 							print(temp_dest)
