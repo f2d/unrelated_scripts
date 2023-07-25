@@ -25,6 +25,10 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint (*list_args, **keyword_args): print (list_args[0])
 
+# https://stackoverflow.com/a/47625614
+if sys.version_info[0] >= 3:
+	unicode = str
+
 # - Configuration and defaults ------------------------------------------------
 
 zstd_levels = [3, 17, 18, 19, 20, 21, 22]
@@ -90,6 +94,21 @@ exit_codes = {
 # Source: https://stackoverflow.com/a/189664
 class GetOutOfLoop( Exception ):
 	pass
+
+def trim_text(content):
+	try:	return content.strip(' \t\r\n')
+	except:	return content
+
+def bytes_to_text(content, encoding=print_encoding, trim=False):
+
+	try:	content = content.decode(encoding or print_encoding)
+	except:	pass
+
+	# https://stackoverflow.com/a/37557962
+	try:	content = unicode(content, encoding='ascii', errors='ignore')
+	except:	pass
+
+	return trim_text(content) if trim else content
 
 def normalize_line_breaks(text):
 	return re.sub(pat_line_break, '\n', text)
@@ -564,9 +583,11 @@ def run_batch_archiving(argv):
 				,	file_path
 				]
 			,	startupinfo=minimized
-			).decode(print_encoding)
+			)
 
-			output_lines = normalize_line_breaks(listing_output).strip().split('\n')
+			output_text = bytes_to_text(listing_output, trim=True)
+			output_lines = normalize_line_breaks(output_text).split('\n')
+			output_lines = list(filter(bool, map(trim_text, output_lines)))
 
 			if archive_params_dict and archive_params_dict['suffix']:
 
