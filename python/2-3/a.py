@@ -661,7 +661,7 @@ def run_batch_archiving(argv):
 				,	'tmp'
 				# ,	dest_name
 				# ,	str(len(dest_name))
-				,	suffix
+				,	suffix.replace('=', '')
 				])).strip('_')
 
 				path_args = (
