@@ -377,7 +377,7 @@ def remove_trailing_dots_in_path_parts(path):
 		for part in normalize_slashes(path).split('/')
 	)
 
-def get_unique_clean_path(path_part_before, path_part_after, timestamp=None):
+def get_unique_clean_path(path_part_before, path_part_after='', timestamp=None):
 	full_path = remove_trailing_dots_in_path_parts(path_part_before + path_part_after)
 
 	if timestamp and os.path.exists(full_path):
@@ -1073,10 +1073,10 @@ def run_batch_archiving(argv):
 							+	(add_suffix or '')
 							+	(add_timestamp if not add_timestamp_first else '')
 							)
-						else:
-							path_part_before, path_part_after = real_dest.rsplit('.', 1)
 
-						final_dest = get_unique_clean_path(path_part_before, path_part_after)
+							final_dest = get_unique_clean_path(path_part_before, '.' + path_part_after)
+						else:
+							final_dest = get_unique_clean_path(real_dest)
 
 						if final_dest and final_dest != temp_dest:
 							print(temp_dest)
