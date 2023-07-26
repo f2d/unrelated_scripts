@@ -10,7 +10,7 @@
 
 # TODO: more robust preparation of command line.
 # 1. Append args to lists separated by type (compression, sources, destination, etc).
-# 2. Arrange args sorted as needed by each archiving program, to avoid failures (e.g. 7-zip cannot find filelist after -- with @..\name_list.txt).
+# 2. Arrange args sorted as needed by each archiving program, to avoid failures (e.g. 7-Zip cannot find filelist after -- with @..\name_list.txt).
 
 import datetime, glob, io, os, re, subprocess, sys, time
 
@@ -32,7 +32,8 @@ if sys.version_info[0] >= 3:
 # - Configuration and defaults ------------------------------------------------
 
 zstd_levels = [3, 17, 18, 19, 20, 21, 22]
-# zstd_solid_block_sizes = [99, 256, 1024]
+zstd_levels_max_index = len(zstd_levels) - 1
+zstd_flag = '9'
 
 process_id_text = str(os.getpid())
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
@@ -229,6 +230,8 @@ def print_help():
 	self_name = os.path.basename(__file__)
 	exe_paths = get_exe_paths()
 
+	zstd_max_level_flag = zstd_flag * zstd_levels_max_index
+
 	all_flags = ''.join(sorted(set(
 		'1234_069.,;fzwdatmnckl'
 	+	flags_all_solid_types
@@ -260,56 +263,79 @@ def print_help():
 		+	colored(' [<optional args> ...]', 'magenta')
 	,	''
 	,	colored('* Warning:', 'yellow')
-	,	'	In shell, add "quotes" around arguments, that contain any of the'
-	,	'	following symbols: "' + must_quote_chars + '"'
-	,	'	Or quote/escape anything beyond latin letters and digits just in case.'
+	,	'	In shell, add "quotes" around arguments,'
+	,	'	that contain any of the following symbols: "' + must_quote_chars + '",'
+	,	'	or quote/escape anything beyond latin letters and digits just in case.'
 	,	''
 	,	colored('* Current executable paths to be used (found or fallback):', 'yellow')
 	] + sorted([
 		'	{}	: {}'.format(k, v) for k, v in exe_paths.items()
 	]) + [
 		''
-	,	colored('* Flags (switch letters, concatenate in any order, any case):', 'yellow')
+	,	colored('* Flags (switch letters, concatenate in any order, any letter case):', 'yellow')
 	,	'	c: check resulting command lines without running them.'
 	,	'	k: don\'t wait for key press after errors.'
 	,	''
-	,	'	---- speed/size/priority:'
+	,	'	---- Speed/size/priority:'
+	,	''
 	,	'	_: start all subprocesses minimized.'
-	,	'	L: store identical files as references to one copy of content.'
-	,	'		(only by WinRAR since v5)'
-	,	'		(limits storage redundancy and archive editing)'
 	,	'	0: no compression (store file content as is).'
 	,	'	6: big data compression settings (256 MB dictionary, 256 B word size).'
-	,	'	G: very big compression settings (1 GB dictionary, 273 B word size).'
-	,	'	9, ..., 999999: use Zstandard compression method with 7-Zip.'
-	,	'		(repeat the flag for slower and higher levels, {}-{})'.format(zstd_levels[1], zstd_levels[len(zstd_levels) - 1])
-	,	'		(a lot faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20)'
-	,	'		(in some rare cases Zstd level 17 archive is smaller than level 20, and 2+ times faster in all cases)'
-	,	'		(in some rare cases Zstd level 20 archive is even smaller than LZMA2 level 9)'
-	,	'		("6" and "g" switches without "e" set solid block size for Zstd, instead of dictionary size)'
-	,	'	90: use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
-	,	'		(a fast alternative for no compression in 7z format)'
-	,	'	p: use eSplitter for MHTML files with 7-Zip.'
-	,	'		(compress base64-decoded binary data separately from text)'
-	,	'		(only supported in 7z format)'
+	,	'	g: very big compression settings (1 GB dictionary, 273 B word size).'
+	,	''
+	,	'	{min_flag}, up to {max_flag}:'.format(
+			min_flag = zstd_flag
+		,	max_flag = zstd_max_level_flag
+		)
+	,	'		Use Zstandard compression method.'
+	,	'		Only supported by 7-Zip custom builds or plugins.'
+	,	'		Repeat the flag for slower and higher levels ({min_flag}={min_level}, {max_flag}={max_level}).'.format(
+			min_flag  = zstd_flag
+		,	min_level = zstd_levels[1]
+		,	max_flag  = zstd_max_level_flag
+		,	max_level = zstd_levels[zstd_levels_max_index]
+		)
+	,	'		Much faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20.'
+	,	'		In some rare cases Zstd level 17 archive is smaller than level 20, and 2+ times faster in all cases.'
+	,	'		In some rare cases Zstd level 20 archive is smaller than LZMA2 level 9.'
+	,	'		"6" and "g" flags without "e" set solid block size for Zstd, instead of dictionary size.'
+	,	''
+	,	'	{}0:'.format(zstd_flag)
+		+	'	Use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
+	,	'		A fast alternative for no compression in 7z format'
+	,	''
+	,	'	p:	Use eSplitter for MHTML files.'
+	,	'		Compress base64-decoded binary data separately from text.'
+	,	'		Only supported by 7-Zip, in 7z format, and requires eSplitter plugin.'
 	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
 	,	''
-	,	'	---- group subjects into separate archives:'
-	,	'	(each name is appended with comma to "=filename" from arguments)'
-	,	'	1: make separate archives for each group of subjects'
+	,	'	L:	Store identical files as links to one copy of archived content.'
+	,	'		Limits storage redundancy and archive editing.'
+	,	'		Only supported by WinRAR since v5.'
+	,	'		7-Zip may show file errors when testing or unpacking such archives.'
+	,	''
+	,	'	---- Group subjects into separate archives:'
+	,	'		Each name is appended with comma to "=filename" from arguments.'
+	,	''
+	,	'	1:	Make separate archives for each group of subjects'
 	,	'		by first found numeric ID in subject name.'
-	,	'		(name1part2 -> name1*)'
-	,	'	2: same as "1" but create filelist files (in destination folder)'
+	,	'		(name1part2 -> name1*, "=filename,name1")'
+	,	''
+	,	'	2:	Same as "1" but create filelist files (in destination folder)'
 	,	'		to separate ambiguous cases, like when "name1*" mask'
 	,	'		would undesirably capture "name1a" and "name12" files.'
-	,	'	12: same as "2" but files without ID go to one list, not separate.'
-	,	'	. and/or ,: same as "1" or "2" but ID may contain dots and/or commas.'
-	,	'		("1" is implied unless "2" is given)'
+	,	''
+	,	'	12:	Same as "2" but files without ID go to one list, not separate.'
+	,	''
+	,	'	. and/or ,:'
+	,	'		Same as "1" or "2" but ID may contain dots and/or commas.'
+	,	'		"1" is implied unless "2" is given.'
+	,	''
 	,	'	3: shortcut, equivalent to "' + flags_group_by_num_dot + '".'
 	,	'	4: make separate archives for each dir of subject mask.'
 	,	'	f: make separate archives for each file of subject mask.'
-	,	'		(use one of "4" or "f" with any of "' + flags_group_by_num_any_sep + '" to add only dirs or'
-	,	'		files to the groups)'
+	,	'		Use one of "4" or "f" with any of "' + flags_group_by_num_any_sep + '"'
+	,	'		to add only dirs or files to the groups.'
 #	,	'TODO ->	5 and/or g: make separate archives for each group of subjects'
 #	,	'TODO ->		by longest common subject name parts.'
 #	,	'TODO ->		5: name part break can include alphanumerics, etc.'
@@ -323,7 +349,8 @@ def print_help():
 #	,	'TODO ->		minutes, seconds, at last batch subjects with same-second'
 #	,	'TODO ->		timestamps alphabetically in simple N+1 groups - 10, 100, etc.)'
 	,	''
-	,	'	---- archive types:'
+	,	'	---- Archive types:'
+	,	''
 	,	'	7: make a .7z  file with 7-Zip.'
 	,	'	z: make a .zip file with 7-Zip.'
 	,	'	w: make a .zip file with WinRAR.'
@@ -331,41 +358,54 @@ def print_help():
 	,	'	s: make solid archives.'
 	,	'	e: make archives with solid blocks grouped by filename extension.'
 	,	'	n: make non-solid archives (implied unless "s" or "e" is given).'
-	,	'	a: make a set of solid variants, equivalent to "' + flags_all_solid_types + '".'
-	,	'	8: make all types currently supported, equivalent to "' + flags_all_types + '".'
+	,	'	a: make a set of solid variants (shortcut, equivalent to "' + flags_all_solid_types + '").'
+	,	'	8: make all types currently supported (shortcut, equivalent to "' + flags_all_types + '").'
 	,	''
-	,	'	---- archive filenames:'
+	,	'	---- Archive filenames:'
+	,	''
 	,	'	t: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
 	,	'	m: add each archive\'s last-modified time to its filename.'
 	,	'	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
-	,	'	' + def_suffix_separator + ': put timestamp before archive type suffix.'
-	,	'	' + def_name_separator + 'filename' + def_suffix_separator + 'suffix: add given suffix between timestamp and archive type.'
-	,	'		(",=suffix" is autoreplaced into ",[suffix]", for usage with arch_sub.bat)'
+	,	'	' + def_suffix_separator + ': put timestamp before any suffix, after base filename.'
 	,	''
-	,	'	---- clean up:'
+	,	'	' + def_name_separator + 'filename' + def_suffix_separator + 'suffix:'
+	,	'		Add given suffix between timestamp and archive type.'
+	,	'		",=suffix" is autoreplaced into ",[suffix]", for usage with arch_sub.bat'
+	,	''
+	,	'	|:	Split flags before filename suffix, make combinations with common last part.'
+	,	'		("part_1|part_2|_last" -> "part_1_last" + "part_2_last")'
+	,	'		Flag "c" (show commands) in any part applies to all combinations.'
+	,	'		Flag "d" (delete files) in any part automatically moves to the last combination.'
+	,	''
+	,	'	---- Clean up:'
+	,	''
 	,	'	o: delete archives on the go, keep only the smallest one.'
 	,	'	d: delete subjects (source files) when done.'
-	,	'		(only by WinRAR, or 7-Zip since v17)'
-	,	'		(if by WinRAR, last archive is tested before deleting subjects)'
-	,	''
-	,	'	|: split flags into combinations with common last part.'
-	,	'		("part_1|part_2|_last" -> "part_1_last" + "part_2_last")'
-	,	'		("c" in any part applies to all combinations)'
-	,	'		("d" in any part automatically moves to the last combination)'
+	,	'		Only supported by WinRAR, or 7-Zip since v17.'
+	,	'		If used by WinRAR, last archive is tested before deleting subjects.'
 	,	''
 	,	colored('* Examples:', 'yellow')
-	,	'	{0} a'
+	,	'	{0}'
+		+	colored(' a', 'cyan')
 	,	'	(default subj = current folder, destination = 1 folder up)'
 	,	''
-	,	'	{0} a "*some*thing*"'
+	,	'	{0}'
+		+	colored(' a', 'cyan')
+		+	colored(' "*some*thing*"', 'magenta')
 	,	'	(default destination = 1 up, so wildcard won\'t grab result archives)'
 	,	''
-	,	'	{0} a "subfolder/file"'
+	,	'	{0}'
+		+	colored(' a', 'cyan')
+		+	colored(' "subfolder/file"', 'magenta')
 	,	'	(default destination = here, safe because no wildcard)'
 	,	''
-	,	'	{0} ";3dat" "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"'
+	,	'	{0}'
+		+	colored(' ";3dato"', 'cyan')
+		+	colored(' "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"', 'magenta')
 	,	''
-	,	'	{0} "7r_e' + def_name_separator + 'dest_filename" "@path/to/subj_listfile" "../../dest/folder"'
+	,	'	{0}'
+		+	colored(' "790|79|7r|e_mo' + def_name_separator + 'dest_filename"', 'cyan')
+		+	colored(' "@path/to/subj_listfile" "../../dest/folder"', 'magenta')
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))
@@ -448,7 +488,7 @@ def get_7z_method_args(flags):
 # Example: 0=eSplitter 1=PPMD:x9:mem1g:o32 2=LZMA2:x9:d128m:mt1 3=LZMA:x9:d1m:lc8:lp0:pb0 b0s0:1 b0s1:2 b0s2:3
 
 		main_compression_method = (
-			'ZSTD:x{}:mt4'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else
+			'ZSTD:x{}:mt4'.format(pick_zstd_level_from_flags(flags)) if zstd_flag in flags else
 			'Copy' if '0' in flags else
 			'LZMA{version}:x9:mt{threads}:d{dict}:fb{word}'.format(
 				version=pick_lzma_version_from_flags(flags)
@@ -473,7 +513,7 @@ def get_7z_method_args(flags):
 			'-m0=zstd'
 		,	'-mx={}'.format(pick_zstd_level_from_flags(flags))
 		,	'-mmt=on'
-		] if '9' in flags else [
+		] if zstd_flag in flags else [
 			'-m0=lzma2'
 		,	'-mx=9'
 		,	'-mmt=2'
@@ -481,41 +521,9 @@ def get_7z_method_args(flags):
 		,	'-mfb={}'.format(pick_lzma_word_size_from_flags(flags))
 		]
 
-def get_7z_shared_method_args(flags):	# <- does not work the same without mN:params included in each -mN arg
-
-	main_compression_method = (
-		'ZSTD' if '9' in flags else
-		'Copy' if '0' in flags else
-		'LZMA{}'.format(pick_lzma_version_from_flags(flags))
-	)
-
-	return (
-		[
-			'-m0=eSplitter'
-		,	'-m1={}'.format(main_compression_method)	# <- packing parameters for text data.
-		,	'-m2={}'.format(main_compression_method)	# <- packing parameters for decoded binary data.
-		,	'-m3={}'.format(main_compression_method)
-		,	'-mb0s0:1'
-		,	'-mb0s1:2'
-		,	'-mb0s2:3'
-		] if 'p' in flags else [
-			'-m0={}'.format(main_compression_method)
-		]
-	) + (
-		[
-			'-mx={}'.format(pick_zstd_level_from_flags(flags))
-		,	'-mmt=on'
-		] if '9' in flags else [
-			'-mx=9'
-		,	'-mmt={}'.format(pick_lzma_threads_from_flags(flags))
-		,	'-md={}'.format(pick_lzma_dict_size_from_flags(flags))
-		,	'-mfb={}'.format(pick_lzma_word_size_from_flags(flags))
-		]
-	)
-
 def pick_lzma_version_from_flags(flags):
 	return (
-		# 1 if 'g' in flags else
+		# 1 if 'g' in flags else	# <- result was larger in practice.
 		2
 	)
 
@@ -546,12 +554,12 @@ def pick_zstd_solid_block_size_from_flags(flags):
 	)
 
 def pick_zstd_level_from_flags(flags):
-	last_index = len(zstd_levels) - 1
-	flag_count = flags.count('9')
+
+	flag_count = flags.count(zstd_flag)
 
 	return zstd_levels[
 		0 if '0' in flags else
-		last_index if last_index < flag_count else
+		zstd_levels_max_index if zstd_levels_max_index < flag_count else
 		flag_count
 	]
 
@@ -726,7 +734,7 @@ def run_batch_archiving(argv):
 			dest_name_part_esplit		= ',eSplit' if 'p' in flags else ''
 			dest_name_part_uncompressed	= ',store' if '0' in flags else ''
 			dest_name_part_dict_size	= ',d=1g' if 'g' in flags else ',d=256m' if '6' in flags else ''
-			dest_name_part_zstd		= ',zstd={}'.format(pick_zstd_level_from_flags(flags)) if '9' in flags else ''
+			dest_name_part_zstd		= ',zstd={}'.format(pick_zstd_level_from_flags(flags)) if zstd_flag in flags else ''
 
 			if '7' in flags:
 				ext = dest_name_part_esplit + (
@@ -736,7 +744,7 @@ def run_batch_archiving(argv):
 				) + '.7z'
 
 				solid = 0
-				solid_block_size = '={}'.format(pick_zstd_solid_block_size_from_flags(flags)) if '9' in flags else ''
+				solid_block_size = '={}'.format(pick_zstd_solid_block_size_from_flags(flags)) if zstd_flag in flags else ''
 
 				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
 					if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
@@ -848,7 +856,7 @@ def run_batch_archiving(argv):
 				)
 			]
 		+	(		# Compression method, number of threads, dictionary size:
-				['-mx=0', '-mmt=off'] if '0' in flags and not ('9' in flags or 'p' in flags) else
+				['-mx=0', '-mmt=off'] if '0' in flags and not (zstd_flag in flags or 'p' in flags) else
 				get_7z_method_args(flags)
 			)
 		+	rest
@@ -1001,7 +1009,7 @@ def run_batch_archiving(argv):
 			return 11
 
 		if del_warn:
-			cprint('----	----	WARNING, only WinRAR or 7-zip v17+ can delete files!', 'yellow')
+			cprint('----	----	WARNING, only WinRAR or 7-Zip v17+ can delete files!', 'yellow')
 			print('')
 
 		error_count = 0
