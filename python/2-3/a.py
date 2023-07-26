@@ -31,21 +31,77 @@ if sys.version_info[0] >= 3:
 
 # - Configuration and defaults ------------------------------------------------
 
-zstd_levels = [3, 17, 18, 19, 20, 21, 22]
-zstd_levels_max_index = len(zstd_levels) - 1
-zstd_flag = '9'
-
 process_id_text = str(os.getpid())
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 listfile_encoding = 'utf-8'
 
-empty_archive_max_size = 99
+empty_archive_max_size = 99	# <- sanity check to delete if any less
 
-flags_group_by_num_any_sep = '12.,'
-flags_group_by_num_dot = '12.'
-flags_all_solid_types = '7res'
-flags_all_types = 'anwz'
-must_quote_chars = ' ,;<>=&|'
+zstd_levels = [3, 17, 18, 19, 20, 21, 22]
+zstd_levels_max_index = len(zstd_levels) - 1
+zstd_flag = '9'
+
+group_flag = '1'
+group_listfile_flag = '2'
+group_flags_shortcut = '3'
+group_sep_dot_flag = '.'
+group_sep_comma_flag = ','
+
+group_by_num_dot_flags = (
+	group_flag
++	group_listfile_flag
++	group_sep_dot_flag
+)
+
+group_by_num_any_sep_flags = (
+	group_by_num_dot_flags
++	group_sep_comma_flag
+)
+
+for_each_dir_flag = '4'
+for_each_file_flag = 'F'
+
+make_7z_flag = '7'
+make_rar_flag = 'R'
+make_zip_by_7z_flag = 'Z'
+make_zip_by_rar_flag = 'W'
+
+make_non_solid_flag = 'N'
+make_solid_by_ext_flag = 'E'
+make_solid_flag = 'S'
+uncompressed_flag = '0'
+
+mega_size_flag = '6'
+giga_size_flag = 'G'
+esplit_flag = 'P'
+dedup_flag = 'L'
+
+add_mod_time_flag = 'M'
+add_start_time_flag = 'T'
+alt_time_format_flag = ';'
+
+delete_sources_flag = 'D'
+keep_smallest_archive_flag = 'O'
+no_waiting_keypress_flag = 'K'
+only_list_commands_flag = 'C'
+minimized_flag = '_'
+
+make_all_solid_flags = (
+	make_7z_flag
++	make_rar_flag
++	make_solid_by_ext_flag
++	make_solid_flag
+)
+
+make_all_types_flags = (
+	make_all_solid_flags
++	make_non_solid_flag
++	make_zip_by_rar_flag
++	make_zip_by_7z_flag
+)
+
+make_all_solid_flags_shortcut = 'A'
+make_all_types_flags_shortcut = '8'
 
 def_name_fallback = 'default'
 def_name_separator = '='
@@ -54,6 +110,9 @@ def_subj = '.'
 def_dest = '..'
 
 dest_name_replacements = ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']
+
+split_flag_combo = '|'
+must_quote_chars = ' ,;<>=&|'
 
 pat_line_break = re.compile(r'(\r\n|\r|\n)+')
 pat_suffix_solid = re.compile(r',s=\w+')
@@ -230,14 +289,6 @@ def print_help():
 	self_name = os.path.basename(__file__)
 	exe_paths = get_exe_paths()
 
-	zstd_max_level_flag = zstd_flag * zstd_levels_max_index
-
-	all_flags = ''.join(sorted(set(
-		'1234_069.,;fzwdatmnckl'
-	+	flags_all_solid_types
-	+	def_suffix_separator
-	)))
-
 	help_text_lines = [
 		''
 	,	colored('* Description:', 'yellow')
@@ -273,68 +324,86 @@ def print_help():
 	]) + [
 		''
 	,	colored('* Flags (switch letters, concatenate in any order, any letter case):', 'yellow')
-	,	'	c: check resulting command lines without running them.'
-	,	'	k: don\'t wait for key press after errors.'
 	,	''
-	,	'	---- Speed/size/priority:'
+	,	'	---- Archive types:'
 	,	''
-	,	'	_: start all subprocesses minimized.'
-	,	'	0: no compression (store file content as is).'
-	,	'	6: big data compression settings (256 MB dictionary, 256 B word size).'
-	,	'	g: very big compression settings (1 GB dictionary, 273 B word size).'
+	,	'	{make_7z}: make a .7z  file with 7-Zip.'
+	,	'	{make_zip_by_7z}: make a .zip file with 7-Zip.'
+	,	'	{make_zip_by_rar}: make a .zip file with WinRAR.'
+	,	'	{make_rar}: make a .rar file with WinRAR.'
+	,	'	{solid}: make solid archives.'
+	,	'	{by_ext}: make archives with solid blocks grouped by filename extension.'
+	,	'	{non_solid}: make non-solid archives (implied unless "{solid}" or "{by_ext}" is given).'
+	,	'	{solid_shortcut}: make a set of solid variants (shortcut, equivalent to "' + make_all_solid_flags + '").'
+	,	'	{all_shortcut}: make all types currently supported (shortcut, equivalent to "' + make_all_types_flags + '").'
 	,	''
-	,	'	{min_flag}, up to {max_flag}:'.format(
-			min_flag = zstd_flag
-		,	max_flag = zstd_max_level_flag
-		)
+	,	'	---- Archive filenames:'
+	,	''
+	,	'	{start_time}: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
+	,	'	{mod_time}: add each archive\'s last-modified time to its filename.'
+	,	'	{time_format}: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
+	,	'	{suffix_sep}: put timestamp before any suffix, after base filename.'
+	,	''
+	,	'	{name_sep}filename{suffix_sep}suffix:'
+	,	'		Add given suffix between timestamp and archive type.'
+	,	'		",=suffix" is autoreplaced to ",[suffix]", for usage with arch_sub.bat'
+	,	''
+	,	'	---- Compression parameters:'
+	,	''
+	,	'	{store}: no compression (store file content as is).'
+	,	'	{mega}: big data compression settings (256 MB dictionary, 256 B word size).'
+	,	'	{giga}: very big compression settings (1 GB dictionary, 273 B word size).'
+	,	''
+	,	'	{zstd_min}, up to {zstd_max}:'
 	,	'		Use Zstandard compression method.'
 	,	'		Only supported by 7-Zip custom builds or plugins.'
-	,	'		Repeat the flag for slower and higher levels ({min_flag}={min_level}, {max_flag}={max_level}).'.format(
-			min_flag  = zstd_flag
-		,	min_level = zstd_levels[1]
-		,	max_flag  = zstd_max_level_flag
-		,	max_level = zstd_levels[zstd_levels_max_index]
-		)
+	,	'		Repeat the flag for slower and higher levels ({zstd_min}={zstd_min_level}, {zstd_max}={zstd_max_level}).'
 	,	'		Much faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20.'
 	,	'		In some rare cases Zstd level 17 archive is smaller than level 20, and 2+ times faster in all cases.'
 	,	'		In some rare cases Zstd level 20 archive is smaller than LZMA2 level 9.'
-	,	'		"6" and "g" flags without "e" set solid block size for Zstd, instead of dictionary size.'
+	,	'		"{mega}" and "{giga}" flags without "{by_ext}" set solid block size for Zstd, instead of dictionary size.'
 	,	''
-	,	'	{}0:'.format(zstd_flag)
-		+	'	Use Zstandard with a faster compression level ({}).'.format(zstd_levels[0])
-	,	'		A fast alternative for no compression in 7z format'
+	,	'	{zstd_min}{store}:'
+		+	'	Use Zstandard level {zstd_store_level}.'
+	,	'		Fast alternative to uncompressed 7z format.'
 	,	''
-	,	'	p:	Use eSplitter for MHTML files.'
+	,	'	{esplit}:'
+		+	'	Use eSplitter for MHTML files.'
 	,	'		Compress base64-decoded binary data separately from text.'
 	,	'		Only supported by 7-Zip, in 7z format, and requires eSplitter plugin.'
 	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
 	,	''
-	,	'	L:	Store identical files as links to one copy of archived content.'
+	,	'	{dedup}:'
+		+	'	Store identical files as links to one copy of archived content.'
 	,	'		Limits storage redundancy and archive editing.'
 	,	'		Only supported by WinRAR since v5.'
 	,	'		7-Zip may show file errors when testing or unpacking such archives.'
 	,	''
 	,	'	---- Group subjects into separate archives:'
-	,	'		Each name is appended with comma to "=filename" from arguments.'
 	,	''
-	,	'	1:	Make separate archives for each group of subjects'
+	,	'		Each name is appended with comma to "{name_sep}filename" from arguments.'
+	,	''
+	,	'	{group_by_name}:'
+		+	'	Make separate archives for each group of subjects'
 	,	'		by first found numeric ID in subject name.'
-	,	'		(name1part2 -> name1*, "=filename,name1")'
+	,	'		(name1part2 -> name1*, "{name_sep}filename,name1")'
 	,	''
-	,	'	2:	Same as "1" but create filelist files (in destination folder)'
+	,	'	{group_lists}:'
+		+	'	Same as "{group_by_name}" but create filelist files (in destination folder)'
 	,	'		to separate ambiguous cases, like when "name1*" mask'
 	,	'		would undesirably capture "name1a" and "name12" files.'
 	,	''
-	,	'	12:	Same as "2" but files without ID go to one list, not separate.'
+	,	'	{group_by_name}{group_lists}:'
+		+	'	Same as "{group_lists}" but files without ID go to one list, not separate.'
 	,	''
-	,	'	. and/or ,:'
-	,	'		Same as "1" or "2" but ID may contain dots and/or commas.'
-	,	'		"1" is implied unless "2" is given.'
+	,	'	{group_dot} and/or {group_comma}:'
+	,	'		Same as "{group_by_name}" or "{group_lists}" but ID may contain dots and/or commas.'
+	,	'		"{group_by_name}" is implied unless "{group_lists}" is given.'
 	,	''
-	,	'	3: shortcut, equivalent to "' + flags_group_by_num_dot + '".'
-	,	'	4: make separate archives for each dir of subject mask.'
-	,	'	f: make separate archives for each file of subject mask.'
-	,	'		Use one of "4" or "f" with any of "' + flags_group_by_num_any_sep + '"'
+	,	'	{group_shortcut}: shortcut, equivalent to "' + group_by_num_dot_flags + '".'
+	,	'	{foreach_dir}: make separate archives for each dir of subject mask.'
+	,	'	{foreach_file}: make separate archives for each file of subject mask.'
+	,	'		Use one of "{foreach_dir}" or "{foreach_file}" with any of "' + group_by_num_any_sep_flags + '"'
 	,	'		to add only dirs or files to the groups.'
 #	,	'TODO ->	5 and/or g: make separate archives for each group of subjects'
 #	,	'TODO ->		by longest common subject name parts.'
@@ -343,72 +412,111 @@ def print_help():
 #	,	'TODO ->		g5: start comparing from longest filenames.'
 #	,	'TODO ->		5g: start comparing from shortest filenames.'
 #	,	'TODO ->		if "4" or "f" is not set, skip singletons.'
-#	,	'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+flags_group_by_num_any_sep+'").'
+#	,	'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+group_by_num_any_sep_flags+'").'
 #	,	'TODO ->	9, 99, 999, etc.: keep each group population below this number.'
 #	,	'TODO ->		(split first by mod.dates - years, then months, days, hours,'
 #	,	'TODO ->		minutes, seconds, at last batch subjects with same-second'
 #	,	'TODO ->		timestamps alphabetically in simple N+1 groups - 10, 100, etc.)'
 	,	''
-	,	'	---- Archive types:'
-	,	''
-	,	'	7: make a .7z  file with 7-Zip.'
-	,	'	z: make a .zip file with 7-Zip.'
-	,	'	w: make a .zip file with WinRAR.'
-	,	'	r: make a .rar file with WinRAR.'
-	,	'	s: make solid archives.'
-	,	'	e: make archives with solid blocks grouped by filename extension.'
-	,	'	n: make non-solid archives (implied unless "s" or "e" is given).'
-	,	'	a: make a set of solid variants (shortcut, equivalent to "' + flags_all_solid_types + '").'
-	,	'	8: make all types currently supported (shortcut, equivalent to "' + flags_all_types + '").'
-	,	''
-	,	'	---- Archive filenames:'
-	,	''
-	,	'	t: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
-	,	'	m: add each archive\'s last-modified time to its filename.'
-	,	'	;: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
-	,	'	' + def_suffix_separator + ': put timestamp before any suffix, after base filename.'
-	,	''
-	,	'	' + def_name_separator + 'filename' + def_suffix_separator + 'suffix:'
-	,	'		Add given suffix between timestamp and archive type.'
-	,	'		",=suffix" is autoreplaced into ",[suffix]", for usage with arch_sub.bat'
-	,	''
-	,	'	|:	Split flags before filename suffix, make combinations with common last part.'
-	,	'		("part_1|part_2|_last" -> "part_1_last" + "part_2_last")'
-	,	'		Flag "c" (show commands) in any part applies to all combinations.'
-	,	'		Flag "d" (delete files) in any part automatically moves to the last combination.'
-	,	''
 	,	'	---- Clean up:'
 	,	''
-	,	'	o: delete archives on the go, keep only the smallest one.'
-	,	'	d: delete subjects (source files) when done.'
+	,	'	{keep_1}: delete archives on the go, keep only the smallest one.'
+	,	'	{delete_src}: delete subjects (source files) when done.'
 	,	'		Only supported by WinRAR, or 7-Zip since v17.'
 	,	'		If used by WinRAR, last archive is tested before deleting subjects.'
 	,	''
+	,	'	---- Other:'
+	,	''
+	,	'	{list_cmd}: check resulting command lines without running them.'
+	,	'	{no_key_press}: don\'t wait for key press after errors.'
+	,	'	{minimized}: start all processes minimized.'
+	,	''
+	,	'	{split}:'
+		+	'	Split flags before filename suffix, make combinations with common last part.'
+	,	'		("part_1{split}part_2{split}_last" -> "part_1_last" + "part_2_last")'
+	,	'		Flag "{list_cmd}" (show commands) in any part applies to all combinations.'
+	,	'		Flag "{delete_src}" (delete files) in any part automatically moves to the last combination.'
+	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0}'
-		+	colored(' a', 'cyan')
+		+	colored(' {solid_shortcut}', 'cyan')
 	,	'	(default subj = current folder, destination = 1 folder up)'
 	,	''
 	,	'	{0}'
-		+	colored(' a', 'cyan')
+		+	colored(' {solid_shortcut}', 'cyan')
 		+	colored(' "*some*thing*"', 'magenta')
 	,	'	(default destination = 1 up, so wildcard won\'t grab result archives)'
 	,	''
 	,	'	{0}'
-		+	colored(' a', 'cyan')
+		+	colored(' {solid_shortcut}', 'cyan')
 		+	colored(' "subfolder/file"', 'magenta')
 	,	'	(default destination = here, safe because no wildcard)'
 	,	''
 	,	'	{0}'
-		+	colored(' ";3dato"', 'cyan')
+		+	colored(' "{list_cmd}{time_format}{group_shortcut}{delete_src}{solid_shortcut}{start_time}{keep_1}"', 'cyan')
 		+	colored(' "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"', 'magenta')
 	,	''
 	,	'	{0}'
-		+	colored(' "790|79|7r|e_mo' + def_name_separator + 'dest_filename"', 'cyan')
+		+	colored(' "{list_cmd}' + '{split}'.join([
+				'{zstd_min}{make_7z}'
+			,	'{store}{zstd_min}{all_shortcut}'
+			,	'{solid_shortcut}'
+			,	'{minimized}{mod_time}{keep_1}{delete_src}'
+			]) + '{name_sep}dest_filename"', 'cyan')
 		+	colored(' "@path/to/subj_listfile" "../../dest/folder"', 'magenta')
 	]
 
-	print('\n'.join(help_text_lines).format(self_name))
+	print('\n'.join(help_text_lines).format(
+		self_name
+
+	,	group_by_name = group_flag
+	,	group_comma = group_sep_comma_flag
+	,	group_dot = group_sep_dot_flag
+	,	group_lists = group_listfile_flag
+	,	group_shortcut = group_flags_shortcut
+
+	,	make_7z = make_7z_flag
+	,	make_rar = make_rar_flag
+	,	make_zip_by_7z = make_zip_by_7z_flag
+	,	make_zip_by_rar = make_zip_by_rar_flag
+	,	solid_shortcut = make_all_solid_flags_shortcut
+	,	all_shortcut = make_all_types_flags_shortcut
+
+	,	zstd_min = zstd_flag
+	,	zstd_max = zstd_flag * zstd_levels_max_index
+	,	zstd_store_level = zstd_levels[0]
+	,	zstd_min_level = zstd_levels[1]
+	,	zstd_max_level = zstd_levels[zstd_levels_max_index]
+
+	,	by_ext = make_solid_by_ext_flag
+	,	non_solid = make_non_solid_flag
+	,	solid = make_solid_flag
+	,	store = uncompressed_flag
+
+	,	dedup = dedup_flag
+	,	esplit = esplit_flag
+	,	giga = giga_size_flag
+	,	mega = mega_size_flag
+
+	,	list_cmd = only_list_commands_flag
+	,	delete_src = delete_sources_flag
+	,	keep_1 = keep_smallest_archive_flag
+	,	no_key_press = no_waiting_keypress_flag
+
+	,	foreach_dir = for_each_dir_flag
+	,	foreach_file = for_each_file_flag
+
+	,	start_time = add_start_time_flag
+	,	mod_time = add_mod_time_flag
+	,	time_format = alt_time_format_flag
+
+	,	name_sep = def_name_separator
+	,	suffix_sep = def_suffix_separator
+
+	,	minimized = minimized_flag
+	,	split = split_flag_combo
+
+	))
 
 def remove_trailing_dots_in_path_parts(path):
 	return '/'.join(
@@ -482,14 +590,14 @@ def split_text_in_two(text, separator):
 
 def get_7z_method_args(flags):
 
-	if 'p' in flags:
+	if esplit_flag in flags:
 
 # https://www.tc4shell.com/en/7zip/edecoder/
 # Example: 0=eSplitter 1=PPMD:x9:mem1g:o32 2=LZMA2:x9:d128m:mt1 3=LZMA:x9:d1m:lc8:lp0:pb0 b0s0:1 b0s1:2 b0s2:3
 
 		main_compression_method = (
 			'ZSTD:x{}:mt4'.format(pick_zstd_level_from_flags(flags)) if zstd_flag in flags else
-			'Copy' if '0' in flags else
+			'Copy' if uncompressed_flag in flags else
 			'LZMA{version}:x9:mt{threads}:d{dict}:fb{word}'.format(
 				version=pick_lzma_version_from_flags(flags)
 			,	threads=pick_lzma_threads_from_flags(flags)
@@ -523,33 +631,33 @@ def get_7z_method_args(flags):
 
 def pick_lzma_version_from_flags(flags):
 	return (
-		# 1 if 'g' in flags else	# <- result was larger in practice.
+		# 1 if giga_size_flag in flags else	# <- result was larger in practice.
 		2
 	)
 
 def pick_lzma_threads_from_flags(flags):
 	return (
-		1 if 'g' in flags else
+		1 if giga_size_flag in flags else
 		2
 	)
 
 def pick_lzma_word_size_from_flags(flags):
 	return (
-		'256' if '6' in flags else
+		'256' if mega_size_flag in flags else
 		'273'
 	)
 
 def pick_lzma_dict_size_from_flags(flags):
 	return (
-		'1g'   if 'g' in flags else
-		'256m' if '6' in flags else
+		'1g'   if giga_size_flag in flags else
+		'256m' if mega_size_flag in flags else
 		'64m'
 	)
 
 def pick_zstd_solid_block_size_from_flags(flags):
 	return (
-		'1g'   if 'g' in flags else
-		'256m' if '6' in flags else
+		'1g'   if giga_size_flag in flags else
+		'256m' if mega_size_flag in flags else
 		'99m'
 	)
 
@@ -558,7 +666,7 @@ def pick_zstd_level_from_flags(flags):
 	flag_count = flags.count(zstd_flag)
 
 	return zstd_levels[
-		0 if '0' in flags else
+		0 if uncompressed_flag in flags else
 		zstd_levels_max_index if zstd_levels_max_index < flag_count else
 		flag_count
 	]
@@ -573,7 +681,7 @@ def run_batch_archiving(argv):
 
 			test_result_code = subprocess.call(
 				[
-					exe_paths['rar_cmd' if 'l' in flags and file_path.rsplit('.', 1)[1] == 'rar' else '7z_cmd']
+					exe_paths['rar_cmd' if dedup_flag in flags and file_path.rsplit('.', 1)[1] == 'rar' else '7z_cmd']
 				,	't'
 				,	file_path
 				]
@@ -644,8 +752,8 @@ def run_batch_archiving(argv):
 					cmd_args = [
 						(
 							None if arg[0 : 4] in skip_args
-						else	('-mx=0' if '0' in flags else '-mx=9') if arg[0 : 4] == '-mx='
-						else	(None if '0' in flags else '-mfb=256') if arg[0 : 5] == '-mfb='
+						else	('-mx=0' if uncompressed_flag in flags else '-mx=9') if arg[0 : 4] == '-mx='
+						else	(None if uncompressed_flag in flags else '-mfb=256') if arg[0 : 5] == '-mfb='
 						else	arg
 						)
 						for arg in cmd_args
@@ -727,16 +835,16 @@ def run_batch_archiving(argv):
 
 			print_with_colored_prefix('name:', get_text_encoded_for_print(name))
 
-			dest_name = dest + '/' + name + (t0 if 't' in flags else '')
+			dest_name = dest + '/' + name + (t0 if add_start_time_flag in flags else '')
 			paths = list(map(fix_slashes, [subj, dest_name]))
 
-			dest_name_part_dedup		= ',dedup' if 'l' in flags else ''
-			dest_name_part_esplit		= ',eSplit' if 'p' in flags else ''
-			dest_name_part_uncompressed	= ',store' if '0' in flags else ''
-			dest_name_part_dict_size	= ',d=1g' if 'g' in flags else ',d=256m' if '6' in flags else ''
+			dest_name_part_dedup		= ',dedup' if dedup_flag in flags else ''
+			dest_name_part_esplit		= ',eSplit' if esplit_flag in flags else ''
+			dest_name_part_uncompressed	= ',store' if uncompressed_flag in flags else ''
+			dest_name_part_dict_size	= ',d=1g' if giga_size_flag in flags else ',d=256m' if mega_size_flag in flags else ''
 			dest_name_part_zstd		= ',zstd={}'.format(pick_zstd_level_from_flags(flags)) if zstd_flag in flags else ''
 
-			if '7' in flags:
+			if make_7z_flag in flags:
 				ext = dest_name_part_esplit + (
 					dest_name_part_zstd
 				or	dest_name_part_uncompressed
@@ -747,17 +855,20 @@ def run_batch_archiving(argv):
 				solid_block_size = '={}'.format(pick_zstd_solid_block_size_from_flags(flags)) if zstd_flag in flags else ''
 
 				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
-					if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
-					if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + solid_block_size + ext, ['-ms' + solid_block_size])
+					if make_solid_by_ext_flag in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
+					if make_solid_flag        in flags: solid += append_cmd(cmd_queue, paths
+					,	',s' + solid_block_size + ext
+					,	['-ms' + solid_block_size]
+					)
 
-				if not solid or ('n' in flags): append_cmd(cmd_queue, paths, ext, ['-ms=off'])
+				if not solid or (make_non_solid_flag in flags): append_cmd(cmd_queue, paths, ext, ['-ms=off'])
 
 			ext = dest_name_part_uncompressed + '.zip'
 
-			if 'z' in flags: append_cmd(cmd_queue, paths, ',7z' + ext)
-			if 'w' in flags: append_cmd(cmd_queue, paths, ',winrar' + ext)
+			if make_zip_by_7z_flag  in flags: append_cmd(cmd_queue, paths, ',7z' + ext)
+			if make_zip_by_rar_flag in flags: append_cmd(cmd_queue, paths, ',winrar' + ext)
 
-			if 'r' in flags:
+			if make_rar_flag in flags:
 				ext = (
 					dest_name_part_uncompressed
 				or	dest_name_part_dict_size
@@ -766,18 +877,18 @@ def run_batch_archiving(argv):
 				solid = 0
 
 				if is_subj_mass and not dest_name_part_uncompressed:
-					if 'e' in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-se'])
-					if 's' in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-s'])
+					if make_solid_by_ext_flag in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-se'])
+					if make_solid_flag        in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-s'])
 
-				if not solid or ('n' in flags): append_cmd(cmd_queue, paths, ext, ['-s-'])
+				if not solid or (make_non_solid_flag in flags): append_cmd(cmd_queue, paths, ext, ['-s-'])
 
 			del_warn = 0
 
 			# delete subj files, only for last queued cmd per subj:
-			if 'd' in flags:
+			if delete_sources_flag in flags:
 				da = (
-					['-df', '-y', '-t'] if ('w' in flags) or ('r' in flags) else
-					['-sdel', '-y'] if ('7' in flags) or ('z' in flags) else
+					['-df', '-y', '-t'] if (make_rar_flag in flags) or (make_zip_by_rar_flag in flags) else
+					['-sdel', '-y'    ] if (make_7z_flag  in flags) or (make_zip_by_7z_flag  in flags) else
 					[]
 				)
 
@@ -798,10 +909,10 @@ def run_batch_archiving(argv):
 
 		flags = (
 			flags
-			.lower()
-			.replace('8', flags_all_types)
-			.replace('a', flags_all_solid_types)
-			.replace('3', flags_group_by_num_dot)
+			.upper()
+			.replace(make_all_types_flags_shortcut, make_all_types_flags)
+			.replace(make_all_solid_flags_shortcut, make_all_solid_flags)
+			.replace(group_flags_shortcut, group_by_num_dot_flags)
 		)
 
 		if (def_suffix_separator in def_name) and not (def_suffix_separator in flags):
@@ -816,14 +927,14 @@ def run_batch_archiving(argv):
 		dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
 		rest = argv_rest or []
 
-		print_with_colored_prefix('flags:', get_text_encoded_for_print(flags))
+		print_with_colored_prefix('flags:', get_text_encoded_for_print(flags.lower()))
 		print_with_colored_prefix('suffix:', get_text_encoded_for_print(def_suffix))
 		print_with_colored_prefix('subj:', get_text_encoded_for_print(subj))
 		print_with_colored_prefix('dest:', get_text_encoded_for_print(dest))
 		print_with_colored_prefix('etc:', get_text_encoded_for_print(' '.join(rest)))
 		print('')
 
-		if '_' in flags:
+		if minimized_flag in flags:
 			SW_MINIMIZE = 6
 			minimized = subprocess.STARTUPINFO()
 			minimized.dwFlags = subprocess.STARTF_USESHOWWINDOW
@@ -833,10 +944,14 @@ def run_batch_archiving(argv):
 
 		is_subj_list = (subj[0].strip('"') == '@')
 		# foreach_date = flags.count('9')
-		foreach_dir  = '4' in flags
-		foreach_file = 'f' in flags
+		foreach_dir  = for_each_dir_flag in flags
+		foreach_file = for_each_file_flag in flags
 		foreach_dir_or_file = (foreach_dir or foreach_file) and not is_subj_list
-		foreach_ID_flags = ''.join([x for x in flags_group_by_num_any_sep if x in flags])
+		foreach_ID_flags = ''.join([
+			x
+			for x in group_by_num_any_sep_flags
+			if x in flags
+		])
 
 		exe_paths = get_exe_paths()
 
@@ -851,12 +966,12 @@ def run_batch_archiving(argv):
 			,	'-ssw'	# <- Compress files open for writing.
 			,	'-stl'	# <- Set archive timestamp from the most recently modified file.
 			,	(
-					'-mqs-' if 'p' in flags else	# <- Sort files by full name, all supposed to be MHT type.
+					'-mqs-' if esplit_flag in flags else	# <- Sort files by full name, all supposed to be MHT type.
 					'-mqs'				# <- Sort files by type (name extension) in solid archives.
 				)
 			]
 		+	(		# Compression method, number of threads, dictionary size:
-				['-mx=0', '-mmt=off'] if '0' in flags and not (zstd_flag in flags or 'p' in flags) else
+				['-mx=0', '-mmt=off'] if uncompressed_flag in flags and not (zstd_flag in flags or esplit_flag in flags) else
 				get_7z_method_args(flags)
 			)
 		+	rest
@@ -902,16 +1017,16 @@ def run_batch_archiving(argv):
 					'-ibck' if minimized else	# <- Run WinRAR in background.
 					None
 				), (
-					'-oi:0' if 'l' in flags else	# <- Save identical files as references.
+					'-oi:0' if dedup_flag in flags else	# <- Save identical files as references.
 					'-oi-'
 				)
 			]
 		+	(		# Compression method, number of threads, dictionary size:
-				['-m0', '-mt1'] if '0' in flags else
+				['-m0', '-mt1'] if uncompressed_flag in flags else
 				['-m5', '-mt4',
 					(
-						'-md1g' if 'g' in flags else
-						'-md256m' if '6' in flags else
+						'-md1g' if giga_size_flag in flags else
+						'-md256m' if mega_size_flag in flags else
 						None
 					)
 				]
@@ -935,17 +1050,20 @@ def run_batch_archiving(argv):
 			))
 
 			if foreach_ID_flags:
-				dots = ''
-				d = '.,'
-				for i in d:
-					if i in foreach_ID_flags:
-						dots += i
-				d = '\d' + dots
-				pat_ID = re.compile(r'^(\D*\d[' + d + ']*)([^' + d + ']|$)' if dots else r'^(\D*\d+)(\D|$)')
+				dots = ''.join([
+					x
+					for x in (group_sep_dot_flag + group_sep_comma_flag)
+					if x in foreach_ID_flags
+				])
 
-				if '2' in foreach_ID_flags:
+				pat_ID = re.compile(
+					r'^(\D*\d[\d' + dots + ']*)(?=[^\d' + dots + ']|$)' if dots else
+					r'^(\D*\d+)(?=\D|$)'
+				)
+
+				if group_listfile_flag in foreach_ID_flags:
 					no_group = def_name or def_name_fallback
-					other_to_1 = '1' in foreach_ID_flags
+					other_to_1 = group_flag in foreach_ID_flags
 					d = {}
 
 					for subj in names:
@@ -962,7 +1080,7 @@ def run_batch_archiving(argv):
 						listfile_path = dest + '/' + i + '_list.txt'
 						names.append('@' + listfile_path)
 
-						if not 'c' in flags:
+						if not only_list_commands_flag in flags:
 							grouped_filenames = d[i]
 
 							try:
@@ -1026,7 +1144,7 @@ def run_batch_archiving(argv):
 
 			print(cmd_args_to_text(cmd_args))
 
-			if not 'c' in flags:
+			if not only_list_commands_flag in flags:
 				time_before_start = datetime.datetime.now()
 
 				result_code = subprocess.call(cmd_args, startupinfo=minimized)
@@ -1068,7 +1186,7 @@ def run_batch_archiving(argv):
 						add_suffix = cmd['suffix'].rstrip('.') if cmd_suffix else ''
 						add_timestamp = (
 							datetime.datetime.fromtimestamp(os.path.getmtime(temp_dest)).strftime(time_format)
-							if 'm' in flags
+							if add_mod_time_flag in flags
 							else ''
 						)
 						add_timestamp_first = add_timestamp and (def_suffix_separator in flags)
@@ -1105,7 +1223,7 @@ def run_batch_archiving(argv):
 						print_with_colored_prefix('Archive file size:', '{}, {:.2f}%'.format(archive_size_text, compression_ratio))
 						print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
 
-						if 'o' in flags:
+						if keep_smallest_archive_flag in flags:
 							obsolete_file_path = None
 							smallest_for_this_subj = smallest_archives_by_subj.get(cmd_subj)
 
@@ -1146,11 +1264,12 @@ def run_batch_archiving(argv):
 
 # - Result summary ------------------------------------------------------------
 
-		if 'c' in flags:
+		if only_list_commands_flag in flags:
 			print('')
 
 		if error_count > 0:
-			if 'k' in flags:
+			if no_waiting_keypress_flag in flags:
+
 				print(' '.join([
 					colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
 				,	colored('{} errors.'.format(error_count), 'red')
@@ -1167,7 +1286,9 @@ def run_batch_archiving(argv):
 					raw_input()
 				else:
 					input()
-		elif 'c' in flags:
+
+		elif only_list_commands_flag in flags:
+
 			cprint('----	----	Total {} command(s).'.format(cmd_count), 'green')
 		else:
 			cprint('----	----	Done {} archive(s).'.format(cmd_count), 'green')
@@ -1186,7 +1307,7 @@ def run_batch_archiving(argv):
 
 # - Show help and exit --------------------------------------------------------
 
-	flag_parts_left = list(filter(bool, argv_flag.split('|')))
+	flag_parts_left = list(filter(bool, argv_flag.split(split_flag_combo)))
 
 	if (
 		not len(argv_flag) > 0
@@ -1204,37 +1325,34 @@ def run_batch_archiving(argv):
 	print_with_colored_prefix('print_encoding:', print_encoding)
 	print_with_colored_prefix('argc:', argc)
 
-	common_flag_part = flag_parts_left.pop()
-
 	smallest_archives_by_subj = {}
+	common_part_with_name = flag_parts_left.pop()
 
 	if len(flag_parts_left) > 0:
-		combos = [(combo_flag_part + common_flag_part) for combo_flag_part in flag_parts_left]
-
-		def is_flag_in_combo(flag, combo):
-			return (flag in combo.split(def_name_separator, 1)[0])
+		common_flag_part, name = split_text_in_two(common_part_with_name, def_name_separator)
+		combos = [
+			(combo_flag_part + common_flag_part).upper()
+			for combo_flag_part in flag_parts_left
+		]
 
 		def is_flag_in_any_combo(flag, combos):
-			return any(is_flag_in_combo(flag, combo) for combo in combos)
+			return any(flag in combo for combo in combos)
 
 		def cleanup_combo(combo):
-			flags, name = split_text_in_two(combo, def_name_separator)
-
 			return (
-				('c' if is_only_check else '')
-			+	get_text_without_chars(flags, 'cd')
+				(only_list_commands_flag if is_only_check else '')
+			+	get_text_without_chars(combo, only_list_commands_flag + delete_sources_flag)
 			+	(def_name_separator + name if len(name) > 0 else '')
 			)
 
-		is_only_check = is_flag_in_any_combo('c', combos)
-		is_delete_enabled = is_flag_in_any_combo('d', combos)
+		is_only_check = is_flag_in_any_combo(only_list_commands_flag, combos)
+		is_delete_enabled = is_flag_in_any_combo(delete_sources_flag, combos)
 
-		if is_only_check or is_delete_enabled:
-			combos = list(map(cleanup_combo, combos))
+		combos = list(map(cleanup_combo, combos))
 
 		if is_delete_enabled:
 			i = len(combos) - 1
-			combos[i] = 'd' + combos[i]
+			combos[i] = delete_sources_flag + combos[i]
 
 		print_with_colored_prefix('flags_combos:', len(combos))
 
@@ -1250,7 +1368,7 @@ def run_batch_archiving(argv):
 
 		return result_code
 	else:
-		return run_batch_part(common_flag_part)
+		return run_batch_part(common_part_with_name)
 
 # - Run from commandline, when not imported as module -------------------------
 
