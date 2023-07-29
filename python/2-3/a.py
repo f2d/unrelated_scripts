@@ -37,6 +37,8 @@ listfile_encoding = 'utf-8'
 
 empty_archive_max_size = 99	# <- sanity check to delete if any less
 
+esplit_glue_method = 'LZMA:x9:d1m:lc8:lp0:pb0'
+
 zstd_levels = [3, 17, 18, 19, 20, 21, 22]
 zstd_levels_max_index = len(zstd_levels) - 1
 zstd_flag = '9'
@@ -371,7 +373,17 @@ def print_help():
 		+	'	Use eSplitter for MHTML files.'
 	,	'		Compress base64-decoded binary data separately from text.'
 	,	'		Only supported by 7-Zip, in 7z format, and requires eSplitter plugin.'
+	,	'		Repeat the flag to use different methods:'
+	,	'			Default (single "{esplit}") = use the same main method for all data.'
+	,	'			Even count ("'
+		+ (esplit_flag * 2) + '", "'
+		+ (esplit_flag * 4) + '", etc) = use "'
+		+ esplit_glue_method + '" for glue data, faster, sometimes smaller.'
+	,	'			Every 3-4 of 4 ("'
+		+ (esplit_flag * 3) + '", '
+		+ (esplit_flag * 4) + '", x7, x8, etc) = use PPMD for text files data, slower, "{mega}" and "{giga}" flags set mem size.'
 	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
+	,	'		Discussion: https://sourceforge.net/p/sevenzip/discussion/45797/thread/8df7e14e/'
 	,	''
 	,	'	{dedup}:'
 		+	'	Store identical files as links to one copy of archived content.'
@@ -592,6 +604,8 @@ def get_7z_method_args(flags):
 
 	if esplit_flag in flags:
 
+		flag_count = flags.count(esplit_flag) - 1
+
 # https://www.tc4shell.com/en/7zip/edecoder/
 # Example: 0=eSplitter 1=PPMD:x9:mem1g:o32 2=LZMA2:x9:d128m:mt1 3=LZMA:x9:d1m:lc8:lp0:pb0 b0s0:1 b0s1:2 b0s2:3
 
@@ -606,11 +620,21 @@ def get_7z_method_args(flags):
 			)
 		)
 
+		text_compression_method = (
+			'PPMD:x9:mem{}:o32'.format(pick_lzma_dict_size_from_flags(flags)) if flag_count & 2 else
+			main_compression_method
+		)
+
+		glue_compression_method = (
+			esplit_glue_method if flag_count & 1 else
+			main_compression_method
+		)
+
 		return [
 			'-m0=eSplitter'
-		,	'-m1={}'.format(main_compression_method)	# <- packing parameters for text data.
-		,	'-m2={}'.format(main_compression_method)	# <- packing parameters for decoded binary data.
-		,	'-m3={}'.format(main_compression_method)
+		,	'-m1={}'.format(text_compression_method)
+		,	'-m2={}'.format(main_compression_method)
+		,	'-m3={}'.format(glue_compression_method)
 		,	'-mb0s0:1'
 		,	'-mb0s1:2'
 		,	'-mb0s2:3'
