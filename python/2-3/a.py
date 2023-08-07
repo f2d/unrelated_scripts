@@ -1170,10 +1170,17 @@ def run_batch_archiving(argv):
 			print('')
 
 		error_count = 0
+		no_files_to_archive = False
 
 # - Do the job ----------------------------------------------------------------
 
 		for cmd in cmd_queue:
+
+			if no_files_to_archive:
+				cprint('No files to archive, skip the rest.', 'red')
+
+				break
+
 			cmd_args = list(filter(bool, cmd['args']))
 			cmd_subj = cmd['subj']
 			cmd_suffix = cmd['suffix']
@@ -1192,6 +1199,11 @@ def run_batch_archiving(argv):
 
 				if result_code:
 					error_count += 1
+
+				no_files_to_archive = (
+					cmd_type == 'rar'
+				and	result_code == 10
+				)
 
 				codes_of_type = exit_codes[cmd_type]
 				result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
@@ -1218,6 +1230,8 @@ def run_batch_archiving(argv):
 					and	archive_file_size < empty_archive_max_size
 					and	'0 0 0 files' in archive_file_summary
 					):
+						no_files_to_archive = True
+
 						cprint('Warning: No files to archive, deleting empty archive.', 'red')
 
 						os.remove(temp_dest)
