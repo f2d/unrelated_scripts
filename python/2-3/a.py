@@ -117,7 +117,7 @@ split_flag_combo = '|'
 must_quote_chars = ' ,;<>=&|'
 
 pat_line_break = re.compile(r'(\r\n|\r|\n)+')
-pat_suffix_solid = re.compile(r',s=\w+')
+pat_suffix_solid = re.compile(r',s(=\w+)?')
 
 exit_codes = {
 
@@ -728,27 +728,34 @@ def run_batch_archiving(argv):
 			output_lines = normalize_line_breaks(output_text).split('\n')
 			output_lines = list(filter(bool, map(trim_text, output_lines)))
 
-			if archive_params_dict and archive_params_dict['suffix']:
+			if archive_params_dict:
+				old_suffix = archive_params_dict.get('suffix')
 
-				archive_params_found = is_archive_solid = is_single_solid_block = False
+				if old_suffix and re.search(pat_suffix_solid, old_suffix):
 
-				for line in output_lines:
-					if archive_params_found:
-						if line[0] == '-':
-							break
+					archive_params_found = is_archive_solid = is_single_solid_block = False
 
-						elif line == 'Solid = +':
-							is_archive_solid = True
+					for line in output_lines:
+						if archive_params_found:
+							if line[0] == '-':
+								break
 
-						elif line == 'Blocks = 1':
-							is_single_solid_block = True
+							elif line == 'Solid = +':
+								is_archive_solid = True
 
-					elif line == '--':
-						archive_params_found = True
+							elif line == 'Blocks = 1':
+								is_single_solid_block = True
 
-				if is_archive_solid and is_single_solid_block:
+						elif line == '--':
+							archive_params_found = True
 
-					archive_params_dict['suffix'] = re.sub(pat_suffix_solid, ',s', archive_params_dict['suffix'])
+					if is_single_solid_block:
+
+						archive_params_dict['suffix'] = re.sub(
+							pat_suffix_solid
+						,	',s' if is_archive_solid else ''
+						,	old_suffix
+						)
 
 			return output_lines[-1 : ][0]
 
