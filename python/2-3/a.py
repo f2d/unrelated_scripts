@@ -12,6 +12,9 @@
 # 1. Append args to lists separated by type (compression, sources, destination, etc).
 # 2. Arrange args sorted as needed by each archiving program, to avoid failures (e.g. 7-Zip cannot find filelist after -- with @..\name_list.txt).
 
+# TODO: keep archives by subject AND result file sum/list, instead of only subject, to avoid lost files if different program choose differently.
+# Or abort the queue before deleting new/old archive, when some subject gives different archived result by different program.
+
 import datetime, glob, io, os, re, subprocess, sys, time
 
 # Use colored text if available:
@@ -28,12 +31,17 @@ except ImportError:
 # https://stackoverflow.com/a/47625614
 if sys.version_info[0] >= 3:
 	unicode = str
+	wait_user_input = input
+else:
+	wait_user_input = raw_input
 
 # - Configuration and defaults ------------------------------------------------
 
 process_id_text = str(os.getpid())
 print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 listfile_encoding = 'utf-8'
+
+sort_queue_by_subj = True
 
 empty_archive_max_size = 99	# <- sanity check to delete if any less
 
@@ -116,8 +124,11 @@ dest_name_replacements = ['"\'', '?', ':;', '/,', '\\,', '|,', '<', '>', '*']
 split_flag_combo = '|'
 must_quote_chars = ' ,;<>=&|'
 
+pat_inex = re.compile(r'^(?P<InEx>-[ix])(?P<Recurse>r[0-]*)?(?P<Value>[!@].*)$', re.I)
 pat_line_break = re.compile(r'(\r\n|\r|\n)+')
 pat_suffix_solid = re.compile(r',s(e|=\w+)?\b')
+pat_temp = re.compile(r'([^\w.-]|_)+', re.S)
+pat_whitespace = re.compile(r'\s+', re.S)
 
 exit_codes = {
 
@@ -278,8 +289,8 @@ def get_text_without_chars(text, chars):
 
 # Format string with spaces as thousand separator:
 # Source: https://stackoverflow.com/a/18891054
-def get_bytes_text(bytes_num):
-	return '{:,} bytes'.format(bytes_num).replace(',', ' ')
+def get_bytes_text(bytes_num, add_text=True):
+	return ('{:,} bytes' if add_text else '{:,}').format(bytes_num).replace(',', ' ')
 
 def get_text_encoded_for_print(text):
 	return text.encode(print_encoding) if sys.version_info.major == 2 else text
@@ -432,10 +443,17 @@ def print_help():
 	,	''
 	,	'	---- Clean up:'
 	,	''
-	,	'	{keep_1}: delete archives on the go, keep only the smallest one.'
-	,	'	{delete_src}: delete subjects (source files) when done.'
+	,	'	{keep_1}: keep only the smallest archive for each subject, delete other archives on the go.'
+	,	'	{delete_src}: delete subjects (source files and dirs) when done.'
 	,	'		Only supported by WinRAR, or 7-Zip since v17.'
-	,	'		If used by WinRAR, last archive is tested before deleting subjects.'
+	,	'		WinRAR will test its archives before deleting subjects.'
+	,	''
+	,	'		Warning: using "{delete_src}" with "{keep_1}" is NOT safe, because'
+	,	'		in complicated cases with masks, list files or additional include/exclude arguments,'
+	,	'		different programs may choose different subject files, which'
+	,	'		may not coincide between the archive made by the last program to do subject clean up'
+	,	'		and the archive selected as the smallest to be kept,'
+	,	'		possibly resulting in some files lost completely.'
 	,	''
 	,	'	---- Other:'
 	,	''
@@ -446,8 +464,9 @@ def print_help():
 	,	'	{split}:'
 		+	'	Split flags before filename suffix, make combinations with common last part.'
 	,	'		("part_1{split}part_2{split}_last" -> "part_1_last" + "part_2_last")'
-	,	'		Flag "{list_cmd}" (show commands) in any part applies to all combinations.'
-	,	'		Flag "{delete_src}" (delete files) in any part automatically moves to the last combination.'
+	,	'		Any flags unrelated to archive types and compression methods apply to all combinations.'
+	,	'		Flag "{delete_src}" (delete files) in any part is automatically moved to the last combination.'
+	,	'		Using WinRAR in the last part is recommended, because it will test the archive before deleting anything.'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0}'
@@ -479,13 +498,8 @@ def print_help():
 	]
 
 	print('\n'.join(help_text_lines).format(
-		self_name
 
-	,	group_by_name = group_flag
-	,	group_comma = group_sep_comma_flag
-	,	group_dot = group_sep_dot_flag
-	,	group_lists = group_listfile_flag
-	,	group_shortcut = group_flags_shortcut
+		self_name
 
 	,	make_7z = make_7z_flag
 	,	make_rar = make_rar_flag
@@ -510,22 +524,28 @@ def print_help():
 	,	giga = giga_size_flag
 	,	mega = mega_size_flag
 
-	,	list_cmd = only_list_commands_flag
-	,	delete_src = delete_sources_flag
-	,	keep_1 = keep_smallest_archive_flag
-	,	no_key_press = no_waiting_keypress_flag
-
 	,	foreach_dir = for_each_dir_flag
 	,	foreach_file = for_each_file_flag
 
-	,	start_time = add_start_time_flag
+	,	group_by_name = group_flag
+	,	group_comma = group_sep_comma_flag
+	,	group_dot = group_sep_dot_flag
+	,	group_lists = group_listfile_flag
+	,	group_shortcut = group_flags_shortcut
+
+	,	delete_src = delete_sources_flag
+	,	keep_1 = keep_smallest_archive_flag
+	,	list_cmd = only_list_commands_flag
+	,	minimized = minimized_flag
+	,	no_key_press = no_waiting_keypress_flag
+
 	,	mod_time = add_mod_time_flag
+	,	start_time = add_start_time_flag
 	,	time_format = alt_time_format_flag
 
 	,	name_sep = def_name_separator
 	,	suffix_sep = def_suffix_separator
 
-	,	minimized = minimized_flag
 	,	split = split_flag_combo
 
 	))
@@ -699,77 +719,11 @@ def pick_zstd_level_from_flags(flags):
 
 def run_batch_archiving(argv):
 
-	def run_batch_part(argv_flag):
+	def queue_batch_part(argv_flag):
 
-		def get_archive_file_summary(file_path, archive_params_dict=None):
+		def queue(dest, subj, foreach_dir_or_file=False):
 
-			test_result_code = subprocess.call(
-				[
-					exe_paths['rar_cmd' if dedup_flag in flags and file_path.rsplit('.', 1)[1] == 'rar' else '7z_cmd']
-				,	't'
-				,	file_path
-				]
-			,	startupinfo=minimized
-			)
-
-			if test_result_code:
-				return ''
-
-			listing_output = subprocess.check_output(
-				[
-					exe_paths['7z_cmd']
-				,	'l'
-				,	file_path
-				]
-			,	startupinfo=minimized
-			)
-
-			output_text = bytes_to_text(listing_output, trim=True)
-			output_lines = normalize_line_breaks(output_text).split('\n')
-			output_lines = list(filter(bool, map(trim_text, output_lines)))
-
-			if archive_params_dict:
-				old_suffix = archive_params_dict.get('suffix')
-
-				if old_suffix:
-					old_match = re.search(pat_suffix_solid, old_suffix)
-
-					if old_match:
-						suffix_solid_params = old_match.group(1)
-						archive_params_found = is_archive_solid = is_single_solid_block = False
-
-						for line in output_lines:
-							if archive_params_found:
-								if line[0] == '-':
-									break
-
-								elif line == 'Solid = +':
-									is_archive_solid = True
-
-								elif line == 'Blocks = 1':
-									is_single_solid_block = True
-
-							elif line == '--':
-								archive_params_found = True
-
-						if is_single_solid_block and not (
-							is_archive_solid
-						and	(
-								not suffix_solid_params
-							# or	suffix_solid_params == 'e'
-							)
-						):
-							archive_params_dict['suffix'] = re.sub(
-								pat_suffix_solid
-							,	',s' if is_archive_solid else ''
-							,	old_suffix
-							)
-
-			return output_lines[-1 : ][0]
-
-		def queue(cmd_queue, dest, subj, foreach_dir_or_file=False):
-
-			def append_cmd(cmd_queue, paths, suffix, opt_args=None):
+			def append_cmd(paths, suffix, opt_args=None):
 				subj, dest = paths
 				rar = suffix.find('rar') > suffix.find('7z')
 				exe_type = 'rar' if rar else '7z'
@@ -833,16 +787,28 @@ def run_batch_archiving(argv):
 					['--', dest_temp, subj]
 				)
 
-				cmd_queue.append({
-					'exe_type': exe_type
-				,	'args': cmd_args + path_args
-				,	'subj': subj
+				cmd = {
+					'args': cmd_args + path_args
+				,	'exe_type': exe_type
+				,	'flags': flags
+
+				,	'def_suffix': def_suffix
+				,	'suffix': (suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
+
 				,	'dest': dest
 				,	'dest_dir': dest_dir
 				,	'dest_name': dest_name
 				,	'dest_temp': dest_temp
-				,	'suffix': (suffix.rsplit('.', 1)[0] + '.') if ',' in suffix else '.'
-				})
+				,	'subj': subj
+				}
+
+				if sort_queue_by_subj:
+					if not cmd_queue_by_subj.get(subj):
+						cmd_queue_by_subj[subj] = []
+
+					cmd_queue_by_subj[subj].append(cmd)
+
+				cmd_queue.append(cmd)
 
 				return 1
 
@@ -874,7 +840,7 @@ def run_batch_archiving(argv):
 
 			print_with_colored_prefix('name:', get_text_encoded_for_print(name))
 
-			dest_name = dest + '/' + name + (t0 if add_start_time_flag in flags else '')
+			dest_name = dest + '/' + name + (t0 if add_start_time else '')
 			paths = list(map(fix_slashes, [subj, dest_name]))
 
 			dest_name_part_dedup		= ',dedup' if dedup_flag in flags else ''
@@ -894,18 +860,18 @@ def run_batch_archiving(argv):
 				solid_block_size = '={}'.format(pick_zstd_solid_block_size_from_flags(flags)) if zstd_flag in flags else ''
 
 				if is_subj_mass and (dest_name_part_zstd or not dest_name_part_uncompressed):
-					if make_solid_by_ext_flag in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-ms=e'])
-					if make_solid_flag        in flags: solid += append_cmd(cmd_queue, paths
+					if make_solid_by_ext_flag in flags: solid += append_cmd(paths, ',se' + ext, ['-ms=e'])
+					if make_solid_flag        in flags: solid += append_cmd(paths
 					,	',s' + solid_block_size + ext
 					,	['-ms' + solid_block_size]
 					)
 
-				if not solid or (make_non_solid_flag in flags): append_cmd(cmd_queue, paths, ext, ['-ms=off'])
+				if not solid or (make_non_solid_flag in flags): append_cmd(paths, ext, ['-ms=off'])
 
 			ext = dest_name_part_uncompressed + '.zip'
 
-			if make_zip_by_7z_flag  in flags: append_cmd(cmd_queue, paths, ',7z' + ext)
-			if make_zip_by_rar_flag in flags: append_cmd(cmd_queue, paths, ',winrar' + ext)
+			if make_zip_by_7z_flag  in flags: append_cmd(paths, ',7z' + ext)
+			if make_zip_by_rar_flag in flags: append_cmd(paths, ',winrar' + ext)
 
 			if make_rar_flag in flags:
 				ext = (
@@ -916,10 +882,10 @@ def run_batch_archiving(argv):
 				solid = 0
 
 				if is_subj_mass and not dest_name_part_uncompressed:
-					if make_solid_by_ext_flag in flags: solid += append_cmd(cmd_queue, paths, ',se' + ext, ['-se'])
-					if make_solid_flag        in flags: solid += append_cmd(cmd_queue, paths, ',s' + ext, ['-s'])
+					if make_solid_by_ext_flag in flags: solid += append_cmd(paths, ',se' + ext, ['-se'])
+					if make_solid_flag        in flags: solid += append_cmd(paths, ',s' + ext, ['-s'])
 
-				if not solid or (make_non_solid_flag in flags): append_cmd(cmd_queue, paths, ext, ['-s-'])
+				if not solid or (make_non_solid_flag in flags): append_cmd(paths, ext, ['-s-'])
 
 			del_warn = 0
 
@@ -962,37 +928,8 @@ def run_batch_archiving(argv):
 		if def_suffix[0 : 2] == ',=':
 			def_suffix = ',[' + def_suffix.strip(',=_[]') + ']'
 
-		subj = normalize_slashes(argv_subj if argv_subj and len(argv_subj) > 0 else def_subj)
-		dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
-		rest = argv_rest or []
-
 		print_with_colored_prefix('flags:', get_text_encoded_for_print(flags.lower()))
 		print_with_colored_prefix('suffix:', get_text_encoded_for_print(def_suffix))
-		print_with_colored_prefix('subj:', get_text_encoded_for_print(subj))
-		print_with_colored_prefix('dest:', get_text_encoded_for_print(dest))
-		print_with_colored_prefix('etc:', get_text_encoded_for_print(' '.join(rest)))
-		print('')
-
-		if minimized_flag in flags:
-			SW_MINIMIZE = 6
-			minimized = subprocess.STARTUPINFO()
-			minimized.dwFlags = subprocess.STARTF_USESHOWWINDOW
-			minimized.wShowWindow = SW_MINIMIZE
-		else:
-			minimized = None
-
-		is_subj_list = (subj[0].strip('"') == '@')
-		# foreach_date = flags.count('9')
-		foreach_dir  = for_each_dir_flag in flags
-		foreach_file = for_each_file_flag in flags
-		foreach_dir_or_file = (foreach_dir or foreach_file) and not is_subj_list
-		foreach_ID_flags = ''.join([
-			x
-			for x in group_by_num_any_sep_flags
-			if x in flags
-		])
-
-		exe_paths = get_exe_paths()
 
 		cmd_template = {}
 		cmd_template['7z'] = (
@@ -1016,9 +953,6 @@ def run_batch_archiving(argv):
 		+	rest
 		)
 
-		pat_whitespace = re.compile(r'\s+', re.S)
-		pat_temp = re.compile(r'([^\w.-]|_)+', re.S)
-		pat_inex = re.compile(r'^(?P<InEx>-[ix])(?P<Recurse>r[0-]*)?(?P<Value>[!@].*)$', re.I)
 		rest_winrar = []
 
 		for arg in rest:
@@ -1073,280 +1007,238 @@ def run_batch_archiving(argv):
 		+	rest_winrar
 		)
 
-		cmd_queue = []
 		del_warn = 0
-		time_format = ';_%Y-%m-%d,%H-%M-%S' if ';' in flags else '_%Y-%m-%d_%H-%M-%S'
-		t0 = time.strftime(time_format)
 
 # - Fill batch queue ----------------------------------------------------------
 
-		if foreach_dir_or_file or foreach_ID_flags:
-			names = list(map(
-				normalize_slashes
-			,	glob.glob(subj) if ('*' in subj or '?' in subj) else
-				os.listdir(subj) if os.path.isdir(subj) else
-				[subj]
-			))
-
-			if foreach_ID_flags:
-				dots = ''.join([
-					x
-					for x in (group_sep_dot_flag + group_sep_comma_flag)
-					if x in foreach_ID_flags
-				])
-
-				pat_ID = re.compile(
-					r'^(\D*\d[\d' + dots + ']*)(?=[^\d' + dots + ']|$)' if dots else
-					r'^(\D*\d+)(?=\D|$)'
-				)
-
-				if group_listfile_flag in foreach_ID_flags:
-					no_group = def_name or def_name_fallback
-					other_to_1 = group_flag in foreach_ID_flags
-					d = {}
-
-					for subj in names:
-						s = re.search(pat_ID, subj)
-						n = s.group(1) if s else no_group if other_to_1 else subj
-
-						if not n in d:
-							d[n] = []
-						d[n].append(subj)
-
-					names = []
-
-					for i in d.keys():
-						listfile_path = dest + '/' + i + '_list.txt'
-						names.append('@' + listfile_path)
-
-						if not only_list_commands_flag in flags:
-							grouped_filenames = d[i]
-
-							try:
-								f = open(listfile_path, 'wb')
-								f.write(u'\n'.join(grouped_filenames))
-								f.close()
-
-							except TypeError:
-								if f: f.close()
-
-								f = io.open(listfile_path, 'w', encoding=listfile_encoding)
-								f.write(u'\n'.join(grouped_filenames))
-								f.close()
-
-							except (UnicodeEncodeError, UnicodeDecodeError):
-								if f: f.close()
-				else:
-					d = []
-					for subj in names:
-						s = re.search(pat_ID, subj)
-						if s:
-							n = s.group(1) + '*'
-							if not (n in d):
-								d.append(n)
-						else:
-							d.append(subj)
-					names = d
-
-			for subj in names:
-				if foreach_dir != foreach_file and foreach_dir != os.path.isdir(subj):
-					continue
-
-				del_warn += queue(cmd_queue, dest, subj, foreach_dir_or_file=True)
+		if foreach_subj_names:
+			for each_subj in foreach_subj_names:
+				del_warn += queue(dest, each_subj, foreach_dir_or_file=True)
 		else:
-			del_warn += queue(cmd_queue, dest, subj)
+			del_warn += queue(dest, subj)
 
-		cmd_count = len(cmd_queue)
+		return del_warn
 
-		if cmd_count > 0:
-			print('')
-		else:
-			cprint('----	----	Nothing to do, command queue is empty.', 'cyan')
+	def get_archive_file_summary(file_path, archive_params_dict=None):
 
-			return 11
+		test_result_code = subprocess.call(
+			[
+				exe_paths[
+					'rar_cmd' if (
+						archive_params_dict
+					and	dedup_flag in archive_params_dict['flags']
+					and	file_path.rsplit('.', 1)[1] == 'rar'
+					) else '7z_cmd'
+				]
+			,	't'
+			,	file_path
+			]
+		,	startupinfo=minimized
+		)
 
-		if del_warn:
-			cprint('----	----	WARNING, only WinRAR or 7-Zip v17+ can delete files!', 'yellow')
-			print('')
+		if test_result_code:
+			return ''
 
-		error_count = 0
-		no_files_to_archive = False
+		listing_output = subprocess.check_output(
+			[
+				exe_paths['7z_cmd']
+			,	'l'
+			,	file_path
+			]
+		,	startupinfo=minimized
+		)
 
-# - Do the job ----------------------------------------------------------------
+		output_text = bytes_to_text(listing_output, trim=True)
+		output_lines = normalize_line_breaks(output_text).split('\n')
+		output_lines = list(filter(bool, map(trim_text, output_lines)))
 
-		for cmd in cmd_queue:
+		if archive_params_dict:
+			old_suffix = archive_params_dict.get('suffix')
 
-			if no_files_to_archive:
-				cprint('No files to archive, skip the rest.', 'red')
+			if old_suffix:
+				old_match = re.search(pat_suffix_solid, old_suffix)
 
-				break
+				if old_match:
+					suffix_solid_params = old_match.group(1)
+					archive_params_found = is_archive_solid = is_single_solid_block = False
 
-			cmd_args = list(filter(bool, cmd['args']))
-			cmd_subj = cmd['subj']
-			cmd_suffix = cmd['suffix']
-			cmd_type = cmd['exe_type']
-			real_dest = cmd['dest']
-			temp_dest = cmd['dest_temp']
+					for line in output_lines:
+						if archive_params_found:
+							if line[0] == '-':
+								break
 
-			print(cmd_args_to_text(cmd_args))
+							elif line == 'Solid = +':
+								is_archive_solid = True
 
-			if not only_list_commands_flag in flags:
-				time_before_start = datetime.datetime.now()
+							elif line == 'Blocks = 1':
+								is_single_solid_block = True
 
-				result_code = subprocess.call(cmd_args, startupinfo=minimized)
+						elif line == '--':
+							archive_params_found = True
 
-				time_after_finish = datetime.datetime.now()
-
-				if result_code:
-					error_count += 1
-
-				no_files_to_archive = (
-					cmd_type == 'rar'
-				and	result_code == 10
-				)
-
-				codes_of_type = exit_codes[cmd_type]
-				result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
-
-				cprint(
-					'{}: {}'.format(result_code, result_text)
-				,	'red' if result_code != 0 else 'cyan'
-				)
-
-				if os.path.exists(temp_dest):
-					archive_file_size = os.path.getsize(temp_dest)
-					archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(temp_dest, cmd))
-
-					print('')
-
-					if not archive_file_summary:
-						error_count += 1
-
-						cprint('Error: Archive is broken or has unknown format, deleting it.', 'red')
-
-						os.remove(temp_dest)
-					elif (
-						cmd_type == '7z'
-					and	archive_file_size < empty_archive_max_size
-					and	'0 0 0 files' in archive_file_summary
-					):
-						no_files_to_archive = True
-
-						cprint('Warning: No files to archive, deleting empty archive.', 'red')
-
-						os.remove(temp_dest)
-					else:
-						add_suffix = cmd['suffix'].rstrip('.') if cmd_suffix else ''
-						add_timestamp = (
-							datetime.datetime.fromtimestamp(os.path.getmtime(temp_dest)).strftime(time_format)
-							if add_mod_time_flag in flags
-							else ''
+					if is_single_solid_block and not (
+						is_archive_solid
+					and	(
+							not suffix_solid_params
+						# or	suffix_solid_params == 'e'
 						)
-						add_timestamp_first = add_timestamp and (def_suffix_separator in flags)
+					):
+						archive_params_dict['suffix'] = re.sub(
+							pat_suffix_solid
+						,	',s' if is_archive_solid else ''
+						,	old_suffix
+						)
 
-						if add_timestamp or add_suffix or def_suffix:
-							path_part_before, path_part_after = real_dest.rsplit(cmd_suffix or '.', 1)
-							path_part_before += (
-								(add_timestamp if add_timestamp_first else '')
-							+	(def_suffix or '')
-							+	(add_suffix or '')
-							+	(add_timestamp if not add_timestamp_first else '')
-							)
+		return output_lines[-1 : ][0]
 
-							final_dest = get_unique_clean_path(path_part_before, '.' + path_part_after)
-						else:
-							final_dest = get_unique_clean_path(real_dest)
+	def run_cmd(cmd):
 
-						if final_dest and final_dest != temp_dest:
-							print(temp_dest)
-							print(final_dest)
-							print('')
+		print('')
 
-							os.rename(temp_dest, final_dest)
+		cmd_subj = cmd['subj']
 
-						summary_parts = archive_file_summary.split(' ', 4)
-						content_sum_size = int(summary_parts[2])
-						content_counts_text = summary_parts[4]
-						compression_ratio = 100.0 * archive_file_size / content_sum_size
+		if no_files_by_subj.get(cmd_subj):
+			print_with_colored_prefix('No files to archive for this subject, skip:', cmd_subj, 'red')
 
-						archive_size_text = get_bytes_text(archive_file_size)
-						content_size_text = get_bytes_text(content_sum_size)
+			return
 
-						print_with_colored_prefix('Source total size:', '{}, {}'.format(content_size_text, content_counts_text))
-						print_with_colored_prefix('Archive file size:', '{}, {:.2f}%'.format(archive_size_text, compression_ratio))
-						print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
+		cmd_args = list(filter(bool, cmd['args']))
+		cmd_type = cmd['exe_type']
+		real_dest = cmd['dest']
+		temp_dest = cmd['dest_temp']
 
-						if keep_smallest_archive_flag in flags:
-							obsolete_file_path = None
-							smallest_for_this_subj = smallest_archives_by_subj.get(cmd_subj)
+		flags = cmd['flags']
+		archive_suffix = cmd['suffix']
+		def_suffix = cmd['def_suffix']
 
-							if not smallest_for_this_subj:
+		print(cmd_args_to_text(cmd_args))
 
-								smallest_archives_by_subj[cmd_subj] = {
-									'path' : final_dest
-								,	'size' : archive_file_size
-								}
+		if not is_only_check:
+			time_before_start = datetime.datetime.now()
 
-							elif smallest_for_this_subj['size'] > archive_file_size:
+			result_code = subprocess.call(cmd_args, startupinfo=minimized)
 
-								obsolete_file_path = smallest_for_this_subj['path']
+			time_after_finish = datetime.datetime.now()
 
-								cprint('New archive is smaller: {} < {}, deleting bigger old.'.format(
-									archive_file_size
-								,	smallest_for_this_subj['size']
-								), 'cyan')
+			if result_code:
+				error_count += 1
 
-								smallest_for_this_subj['path'] = final_dest
-								smallest_for_this_subj['size'] = archive_file_size
-							else:
-								obsolete_file_path = final_dest
+			if (
+				cmd_type == 'rar'
+			and	result_code == 10
+			):
+				no_files_by_subj[cmd_subj] = True
 
-								cprint('Old archive is smaller or same: {} <= {}, deleting new.'.format(
-									smallest_for_this_subj['size']
-								,	archive_file_size
-								), 'magenta')
+			codes_of_type = exit_codes[cmd_type]
+			result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
 
-							if obsolete_file_path:
-								try:
-									os.remove(obsolete_file_path)
+			cprint(
+				'{}: {}'.format(result_code, result_text)
+			,	'red' if result_code != 0 else 'cyan'
+			)
 
-								except FileNotFoundError:
-									cprint('Warning: No file to delete.', 'red')
+			if os.path.exists(temp_dest):
+				archive_file_size = os.path.getsize(temp_dest)
+				archive_file_summary = re.sub(pat_whitespace, ' ', get_archive_file_summary(temp_dest, cmd))
 
 				print('')
 
-# - Result summary ------------------------------------------------------------
+				if not archive_file_summary:
+					error_count += 1
 
-		if only_list_commands_flag in flags:
-			print('')
+					cprint('Error: Archive is broken or has unknown format, deleting it.', 'red')
 
-		if error_count > 0:
-			if no_waiting_keypress_flag in flags:
+					os.remove(temp_dest)
+				elif (
+					cmd_type == '7z'
+				and	archive_file_size < empty_archive_max_size
+				and	'0 0 0 files' in archive_file_summary
+				):
+					no_files_by_subj[cmd_subj] = True
 
-				print(' '.join([
-					colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
-				,	colored('{} errors.'.format(error_count), 'red')
-				,	'See messages above.'
-				]))
-			else:
-				print(' '.join([
-					colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
-				,	colored('{} errors.'.format(error_count), 'red')
-				,	'Press Enter to continue.'
-				]))
+					cprint('Warning: No files to archive, deleting empty archive.', 'red')
 
-				if sys.version_info.major == 2:
-					raw_input()
+					os.remove(temp_dest)
 				else:
-					input()
+					add_suffix = cmd['suffix'].rstrip('.') if archive_suffix else ''
+					add_timestamp = (
+						datetime.datetime.fromtimestamp(os.path.getmtime(temp_dest)).strftime(time_format)
+						if add_mod_time
+						else ''
+					)
+					add_timestamp_first = add_timestamp and (def_suffix_separator in flags)
 
-		elif only_list_commands_flag in flags:
+					if add_timestamp or add_suffix or def_suffix:
+						path_part_before, path_part_after = real_dest.rsplit(archive_suffix or '.', 1)
+						path_part_before += (
+							(add_timestamp if add_timestamp_first else '')
+						+	(def_suffix or '')
+						+	(add_suffix or '')
+						+	(add_timestamp if not add_timestamp_first else '')
+						)
 
-			cprint('----	----	Total {} command(s).'.format(cmd_count), 'green')
-		else:
-			cprint('----	----	Done {} archive(s).'.format(cmd_count), 'green')
+						final_dest = get_unique_clean_path(path_part_before, '.' + path_part_after)
+					else:
+						final_dest = get_unique_clean_path(real_dest)
 
-		return 0 if error_count == 0 and cmd_count > 0 else -1
+					if final_dest and final_dest != temp_dest:
+						print(normalize_slashes(temp_dest))
+						print(normalize_slashes(final_dest))
+						print('')
+
+						os.rename(temp_dest, final_dest)
+
+					summary_parts = archive_file_summary.split(' ', 4)
+					content_sum_size = int(summary_parts[2])
+					content_counts_text = summary_parts[4]
+					compression_ratio = 100.0 * archive_file_size / content_sum_size
+
+					archive_size_text = get_bytes_text(archive_file_size)
+					content_size_text = get_bytes_text(content_sum_size)
+
+					print_with_colored_prefix('Source total size:', '{}, {}'.format(content_size_text, content_counts_text))
+					print_with_colored_prefix('Archive file size:', '{}, {:.2f}%'.format(archive_size_text, compression_ratio))
+					print_with_colored_prefix('Took time:', time_after_finish - time_before_start)
+
+					if is_keep_only_1:
+						obsolete_file_path = None
+						smallest_for_this_subj = smallest_archives_by_subj.get(cmd_subj)
+
+						if not smallest_for_this_subj:
+
+							smallest_archives_by_subj[cmd_subj] = {
+								'path' : final_dest
+							,	'size' : archive_file_size
+							}
+
+						elif smallest_for_this_subj['size'] > archive_file_size:
+
+							obsolete_file_path = smallest_for_this_subj['path']
+
+							print('')
+							cprint('New archive is smaller: {} < {}, deleting bigger old.'.format(
+								get_bytes_text(archive_file_size, add_text=False)
+							,	get_bytes_text(smallest_for_this_subj['size'])
+							), 'cyan')
+
+							smallest_for_this_subj['path'] = final_dest
+							smallest_for_this_subj['size'] = archive_file_size
+						else:
+							obsolete_file_path = final_dest
+
+							print('')
+							cprint('Old archive is smaller or same: {} <= {}, deleting new.'.format(
+								get_bytes_text(smallest_for_this_subj['size'], add_text=False)
+							,	get_bytes_text(archive_file_size)
+							), 'magenta')
+
+						if obsolete_file_path:
+							try:
+								os.remove(obsolete_file_path)
+
+							except FileNotFoundError:
+								print('')
+								cprint('Warning: No file to delete.', 'red')
 
 # - Check arguments -----------------------------------------------------------
 
@@ -1374,22 +1266,150 @@ def run_batch_archiving(argv):
 
 # - Fill batch queue and run --------------------------------------------------
 
-	print('')
-	print_with_colored_prefix('print_encoding:', print_encoding)
-	print_with_colored_prefix('argc:', argc)
+	subj = normalize_slashes(argv_subj if argv_subj and len(argv_subj) > 0 else def_subj)
+	dest = normalize_slashes(argv_dest if argv_dest and len(argv_dest) > 0 else def_dest)
+	rest = argv_rest or []
 
-	smallest_archives_by_subj = {}
+	print('')
+	print_with_colored_prefix('print encoding:', print_encoding)
+	print_with_colored_prefix('argc:', argc)
+	print_with_colored_prefix('subj:', get_text_encoded_for_print(subj))
+	print_with_colored_prefix('dest:', get_text_encoded_for_print(dest))
+	print_with_colored_prefix('etc:', get_text_encoded_for_print(' '.join(rest)))
+
+	is_delete_enabled = False
 	common_part_with_name = flag_parts_left.pop()
 
 	if len(flag_parts_left) > 0:
+
 		common_flag_part, name = split_text_in_two(common_part_with_name, def_name_separator)
 		combos = [
 			(combo_flag_part + common_flag_part).upper()
 			for combo_flag_part in flag_parts_left
 		]
 
-		def is_flag_in_any_combo(flag, combos):
-			return any(flag in combo for combo in combos)
+		flags = ''.join(sorted(set(''.join(combos))))
+	else:
+		flags, name = split_text_in_two(common_part_with_name, def_name_separator)
+		flags = flags.upper()
+
+	if minimized_flag in flags:
+		SW_MINIMIZE = 6
+		minimized = subprocess.STARTUPINFO()
+		minimized.dwFlags = subprocess.STARTF_USESHOWWINDOW
+		minimized.wShowWindow = SW_MINIMIZE
+	else:
+		minimized = None
+
+	is_delete_enabled = delete_sources_flag in flags
+	is_keep_only_1 = keep_smallest_archive_flag in flags
+	is_no_waiting  = no_waiting_keypress_flag in flags
+	is_only_check  = only_list_commands_flag in flags
+	is_subj_list   = (subj[0].strip('"') == '@')
+
+	foreach_subj_names = None
+	foreach_dir  = for_each_dir_flag in flags
+	foreach_file = for_each_file_flag in flags
+	foreach_dir_or_file = (foreach_dir or foreach_file) and not is_subj_list
+	foreach_ID_flags = ''.join([
+		x
+		for x in group_by_num_any_sep_flags
+		if x in flags
+	])
+
+	if foreach_dir_or_file or foreach_ID_flags:
+
+		names = list(map(
+			normalize_slashes
+		,	glob.glob(subj) if ('*' in subj or '?' in subj) else
+			os.listdir(subj) if os.path.isdir(subj) else
+			[subj]
+		))
+
+		if foreach_ID_flags:
+			dots = ''.join([
+				x
+				for x in (group_sep_dot_flag + group_sep_comma_flag)
+				if x in foreach_ID_flags
+			])
+
+			pat_ID = re.compile(
+				r'^(\D*\d[\d' + dots + ']*)(?=[^\d' + dots + ']|$)' if dots else
+				r'^(\D*\d+)(?=\D|$)'
+			)
+
+			if group_listfile_flag in foreach_ID_flags:
+				no_group = def_name or def_name_fallback
+				other_to_1 = group_flag in foreach_ID_flags
+				d = {}
+
+				for each_subj in names:
+					s = re.search(pat_ID, each_subj)
+					n = s.group(1) if s else no_group if other_to_1 else each_subj
+
+					if not n in d:
+						d[n] = []
+					d[n].append(each_subj)
+
+				names = []
+
+				for i in d.keys():
+					listfile_path = dest + '/' + i + '_list.txt'
+					names.append('@' + listfile_path)
+
+					if not is_only_check:
+						grouped_filenames = d[i]
+
+						try:
+							f = open(listfile_path, 'wb')
+							f.write(u'\n'.join(grouped_filenames))
+							f.close()
+
+						except TypeError:
+							if f: f.close()
+
+							f = io.open(listfile_path, 'w', encoding=listfile_encoding)
+							f.write(u'\n'.join(grouped_filenames))
+							f.close()
+
+						except (UnicodeEncodeError, UnicodeDecodeError):
+							if f: f.close()
+			else:
+				d = []
+				for each_subj in names:
+					s = re.search(pat_ID, each_subj)
+					if s:
+						n = s.group(1) + '*'
+						if not (n in d):
+							d.append(n)
+					else:
+						d.append(each_subj)
+				names = d
+
+		foreach_subj_names = names if foreach_dir == foreach_file else [
+			each_subj
+			for each_subj in names
+			if foreach_dir == os.path.isdir(each_subj)
+		]
+
+	add_mod_time   = add_mod_time_flag in flags
+	add_start_time = add_start_time_flag in flags
+
+	time_format = (
+		';_%Y-%m-%d,%H-%M-%S' if alt_time_format_flag in flags else
+		r'_%Y-%m-%d_%H-%M-%S'
+	)
+
+	t0 = time.strftime(time_format)
+
+	exe_paths = get_exe_paths()
+	cmd_queue = []
+	cmd_count = error_count = del_warn = 0
+	cmd_queue_by_subj = {}
+	no_files_by_subj = {}
+	smallest_archives_by_subj = {}
+
+	if len(flag_parts_left) > 0:
 
 		def cleanup_combo(combo):
 			return (
@@ -1398,30 +1418,83 @@ def run_batch_archiving(argv):
 			+	(def_name_separator + name if len(name) > 0 else '')
 			)
 
-		is_only_check = is_flag_in_any_combo(only_list_commands_flag, combos)
-		is_delete_enabled = is_flag_in_any_combo(delete_sources_flag, combos)
-
 		combos = list(map(cleanup_combo, combos))
 
 		if is_delete_enabled:
 			i = len(combos) - 1
 			combos[i] = delete_sources_flag + combos[i]
 
-		print_with_colored_prefix('flags_combos:', len(combos))
-
-		result_code = 0
+		print_with_colored_prefix('all flags:', get_text_encoded_for_print(flags.lower()))
+		print_with_colored_prefix('flag combos:', len(combos))
 
 		for combo in combos:
 			print('')
 
-			result_code = run_batch_part(combo) or result_code
-
-			# if result_code:
-				# break
-
-		return result_code
+			del_warn += queue_batch_part(combo)
 	else:
-		return run_batch_part(common_part_with_name)
+		del_warn += queue_batch_part(common_part_with_name)
+
+	cmd_count = len(cmd_queue)
+
+	if cmd_count == 0:
+		print('')
+		cprint('----	----	Nothing to do, command queue is empty.', 'cyan')
+
+		return 11
+
+	if is_delete_enabled or del_warn:
+		print('')
+		cprint('----	----	Warning: subject files will be deleted after archiving.', 'yellow')
+		print('Only WinRAR or 7-Zip v17+ can delete them.')
+		print('Only WinRAR can test archives before deleting anything.')
+		print('Please make sure your subject arguments work as intended in all used programs before enabling deletion.')
+
+		if not (is_only_check or is_no_waiting):
+			print('Press Enter to continue.')
+
+			wait_user_input()
+
+# - Do all queued jobs --------------------------------------------------------
+
+	if sort_queue_by_subj:
+		for each_subj, each_queue in cmd_queue_by_subj.items():
+			print('')
+			print_with_colored_prefix('subj:', each_subj)
+
+			for cmd in each_queue:
+				run_cmd(cmd)
+	else:
+		for cmd in cmd_queue:
+			run_cmd(cmd)
+
+# - Result summary ------------------------------------------------------------
+
+	print('')
+
+	if error_count > 0:
+		if is_no_waiting:
+
+			print(' '.join([
+				colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
+			,	colored('{} errors.'.format(error_count), 'red')
+			,	'See messages above.'
+			]))
+		else:
+			print(' '.join([
+				colored('----	----	Done {} archive(s),'.format(cmd_count), 'green')
+			,	colored('{} errors.'.format(error_count), 'red')
+			,	'Press Enter to continue.'
+			]))
+
+			wait_user_input()
+
+	elif is_only_check:
+
+		cprint('----	----	Total {} command(s).'.format(cmd_count), 'green')
+	else:
+		cprint('----	----	Done {} archive(s).'.format(cmd_count), 'green')
+
+	return 0 if error_count == 0 and cmd_count > 0 else -1
 
 # - Run from commandline, when not imported as module -------------------------
 
