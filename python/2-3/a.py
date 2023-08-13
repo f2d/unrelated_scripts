@@ -168,6 +168,15 @@ exit_codes = {
 class GetOutOfLoop( Exception ):
 	pass
 
+def increment_item_by_key(dict, key, value=1):
+	dict[key] = dict.get(key, 0) + value
+
+def append_to_item_by_key(dict, key, value):
+	if not dict.get(key):
+		dict[key] = []
+
+	dict[key].append(value)
+
 def trim_text(content):
 	try:	return content.strip(' \t\r\n')
 	except:	return content
@@ -803,10 +812,7 @@ def run_batch_archiving(argv):
 				}
 
 				if sort_queue_by_subj:
-					if not cmd_queue_by_subj.get(subj):
-						cmd_queue_by_subj[subj] = []
-
-					cmd_queue_by_subj[subj].append(cmd)
+					append_to_item_by_key(cmd_queue_by_subj, subj, cmd)
 
 				cmd_queue.append(cmd)
 
@@ -1096,9 +1102,12 @@ def run_batch_archiving(argv):
 		print('')
 
 		cmd_subj = cmd['subj']
+		no_files_skip_count = no_files_by_subj.get(cmd_subj)
 
-		if no_files_by_subj.get(cmd_subj):
-			print_with_colored_prefix('No files to archive for this subject, skip:', cmd_subj, 'red')
+		if no_files_skip_count:
+			print_with_colored_prefix('No files to archive for this subject, skip {}:'.format(no_files_skip_count), cmd_subj, 'red')
+
+			no_files_by_subj[cmd_subj] += 1
 
 			return 0
 
@@ -1114,7 +1123,7 @@ def run_batch_archiving(argv):
 		print(cmd_args_to_text(cmd_args))
 
 		if is_only_check:
-		
+
 			return 0
 		else:
 			time_before_start = datetime.datetime.now()
@@ -1127,7 +1136,7 @@ def run_batch_archiving(argv):
 				cmd_type == 'rar'
 			and	result_code == 10
 			):
-				no_files_by_subj[cmd_subj] = True
+				no_files_by_subj[cmd_subj] = 1
 
 			codes_of_type = exit_codes[cmd_type]
 			result_text = codes_of_type[result_code] if result_code in codes_of_type else 'Unknown code'
@@ -1154,7 +1163,7 @@ def run_batch_archiving(argv):
 				and	archive_file_size < empty_archive_max_size
 				and	'0 0 0 files' in archive_file_summary
 				):
-					no_files_by_subj[cmd_subj] = True
+					no_files_by_subj[cmd_subj] = 1
 
 					cprint('Warning: No files to archive, deleting empty archive.', 'red')
 
@@ -1241,7 +1250,7 @@ def run_batch_archiving(argv):
 								cprint('Warning: No file to delete.', 'red')
 
 			return error_count
-			
+
 # - Check arguments -----------------------------------------------------------
 
 	argv = list(argv)
