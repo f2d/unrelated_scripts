@@ -1007,9 +1007,9 @@ def run_batch_archiving(argv):
 		+	rest_winrar
 		)
 
-		del_warn = 0
-
 # - Fill batch queue ----------------------------------------------------------
+
+		del_warn = 0
 
 		if foreach_subj_names:
 			for each_subj in foreach_subj_names:
@@ -1100,7 +1100,7 @@ def run_batch_archiving(argv):
 		if no_files_by_subj.get(cmd_subj):
 			print_with_colored_prefix('No files to archive for this subject, skip:', cmd_subj, 'red')
 
-			return
+			return 0
 
 		cmd_args = list(filter(bool, cmd['args']))
 		cmd_type = cmd['exe_type']
@@ -1113,15 +1113,15 @@ def run_batch_archiving(argv):
 
 		print(cmd_args_to_text(cmd_args))
 
-		if not is_only_check:
+		if is_only_check:
+		
+			return 0
+		else:
 			time_before_start = datetime.datetime.now()
-
 			result_code = subprocess.call(cmd_args, startupinfo=minimized)
 
 			time_after_finish = datetime.datetime.now()
-
-			if result_code:
-				error_count += 1
+			error_count = 1 if result_code else 0
 
 			if (
 				cmd_type == 'rar'
@@ -1240,6 +1240,8 @@ def run_batch_archiving(argv):
 								print('')
 								cprint('Warning: No file to delete.', 'red')
 
+			return error_count
+			
 # - Check arguments -----------------------------------------------------------
 
 	argv = list(argv)
@@ -1462,10 +1464,10 @@ def run_batch_archiving(argv):
 			print_with_colored_prefix('subj:', each_subj)
 
 			for cmd in each_queue:
-				run_cmd(cmd)
+				error_count += run_cmd(cmd)
 	else:
 		for cmd in cmd_queue:
-			run_cmd(cmd)
+			error_count += run_cmd(cmd)
 
 # - Result summary ------------------------------------------------------------
 
