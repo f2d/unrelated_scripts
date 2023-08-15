@@ -1,4 +1,4 @@
-
+﻿
 /*
 	Usage:
 Copypaste this script into web-browser console,
@@ -7,11 +7,15 @@ If needed, repeat by pressing [Up] in the console and then [Enter] key again, un
 
 Target CSS classes and text content parts are written for specific sites.
 Change these lists as needed for other sites.
+
+Enter the following line to stop it:
+	window.stopOpeningExpanders = 0;
 */
 
-(function() {
+(function () {
 
 	var targetCssClasses = [
+		'comment-more-button _child',		//* dzen.ru
 		'comment-toggle-children_collapse',	//* pikabu.ru
 		'comment-hidden-group__toggle',		//* pikabu.ru
 		'community-info-block__read-more-label',//* pikabu.ru
@@ -20,6 +24,7 @@ Change these lists as needed for other sites.
 		'toggle-comment',			//* naked-science.ru
 		'ytd-continuation-item-renderer',	//* youtube.com/watch
 		'more-button',				//* youtube.com/watch
+		'comment__more',
 		'comment__load-more',	//* dtf.ru
 		'button',		//* reddit
 		'expand',		//* reddit
@@ -27,6 +32,8 @@ Change these lists as needed for other sites.
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
 		'mw-collapsible-text',	//* wiktionary.org
+		'NavToggle',
+		'HQToggle',
 	];
 
 	var targetTextParts = [
@@ -41,6 +48,8 @@ Change these lists as needed for other sites.
 		'показать',		//* ru.wiktionary.org, pikabu.ru
 		'раскрыть ветку',	//* pikabu.ru
 		'комментари',		//* dtf.ru, pikabu.ru, naked-science.ru
+		' ответ',		//* dzen.ru
+		'▼',
 	];
 
 	var clickedElements = [];
@@ -81,7 +90,8 @@ Change these lists as needed for other sites.
 
 				var style, testElement = linkElement;
 
-				while (testElement) if (
+				while (testElement)
+				if (
 					testElement.hidden
 				||	clickedElements.includes(testElement)
 				||	(
@@ -138,7 +148,12 @@ Change these lists as needed for other sites.
 			'Total visible targets: '
 		+	linksTotalCount
 		);
+
+		if (!window.stopOpeningExpanders && !linksTotalCount) {
+			setTimeout(openAllVisibleExpanders, 12345);
+			clickedElements = [];
+		}
 	}
 
 	openAllVisibleExpanders();
-})();
+})(window.stopOpeningExpanders = 0)
