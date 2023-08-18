@@ -42,6 +42,11 @@ $descriptor_spec = array(
 ,	2 => array('pipe', 'w')	//* stderr is a pipe that the child will write to
 );
 
+$generic_rubrics = array(
+	'index'
+,	'personal_feed'
+);
+
 $saved_page_hashes = array();
 $saved_page_ids = array();
 $saved_pages = array();
@@ -71,11 +76,11 @@ function get_a_parts ($text) {
 	&&	($page_hash = get_page_hash($page_url))
 	&&	($page_title = trim(get_link_text($text)))
 		? array(
-			'id' => get_page_id($page_url) ?: 'no id'
-		,	'url' => $page_url
-		,	'hash' => $page_hash
-		,	'time' => (intval($t = get_page_time($page_url)) ? date(DATE_ATOM, $t) : 'no time')
-		,	'title' => $page_title
+			'id'     => get_page_id($page_url) ?: 'no id'
+		,	'url'    => $page_url
+		,	'hash'   => $page_hash
+		,	'time'   => (intval($t = get_page_time($page_url)) ? date(DATE_ATOM, $t) : 'no time')
+		,	'title'  => $page_title
 		,	'rubric' => get_page_rubric($page_url) ?: 'no rubric'
 		) : false
 	);
@@ -98,13 +103,13 @@ function add_linked_page ($text) {
 	&&	($page_entry = get_a_parts($decoded_text))
 	) {
 
-		$page_id = $page_entry['id'];
-		$page_hash = $page_entry['hash'];
+		$page_id    = $page_entry['id'];
+		$page_hash  = $page_entry['hash'];
 		$page_title = $page_entry['title'];
 
 		if (
 			in_array($page_hash, $saved_page_hashes)
-		||	in_array($page_id, $saved_page_ids)
+		||	in_array($page_id,   $saved_page_ids)
 		) {
 			$pages = &$saved_pages;
 		} else {
@@ -142,13 +147,18 @@ function is_relevant_url ($text) {
 
 function get_to_print ($var) { return print_r($var, true); }
 function print_block ($var) {
-	echo '
+	echo('
 	<pre>'.htmlspecialchars(get_to_print($var)).'
-	</pre>';
+	</pre>');
 }
 
 function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $split_each_line_by = '') {
 	global $descriptor_spec, $return_codes;
+
+	echo("
+	<details>
+		<summary>(click for details) command: $command_line</summary>
+		<div>");
 
 	flush();
 
@@ -193,10 +203,10 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 					!is_int($nearest_split_pos)
 				&&	strlen($output_buffer)
 				) {
-					echo ($split_lines ? NL.'|' : '|');
+					echo($split_lines ? NL.'|' : '|');
 				}
 			} else {
-				echo ($split_lines ? NL.'.' : '.');
+				echo($split_lines ? NL.'.' : '.');
 			}
 
 			$read_time = time();
@@ -288,18 +298,19 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 		}
 	}
 
-	$return_code = "$return_code: ".(
+	$status_message = (
 		array_key_exists($return_code, $return_codes)
 		? $return_codes[$return_code]
 		: 'Unknown error.'
 	);
 
-	print_block("
-		command_line = $command_line
-
-		return_code = $return_code
-
-		output_lines = $output_lines");
+	echo("
+		</div>
+	</details>
+	<details>
+		<summary>(click for details) result: $return_code. $status_message</summary>
+		<div>output_lines = $output_lines</div>
+	</details>");
 
 	flush();
 }
@@ -341,6 +352,13 @@ if ($linked_pages) {
 
 	foreach ($linked_pages as $page_key => $same_page_entries) {
 		$p = $same_page_entries[0];
+
+		foreach ($same_page_entries as $page_entry) if (!in_array($page_entry['rubric'], $generic_rubrics)) {
+			$p = $page_entry;
+
+			break;
+		}
+
 		$sorted_pages["$p[rubric] $p[title]"] = $page_key;
 	}
 
