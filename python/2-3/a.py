@@ -629,6 +629,15 @@ def pad_list(a, minimum_len=2, pad_value=''):
 def split_text_in_two(text, separator):
 	return pad_list((text or '').split(separator, 1))
 
+def expand_flag_shortcuts(flags):
+	return (
+		flags
+		.upper()
+		.replace(make_all_types_flags_shortcut, make_all_types_flags)
+		.replace(make_all_solid_flags_shortcut, make_all_solid_flags)
+		.replace(group_flags_shortcut, group_by_num_dot_flags)
+	)
+
 def get_7z_method_args(flags):
 
 	if esplit_flag in flags:
@@ -916,17 +925,13 @@ def run_batch_archiving(argv):
 
 # - Calculate params ----------------------------------------------------------
 
-		flags, def_name = split_text_in_two(argv_flag.strip('"'), def_name_separator)
+		flags, def_name = split_text_in_two(argv_flag, def_name_separator)
+		flags = expand_flag_shortcuts(flags)
 
-		flags = (
-			flags
-			.upper()
-			.replace(make_all_types_flags_shortcut, make_all_types_flags)
-			.replace(make_all_solid_flags_shortcut, make_all_solid_flags)
-			.replace(group_flags_shortcut, group_by_num_dot_flags)
-		)
-
-		if (def_suffix_separator in def_name) and not (def_suffix_separator in flags):
+		if (
+			(def_suffix_separator in def_name)
+		and not (def_suffix_separator in flags)
+		):
 			flags += def_suffix_separator
 
 		def_name, def_suffix = split_text_in_two(def_name, def_suffix_separator)
@@ -1253,7 +1258,7 @@ def run_batch_archiving(argv):
 
 # - Check arguments -----------------------------------------------------------
 
-	argv = list(argv)
+	argv = list([x.strip('"') for x in argv])
 	argc = len(argv)
 
 	argv_flag = argv.pop(0) if len(argv) > 0 else ''
@@ -1295,14 +1300,14 @@ def run_batch_archiving(argv):
 
 		common_flag_part, name = split_text_in_two(common_part_with_name, def_name_separator)
 		combos = [
-			(combo_flag_part + common_flag_part).upper()
+			expand_flag_shortcuts(combo_flag_part + common_flag_part)
 			for combo_flag_part in flag_parts_left
 		]
 
 		flags = ''.join(sorted(set(''.join(combos))))
 	else:
 		flags, name = split_text_in_two(common_part_with_name, def_name_separator)
-		flags = flags.upper()
+		flags = expand_flag_shortcuts(flags)
 
 	if minimized_flag in flags:
 		SW_MINIMIZE = 6
@@ -1316,7 +1321,7 @@ def run_batch_archiving(argv):
 	is_keep_only_1 = keep_smallest_archive_flag in flags
 	is_no_waiting  = no_waiting_keypress_flag in flags
 	is_only_check  = only_list_commands_flag in flags
-	is_subj_list   = (subj[0].strip('"') == '@')
+	is_subj_list   = (subj[0] == '@')
 
 	foreach_subj_names = None
 	foreach_dir  = for_each_dir_flag in flags
@@ -1350,13 +1355,12 @@ def run_batch_archiving(argv):
 			)
 
 			if group_listfile_flag in foreach_ID_flags:
-				no_group = def_name or def_name_fallback
 				other_to_1 = group_flag in foreach_ID_flags
 				d = {}
 
 				for each_subj in names:
 					s = re.search(pat_ID, each_subj)
-					n = s.group(1) if s else no_group if other_to_1 else each_subj
+					n = s.group(1) if s else '' if other_to_1 else each_subj
 
 					if not n in d:
 						d[n] = []
