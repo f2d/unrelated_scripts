@@ -14,19 +14,6 @@ $program_arg = '"C:\Program Files\7-Zip\7z.exe"';
 ini_set('max_execution_time', 9999);
 ini_set('error_reporting', E_ALL);
 
-define('PIPE', true);
-define('TEST', false);
-define('TEST_PIPE_SPLITS', true);
-
-define('NL', "\n");
-define('A_HREF_PAT', '~(?:^|\s)href="?([^"]+)~i');
-define('A_TEXT_PAT', '~(?:^|>)([^<>]+)(?:$|<)~i');
-define('P_HASH_LENGTH', 32);
-define('P_HASH_PAT', '~--(\w{32})\b~i');
-define('P_ID_PAT', '~[?&]persistent_id=([^&#]+)~i');
-define('P_TIME_PAT', '~[?&]t=([^&#]+)~i');
-define('RUBRIC_PAT', '~[?&]rubric=([^&#]+)~i');
-
 $return_codes = array(
 	0 => 'OK.'
 ,	1 => 'Warning: non fatal error(s), e.g. files locked by other application.'
@@ -51,6 +38,76 @@ $saved_page_hashes = array();
 $saved_page_ids = array();
 $saved_pages = array();
 $linked_pages = array();
+
+define('PIPE', true);
+define('TEST', false);
+define('TEST_PIPE_SPLITS', true);
+define('COLORED_RUBRICS', true);
+
+define('NL', "\n");
+define('A_HREF_PAT', '~(?:^|\s)href="?([^"]+)~i');
+define('A_TEXT_PAT', '~(?:^|>)([^<>]+)(?:$|<)~i');
+define('P_HASH_LENGTH', 32);
+define('P_HASH_PAT', '~--(\w{32})\b~i');
+define('P_ID_PAT', '~[?&]persistent_id=([^&#]+)~i');
+define('P_TIME_PAT', '~[?&]t=([^&#]+)~i');
+define('RUBRIC_PAT', '~[?&]rubric=([^&#]+)~i');
+
+define('COLOR_STEP', 2);
+define('COLOR_LENGTH', 6);
+define('COLOR_PADDING', '0');
+
+function get_hex_color_from_hash ($hash) {
+
+	$hash2 = $hash.$hash;
+	$cut_stop = strlen($hash);
+	$color_pick = 0;
+	$color_pick_lightness = 0;
+
+	for (
+		$cut_len = COLOR_STEP;
+		$cut_len <= COLOR_LENGTH;
+		$cut_len += COLOR_STEP
+	) {
+		$prefix = str_repeat(COLOR_PADDING, COLOR_LENGTH - $cut_len);
+		$suffix = '';
+next_prefix:
+		for (
+			$cut_start = 0;
+			$cut_start < $cut_stop;
+			$cut_start += COLOR_STEP
+		) {
+			if ($cut_part = substr($hash2, $cut_start, $cut_len)) {
+
+				$color_hex = "$prefix$cut_part$suffix";
+
+				list($R, $G, $B) = array_map('hexdec', str_split($color_hex, COLOR_STEP));
+
+				$L = ($R * 1.5) + ($G * 2.2) + $B;
+
+				if ($L > 400 && $color_pick_lightness < $L) {
+					$color_pick = $color_hex;
+					$color_pick_lightness = $L;
+				}
+			}
+		}
+
+		if (strlen($prefix) > 0) {
+
+			$next_prefix_length = strlen($prefix) - COLOR_STEP;
+			$prefix = (
+				$next_prefix_length > 0
+				? str_repeat(COLOR_PADDING, $next_prefix_length)
+				: ''
+			);
+			$suffix = str_repeat(COLOR_PADDING, COLOR_LENGTH - $cut_len - $next_prefix_length);
+
+			goto next_prefix;
+		}
+	}
+
+	return $color_pick;
+}
 
 function get_substr_by_pat ($text, $pat, $target_length = 0) {
 	return (
@@ -348,7 +405,7 @@ if (TEST) {
 if ($linked_pages) {
 	print_block('Unsaved linked pages:');
 
-	$sorted_pages = array();
+	$pages_by_rubric = array();
 
 	foreach ($linked_pages as $page_key => $same_page_entries) {
 		$p = $same_page_entries[0];
@@ -359,21 +416,40 @@ if ($linked_pages) {
 			break;
 		}
 
-		$sorted_pages["$p[rubric] $p[title]"] = $page_key;
-	}
+		$rubric = $p['rubric'];
 
-	ksort($sorted_pages);
-
-	foreach ($sorted_pages as $page_key) {
-		echo "\n	<p>$page_key";
-
-		foreach ($linked_pages[$page_key] as $page_entry) {
-			echo "
-		<br>$page_entry[rubric], $page_entry[hash], $page_entry[id], $page_entry[time] -
-		<a href=\"$page_entry[url]\" title=\"$page_entry[source_text]\">$page_entry[title]</a>";
+		if (!array_key_exists($rubric, $pages_by_rubric)) {
+			$pages_by_rubric[$rubric] = array();
 		}
 
-		echo "\n	</p>";
+		$pages_by_rubric[$rubric][$p['title']] = $page_key;
+	}
+
+	ksort($pages_by_rubric);
+
+	foreach ($pages_by_rubric as $rubric => $page_keys_by_title) {
+		echo '
+	<div '.(COLORED_RUBRICS ? 'style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'64"' : '').'>
+		<header>'.$rubric.'</header>';
+
+		ksort($page_keys_by_title);
+
+		foreach ($page_keys_by_title as $page_key) {
+			echo "
+		<p>$page_key";
+
+			foreach ($linked_pages[$page_key] as $page_entry) {
+				echo "
+			<br>$page_entry[rubric], $page_entry[hash], $page_entry[id], $page_entry[time] -
+			<a href=\"$page_entry[url]\" title=\"$page_entry[source_text]\">$page_entry[title]</a>";
+			}
+
+			echo '
+		</p>';
+		}
+
+		echo '
+	</div>';
 	}
 }
 
