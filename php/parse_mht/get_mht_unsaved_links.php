@@ -34,6 +34,8 @@ $generic_rubrics = array(
 ,	'personal_feed'
 );
 
+$last_saved_file_name = $last_saved_file_type = '';
+$saved_html_file_names = array();
 $saved_page_hashes = array();
 $saved_page_ids = array();
 $saved_pages = array();
@@ -52,6 +54,9 @@ define('P_HASH_PAT', '~--(\w{32})\b~i');
 define('P_ID_PAT', '~[?&]persistent_id=([^&#]+)~i');
 define('P_TIME_PAT', '~[?&]t=([^&#]+)~i');
 define('RUBRIC_PAT', '~[?&]rubric=([^&#]+)~i');
+define('CONTENT_NAME_PAT', '~^(?:[^?#]*?/+)*([^/?#]+)(?:$|[?#])~i');
+define('CONTENT_TYPE_PAT', '~Content[^a-z]+type\s*=\s*(\S[^\r\n]*)~i');
+define('CONTENT_URL_PAT', '~Content[^a-z]+location\s*=\s*(\S[^\r\n]*)~i');
 
 define('COLOR_STEP', 2);
 define('COLOR_LENGTH', 6);
@@ -159,7 +164,6 @@ function add_linked_page ($text) {
 		($decoded_text = html_entity_decode($text))
 	&&	($page_entry = get_a_parts($decoded_text))
 	) {
-
 		$page_id    = $page_entry['id'];
 		$page_hash  = $page_entry['hash'];
 		$page_title = $page_entry['title'];
@@ -171,6 +175,8 @@ function add_linked_page ($text) {
 			$pages = &$saved_pages;
 		} else {
 			$pages = &$linked_pages;
+
+			if (TEST) $page_entry['source_text'] = htmlspecialchars($decoded_text);
 		}
 
 		$page_key = $page_id ?: $page_hash;
@@ -183,8 +189,6 @@ function add_linked_page ($text) {
 			return false;
 		}
 
-		$page_entry['source_text'] = htmlspecialchars($decoded_text);
-
 		array_push($pages[$page_key], $page_entry);
 	}
 
@@ -192,14 +196,46 @@ function add_linked_page ($text) {
 }
 
 function is_page_filename ($text) {
-	return !!get_page_hash($text);
+	global $saved_html_file_names, $last_saved_file_name, $last_saved_file_type;
+
+	$is_hash = !!get_page_hash ($text);
+
+	if (!$is_hash) {
+		if (!strlen($text = trim($text))) {
+			if (
+				$last_saved_file_type === 'text/html'
+			&&	strlen($last_saved_file_name)
+			&&	preg_match(CONTENT_NAME_PAT, $last_saved_file_name, $match)
+			&&	strlen($name = $match[1])
+			&&	!in_array($name, $saved_html_file_names)
+			) {
+				array_push($saved_html_file_names, $name);
+
+				echo "\n\"$name\"";
+			}
+
+			$last_saved_file_name = $last_saved_file_type = '';
+		}
+		else if ($type = get_substr_by_pat ($text, CONTENT_TYPE_PAT)) $last_saved_file_type = $type;
+		else if ($name = get_substr_by_pat ($text, CONTENT_URL_PAT))  $last_saved_file_name = $name;
+	}
+
+	return $is_hash;
 }
 
 function is_relevant_url ($text) {
-	return is_page_filename ($text) && (
+	return !!get_page_hash ($text) && (
 		false !== strpos($text, '/instory/')
 	||	false !== strpos($text, '/story/')
 	);
+}
+
+function get_quoted ($var) { return '"'.trim($var, '"').'"'; }
+function get_quoted_exclude_arg ($ext) { return get_quoted("-xr!*.$ext"); }
+function get_quoted_include_arg ($ext) {
+	global $archive_folder_path;
+
+	return get_quoted("-air!$archive_folder_path\\*.$ext");
 }
 
 function get_to_print ($var) { return print_r($var, true); }
@@ -372,15 +408,29 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 	flush();
 }
 
-$archive_arg = '-an "-air!'.$archive_folder_path.'\*_*.mht"';
+$archive_arg = '-an '.implode(' ', array_map('get_quoted_include_arg', array(
+	'mht',
+	'mhtml',
+)));
+
 $content_arg = '"-ir!*--*"';
+$content_exclude_arg = implode(' ', array_map('get_quoted_exclude_arg', array(
+	'css',
+	'gif',
+	'jpeg',
+	'jpg',
+	'js',
+	'png',
+	'svg',
+	'webp',
+)));
 
 //* "-ba" prints truncated filenames:
 // run_test("$program_arg l -ba $archive_arg $content_arg", 'is_page_filename');
 
 //* "-slt" prints full "Content location" URL:
 // run_test("$program_arg l -slt $archive_arg $content_arg", 'is_page_filename', 'get_page_id');
-run_test("$program_arg l -slt $archive_arg $content_arg", 'is_page_filename', 'add_saved_page');
+run_test("$program_arg l -slt $archive_arg $content_exclude_arg", 'is_page_filename', 'add_saved_page');
 
 if (TEST) {
 	print_block('Saved pages hashes:');
@@ -390,9 +440,18 @@ if (TEST) {
 	print_block($saved_page_ids);
 }
 
+if (count($saved_html_file_names)) {
+	$saved_html_file_names = array_map('get_quoted', array_filter(array_map('trim', $saved_html_file_names), 'strlen'));
+
+	natsort($saved_html_file_names);
+
+	$content_arg .= ' '.implode(' ', $saved_html_file_names);
+}
+
 //* "-so" prints full HTML page content:
 // run_test("$program_arg x -so $archive_arg $content_arg", 'is_relevant_url', 'get_page_id', '"');
-run_test("$program_arg x -so $archive_arg $content_arg news *.htm *.html ? ?? ???", 'is_relevant_url', 'add_linked_page', '<a ');
+// run_test("$program_arg x -so $archive_arg $content_arg news *.htm *.html ? ?? ???", 'is_relevant_url', 'add_linked_page', '<a ');
+run_test("$program_arg x -so $archive_arg $content_arg", 'is_relevant_url', 'add_linked_page', '<a ');
 
 if (TEST) {
 	print_block('Saved pages:');
@@ -403,8 +462,6 @@ if (TEST) {
 }
 
 if ($linked_pages) {
-	print_block('Unsaved linked pages:');
-
 	$pages_by_rubric = array();
 
 	foreach ($linked_pages as $page_key => $same_page_entries) {
@@ -425,6 +482,8 @@ if ($linked_pages) {
 		$pages_by_rubric[$rubric][$p['title']] = $page_key;
 	}
 
+	print_block('Unsaved linked pages - '.count($linked_pages).' IDs in '.count($pages_by_rubric).' rubrics:');
+
 	ksort($pages_by_rubric);
 
 	foreach ($pages_by_rubric as $rubric => $page_keys_by_title) {
@@ -439,9 +498,14 @@ if ($linked_pages) {
 		<p>$page_key";
 
 			foreach ($linked_pages[$page_key] as $page_entry) {
+				$hint = (
+					array_key_exists('source_text', $page_entry)
+					? " title=\"$page_entry[source_text]\""
+					: ''
+				);
 				echo "
 			<br>$page_entry[rubric], $page_entry[hash], $page_entry[id], $page_entry[time] -
-			<a href=\"$page_entry[url]\" title=\"$page_entry[source_text]\">$page_entry[title]</a>";
+			<a href=\"$page_entry[url]\"$hint>$page_entry[title]</a>";
 			}
 
 			echo '
