@@ -31,6 +31,8 @@ $descriptor_spec = array(
 
 $generic_rubrics = array(
 	'index'
+,	'none'
+,	'no rubric'
 ,	'personal_feed'
 );
 
@@ -429,7 +431,6 @@ $content_exclude_arg = implode(' ', array_map('get_quoted_exclude_arg', array(
 // run_test("$program_arg l -ba $archive_arg $content_arg", 'is_page_filename');
 
 //* "-slt" prints full "Content location" URL:
-// run_test("$program_arg l -slt $archive_arg $content_arg", 'is_page_filename', 'get_page_id');
 run_test("$program_arg l -slt $archive_arg $content_exclude_arg", 'is_page_filename', 'add_saved_page');
 
 if (TEST) {
@@ -441,16 +442,12 @@ if (TEST) {
 }
 
 if (count($saved_html_file_names)) {
-	$saved_html_file_names = array_map('get_quoted', array_filter(array_map('trim', $saved_html_file_names), 'strlen'));
-
 	natsort($saved_html_file_names);
 
-	$content_arg .= ' '.implode(' ', $saved_html_file_names);
+	$content_arg .= ' "'.implode('" "', $saved_html_file_names).'"';
 }
 
 //* "-so" prints full HTML page content:
-// run_test("$program_arg x -so $archive_arg $content_arg", 'is_relevant_url', 'get_page_id', '"');
-// run_test("$program_arg x -so $archive_arg $content_arg news *.htm *.html ? ?? ???", 'is_relevant_url', 'add_linked_page', '<a ');
 run_test("$program_arg x -so $archive_arg $content_arg", 'is_relevant_url', 'add_linked_page', '<a ');
 
 if (TEST) {
