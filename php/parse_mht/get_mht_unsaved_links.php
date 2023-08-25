@@ -252,7 +252,7 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 
 	echo("
 	<details>
-		<summary>(click for details) command: $command_line</summary>
+		<summary style=\"background-color: lightgray\">(click for details) command: $command_line</summary>
 		<div>");
 
 	flush();
@@ -403,8 +403,8 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 		</div>
 	</details>
 	<details>
-		<summary>(click for details) result: $return_code. $status_message</summary>
-		<div>output_lines = $output_lines</div>
+		<summary style=\"background-color: lightcyan\">(click for details) result: $return_code. $status_message</summary>
+		<div style=\"background-color: lightblue\">output_lines = $output_lines</div>
 	</details>");
 
 	flush();
@@ -485,8 +485,8 @@ if ($linked_pages) {
 
 	foreach ($pages_by_rubric as $rubric => $page_keys_by_title) {
 		echo '
-	<div '.(COLORED_RUBRICS ? 'style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'64"' : '').'>
-		<header>'.$rubric.'</header>';
+	<details '.(COLORED_RUBRICS ? 'style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'64"' : '').'>
+		<summary>'.$rubric.' ('.count($page_keys_by_title).')</summary>';
 
 		ksort($page_keys_by_title);
 
@@ -510,7 +510,7 @@ if ($linked_pages) {
 		}
 
 		echo '
-	</div>';
+	</details>';
 	}
 }
 
