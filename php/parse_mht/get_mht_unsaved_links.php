@@ -45,7 +45,7 @@ $linked_pages = array();
 
 define('PIPE', true);
 define('TEST', false);
-define('TEST_PIPE_SPLITS', true);
+define('TEST_PIPE_SPLITS', false);
 define('COLORED_RUBRICS', true);
 
 define('NL', "\n");
@@ -56,7 +56,7 @@ define('P_HASH_PAT', '~--(\w{32})\b~i');
 define('P_ID_PAT', '~[?&]persistent_id=([^&#]+)~i');
 define('P_TIME_PAT', '~[?&]t=([^&#]+)~i');
 define('RUBRIC_PAT', '~[?&]rubric=([^&#]+)~i');
-define('CONTENT_NAME_PAT', '~^(?:[^?#]*?/+)*([^/?#]+)(?:$|[?#])~i');
+define('CONTENT_NAME_PAT', '~^(?:[^?#]*?/+)*([^A-Z/?#]+)(?:$|[?#])~');
 define('CONTENT_TYPE_PAT', '~Content[^a-z]+type\s*=\s*(\S[^\r\n]*)~i');
 define('CONTENT_URL_PAT', '~Content[^a-z]+location\s*=\s*(\S[^\r\n]*)~i');
 
@@ -147,6 +147,17 @@ function get_a_parts ($text) {
 		,	'title'  => $page_title
 		,	'rubric' => get_page_rubric($page_url) ?: 'no rubric'
 		) : false
+	);
+}
+
+function sort_linked_pages($a, $b) {
+	return (
+		($a['time']	<=> $b['time'])
+	?:	($a['id']	<=> $b['id'])
+	?:	($a['hash']	<=> $b['hash'])
+	?:	($a['rubric']	<=> $b['rubric'])
+	?:	($a['title']	<=> $b['title'])
+	?:	($a['url']	<=> $b['url'])
 	);
 }
 
@@ -403,8 +414,8 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 		</div>
 	</details>
 	<details>
-		<summary style=\"background-color: lightcyan\">(click for details) result: $return_code. $status_message</summary>
-		<div style=\"background-color: lightblue\">output_lines = $output_lines</div>
+		<summary style=\"background-color: lightblue\">(click for details) result: $return_code. $status_message</summary>
+		<div style=\"background-color: lightcyan\">output_lines = $output_lines</div>
 	</details>");
 
 	flush();
@@ -461,7 +472,9 @@ if (TEST) {
 if ($linked_pages) {
 	$pages_by_rubric = array();
 
-	foreach ($linked_pages as $page_key => $same_page_entries) {
+	foreach ($linked_pages as $page_key => &$same_page_entries) {
+
+		usort($same_page_entries, 'sort_linked_pages');
 		$p = $same_page_entries[0];
 
 		foreach ($same_page_entries as $page_entry) if (!in_array($page_entry['rubric'], $generic_rubrics)) {
@@ -486,7 +499,7 @@ if ($linked_pages) {
 	foreach ($pages_by_rubric as $rubric => $page_keys_by_title) {
 		echo '
 	<details '.(COLORED_RUBRICS ? 'style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'64"' : '').'>
-		<summary>'.$rubric.' ('.count($page_keys_by_title).')</summary>';
+		<summary>('.count($page_keys_by_title).') '.$rubric.'</summary>';
 
 		ksort($page_keys_by_title);
 
@@ -501,7 +514,10 @@ if ($linked_pages) {
 					: ''
 				);
 				echo "
-			<br>$page_entry[rubric], $page_entry[hash], $page_entry[id], $page_entry[time] -
+			<br>	$page_entry[time],
+				$page_entry[id],
+				$page_entry[hash],
+				$page_entry[rubric] -
 			<a href=\"$page_entry[url]\"$hint>$page_entry[title]</a>";
 			}
 
