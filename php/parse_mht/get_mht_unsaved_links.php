@@ -3,6 +3,10 @@
 <head>
 	<meta charset="utf-8">
 	<title>Get unsaved links from dzen.ru/yandex news MHT files with 7z and eDecoder</title>
+	<style>
+		details p { margin: 2em 0; }
+		details summary { cursor: pointer; }
+	</style>
 </head>
 <body>
 	<pre>Running:</pre>
@@ -178,6 +182,7 @@ function add_linked_page ($text) {
 	&&	($page_entry = get_a_parts($decoded_text))
 	) {
 		$page_id    = $page_entry['id'];
+		$page_url   = $page_entry['url'];
 		$page_hash  = $page_entry['hash'];
 		$page_title = $page_entry['title'];
 
@@ -198,11 +203,24 @@ function add_linked_page ($text) {
 			$pages[$page_key] = array();
 		}
 
-		foreach ($pages[$page_key] as $found_entry) if ($page_title === $found_entry['title']) {
-			return false;
-		}
+		$pages_for_this_key = &$pages[$page_key];
 
-		array_push($pages[$page_key], $page_entry);
+		if (!array_key_exists($page_url, $pages_for_this_key)) {
+
+			unset($page_entry['title']);
+			$page_entry['titles'] = array($page_title);
+			$pages_for_this_key[$page_url] = $page_entry;
+
+		} else {
+			$titles_for_this_url = &$pages_for_this_key[$page_url]['titles'];
+
+			if (!in_array($page_title, $titles_for_this_url)) {
+
+				array_push($titles_for_this_url, $page_title);
+			} else {
+				return false;
+			}
+		}
 	}
 
 	return $page_entry;
@@ -474,10 +492,18 @@ if ($linked_pages) {
 
 	foreach ($linked_pages as $page_key => &$same_page_entries) {
 
+		foreach ($same_page_entries as &$page_entry)
+		if (array_key_exists('titles', $page_entry)) {
+
+			$page_entry['title'] = implode(' | ', $page_entry['titles']);
+			unset($page_entry['titles']);
+		}
+
 		usort($same_page_entries, 'sort_linked_pages');
 		$p = $same_page_entries[0];
 
-		foreach ($same_page_entries as $page_entry) if (!in_array($page_entry['rubric'], $generic_rubrics)) {
+		foreach ($same_page_entries as &$page_entry)
+		if (!in_array($page_entry['rubric'], $generic_rubrics)) {
 			$p = $page_entry;
 
 			break;
@@ -504,21 +530,40 @@ if ($linked_pages) {
 		ksort($page_keys_by_title);
 
 		foreach ($page_keys_by_title as $page_key) {
-			echo "
-		<p>$page_key";
+			echo '
+		<p>';
+			$prev_title = '';
 
 			foreach ($linked_pages[$page_key] as $page_entry) {
+
+				$title = (
+					array_key_exists('titles', $page_entry)
+					? implode(' | ', $page_entry['titles'])
+					: (
+					array_key_exists('title', $page_entry)
+					? $page_entry['title']
+					: 'no title'
+					)
+				);
+
+				if ($prev_title === $title) {
+					continue;
+				}
+
+				$prev_title = $title;
 				$hint = (
 					array_key_exists('source_text', $page_entry)
 					? " title=\"$page_entry[source_text]\""
 					: ''
 				);
+
 				echo "
-			<br>	$page_entry[time],
-				$page_entry[id],
-				$page_entry[hash],
-				$page_entry[rubric] -
-			<a href=\"$page_entry[url]\"$hint>$page_entry[title]</a>";
+			$page_entry[id],
+			$page_entry[time],
+			$page_entry[rubric],
+			$page_entry[hash] -
+			<a href=\"$page_entry[url]\"$hint>$title</a>
+			<br>";
 			}
 
 			echo '
