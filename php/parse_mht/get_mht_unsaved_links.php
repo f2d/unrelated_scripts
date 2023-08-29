@@ -50,6 +50,7 @@ $linked_pages = array();
 define('PIPE', true);
 define('TEST', false);
 define('TEST_PIPE_SPLITS', false);
+define('TEST_SRC_TEXT', false);
 define('COLORED_RUBRICS', true);
 
 define('NL', "\n");
@@ -147,14 +148,14 @@ function get_a_parts ($text) {
 			'id'     => get_page_id($page_url) ?: 'no id'
 		,	'url'    => $page_url
 		,	'hash'   => $page_hash
-		,	'time'   => (intval($t = get_page_time($page_url)) ? date(DATE_ATOM, $t) : 'no time')
+		,	'time'   => (intval($t = get_page_time($page_url)) > 0 ? date(DATE_ATOM, $t) : 'no time')
 		,	'title'  => $page_title
 		,	'rubric' => get_page_rubric($page_url) ?: 'no rubric'
 		) : false
 	);
 }
 
-function sort_linked_pages($a, $b) {
+function sort_linked_pages ($a, $b) {
 	return (
 		($a['time']	<=> $b['time'])
 	?:	($a['id']	<=> $b['id'])
@@ -178,8 +179,8 @@ function add_linked_page ($text) {
 	global $saved_page_hashes, $saved_page_ids, $saved_pages, $linked_pages;
 
 	if (
-		($decoded_text = html_entity_decode($text))
-	&&	($page_entry = get_a_parts($decoded_text))
+		($text = html_entity_decode($text))
+	&&	($page_entry = get_a_parts ($text))
 	) {
 		$page_id    = $page_entry['id'];
 		$page_url   = $page_entry['url'];
@@ -194,7 +195,7 @@ function add_linked_page ($text) {
 		} else {
 			$pages = &$linked_pages;
 
-			if (TEST) $page_entry['source_text'] = htmlspecialchars($decoded_text);
+			if (TEST_SRC_TEXT) $page_entry['source_text'] = htmlspecialchars($text);
 		}
 
 		$page_key = $page_id ?: $page_hash;
@@ -209,7 +210,7 @@ function add_linked_page ($text) {
 
 			unset($page_entry['title']);
 			$page_entry['titles'] = array($page_title);
-			$pages_for_this_key[$page_url] = $page_entry;
+			$pages_for_this_key[$page_url] = &$page_entry;
 
 		} else {
 			$titles_for_this_url = &$pages_for_this_key[$page_url]['titles'];
@@ -255,9 +256,14 @@ function is_page_filename ($text) {
 }
 
 function is_relevant_url ($text) {
-	return !!get_page_hash ($text) && (
-		false !== strpos($text, '/instory/')
-	||	false !== strpos($text, '/story/')
+	return (
+		($text = html_entity_decode($text))
+	&&	($page_url = get_link_url ($text))
+	&&	!!get_page_hash ($page_url)
+	&&	(
+			false !== strpos($page_url, '/instory/')
+		||	false !== strpos($page_url, '/story/')
+		)
 	);
 }
 
@@ -274,6 +280,12 @@ function print_block ($var) {
 	echo('
 	<pre>'.htmlspecialchars(get_to_print($var)).'
 	</pre>');
+}
+
+function var_dump_block ($var) {
+	echo '<pre>';
+	var_dump($var);
+	echo '</pre>';
 }
 
 function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $split_each_line_by = '') {
@@ -518,11 +530,15 @@ if ($linked_pages) {
 		$pages_by_rubric[$rubric][$p['title']] = $page_key;
 	}
 
+//* To prevent foreach ref value bugs:
+	unset($page_entry);
+
 	print_block('Unsaved linked pages - '.count($linked_pages).' IDs in '.count($pages_by_rubric).' rubrics:');
 
 	ksort($pages_by_rubric);
 
-	foreach ($pages_by_rubric as $rubric => $page_keys_by_title) {
+	foreach ($pages_by_rubric as $rubric => &$page_keys_by_title) {
+
 		echo '
 	<details '.(COLORED_RUBRICS ? 'style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'64"' : '').'>
 		<summary>('.count($page_keys_by_title).') '.$rubric.'</summary>';
@@ -530,9 +546,22 @@ if ($linked_pages) {
 		ksort($page_keys_by_title);
 
 		foreach ($page_keys_by_title as $page_key) {
-			echo '
-		<p>';
-			$prev_title = '';
+
+			echo "
+		<p>$page_key<br>";
+
+//* To detect ref value bugs:
+			if (TEST)
+			foreach ($linked_pages[$page_key] as $page_entry)
+			if ($page_key != $page_entry['id']) {
+
+				var_dump_block ($page_key);
+				var_dump_block ($linked_pages[$page_key]);
+
+				break;
+			}
+
+			$done_titles = array();
 
 			foreach ($linked_pages[$page_key] as $page_entry) {
 
@@ -546,11 +575,12 @@ if ($linked_pages) {
 					)
 				);
 
-				if ($prev_title === $title) {
+				if (in_array($title, $done_titles)) {
 					continue;
 				}
 
-				$prev_title = $title;
+				array_push($done_titles, $title);
+
 				$hint = (
 					array_key_exists('source_text', $page_entry)
 					? " title=\"$page_entry[source_text]\""
