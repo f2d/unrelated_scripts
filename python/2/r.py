@@ -20,6 +20,7 @@ from r_config import dest_root, dest_root_by_ext, dest_root_yt
 from r_config import ext_web, ext_web_remap, ext_web_read_bytes, ext_web_index_file, sites
 
 arg_name_cut = 'cut'
+arg_name_sub = 'sub'
 
 args = sys.argv
 argc = len(args)
@@ -59,20 +60,25 @@ if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
 	,	'	'+arg_name_cut+': cut long names to '+str(default_name_cut_length)
 	,	'	'+arg_name_cut+'<number>: cut long names to specified length'
 	,	''
-	,	'	y:   move any leftover files into subdir named by mod-time year'
+	,	'	'+arg_name_sub+': move each leftover file into a subdir named by first character of its name'
+	,	'	'+arg_name_sub+'<number>: name subdir by specified number of first characters of subject name'
+	,	''
+	,	'	y:   move leftover files into subdir named by mod-time year'
 	,	'	m:   subdir by month'
 	,	'	d:   subdir by day'
 	,	'	ym:  subdir by year-month'
 	,	'	ymd: subdir by year-month-day'
 	,	'		Notes: may be combined,'
 	,	'		interpreted as switches (on/off),'
-	,	'		resulting always in this order: y/ym/m/ymd/d'
-	,	'	dir: move dirs into subdir by mod-time too'
+	,	'		resulting always in this order: y/ym/m/ymd/d/'+arg_name_sub
+	,	''
+	,	'	dir: move dirs into subdir by name and/or mod-time too'
 	,	''
 	,	'* Examples:'
 	,	'	%s rwb'
 	,	'	%s tfo '+arg_name_cut+'234'
-	,	'	%s o y ym ymd dir'
+	,	'	%s o dir '+arg_name_sub
+	,	'	%s o dir y ym ymd'
 	]
 
 	print('\n'.join(help_text_lines).replace('%s', self_name))
@@ -110,18 +116,23 @@ if arg_warning_to_error:
 	import warnings
 	warnings.filterwarnings('error')
 
-j = len(arg_name_cut)
+def get_number_from_args(arg_name, default_value=1):
 
-if arg_name_cut in other_args:
-	arg_len = default_name_cut_length			# <- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
-else:
-	arg_len = 0
+	arg_name_len = len(arg_name)
+	result_value = default_value if arg_name in other_args else 0
 
-	for a in other_args:
-		if a[0 : j] == arg_name_cut:
-			arg_len = int(a[j : ])
+	for each_arg in other_args:
+		if (
+			len(each_arg) > arg_name_len
+		and	arg_name == each_arg[0 : arg_name_len]
+		):
+			result_value = max(result_value, int(each_arg[arg_name_len : ]))
 
-			break
+	return result_value
+
+arg_cut_name_to_subdir_len = get_number_from_args(arg_name_sub)
+arg_cut_name_to_rename_len = get_number_from_args(arg_name_cut, default_name_cut_length)
+# ^- pass 'cut' or 'cut123' for longname cutting tool; excludes move to folders
 
 print_duplicate_count=True
 unprinted_duplicate_count=0
@@ -664,8 +675,15 @@ def print_name(name, prefix='', extra_line=True):
 def move_processed_target(src_path, path, name, dest_dir=None):
 	global n_fail, n_moved
 
-	if not dest_dir and arg_subdir_modtime_format:
-		dest_dir = path.rstrip('/') + '/' + get_formatted_modtime(src_path, arg_subdir_modtime_format).strip('/')
+	if not dest_dir and (
+		arg_subdir_modtime_format
+	or	arg_cut_name_to_subdir_len
+	):
+		dest_dir = '/'.join(filter(None, [
+			path.rstrip('/')
+		,	get_formatted_modtime(src_path, arg_subdir_modtime_format).strip('/') if arg_subdir_modtime_format else None
+		,	name[ : arg_cut_name_to_subdir_len] if arg_cut_name_to_subdir_len else None
+		]))
 
 	if dest_dir:
 		print dest_dir.encode(default_print_encoding), colored('<-', 'yellow'), name.encode(default_print_encoding)
@@ -730,18 +748,18 @@ def process_names(path, names, later=0):
 
 		# optionally cut long names before anything else:
 
-		if arg_len:
+		if arg_cut_name_to_rename_len:
 			src_path = os.path.abspath(src_path) if arg_cut_full_path else name
 			src_len = len(src_path)
 
-			if src_len > arg_len:
+			if src_len > arg_cut_name_to_rename_len:
 				n_matched += 1
 
 				if n_max_len < src_len:
 					n_max_len = src_len
 
 				ext = '(...).' + get_file_ext_from_path(name)
-				dest_path = src_path[ : arg_len - len(ext)].rstrip() + ext
+				dest_path = src_path[ : arg_cut_name_to_rename_len - len(ext)].rstrip() + ext
 				dest_path = get_unique_clean_path(src_path, dest_path)
 				dest_show = (dest_path if arg_print_full_path else get_file_name_from_path(dest_path))
 				src_show = (src_path if arg_print_full_path else name)
