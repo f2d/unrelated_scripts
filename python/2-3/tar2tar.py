@@ -47,7 +47,7 @@ def print_help():
 	help_text_lines = [
 		''
 	,	colored('* Description:', 'yellow')
-	,	'	Save some files from a tar file into a new tar file.'
+	,	'	Save some files from a tar file into a new tar file, optionaly compressed.'
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
@@ -76,7 +76,7 @@ def print_help():
 # TODO:	,	colored('--read-file=', 'magenta') + colored('<path>', 'cyan') + ': archive file to read, in given order.'
 # TODO:	,	colored('--save-file=', 'magenta') + colored('<path>', 'cyan') + ': archive file to write, associated with all masks after it until the next save file.'
 	,	''
-	,	'	At least one source, destination and mask filter are required.'
+	,	'	At least one source and destination are required.'
 # TODO:	,	'	There may be any number of source, destination, list file and/or mask arguments.'
 # TODO:	,	'	Unprefixed arguments on fixed positions are only allowed in the command line, for simple cases and backward compatibility.'
 # TODO:	,	'	Unprefixed lines in list files are ignored and may be used as comments.'
@@ -106,8 +106,10 @@ def print_help():
 	,	'	Which is interpreted as this:'
 	,	colored('		"!/^/*(lib|opt|root|usr|var|srv)(/|$)/i"', 'cyan')
 	,	''
+	,	'	Supported source/destination compression modes: ' + ', '.join(sorted(compression_modes)) + '.'
+	,	''
 	,	colored('* Examples:', 'yellow')
-	,	'	{0} old.tar TEST *.txt'
+	,	'	{0} old.tar TEST "*.txt"'
 	,	'	{0} old.tar.gz new.tar.bz2 "!*.txt" "root/sub/*.txt"'
 	,	'	{0} ./old.tar.xz /tmp/new.tar "!/^var/run.*$/i"'
 # TODO:	,	'	{0} --read-file=old.tar --save-file=1.tar "--include-if-name=1.*" --save-file=2.tar "--include-if-name=2.*"'
@@ -144,7 +146,7 @@ def run_batch_repack(argv):
 
 	argc = len(argv)
 
-	if argc < 3:
+	if argc < 2:
 		print_help()
 
 		return 1
@@ -164,6 +166,12 @@ def run_batch_repack(argv):
 
 	old_path = old_path.replace('\\', '/')
 	new_path = new_path.replace('\\', '/')
+
+	if old_path == new_path:
+		print('')
+		cprint('Error: Source path equals destination.', 'red')
+
+		return 11
 
 	TEST = True if new_path == 'TEST' else False
 
@@ -219,9 +227,9 @@ def run_batch_repack(argv):
 
 	if not len(criteria):
 		print('')
-		cprint('Error: No parts to match.', 'red')
+		cprint('Warning: No criteria to match. All files will be copied.', 'yellow')
 
-		return 11
+		criteria = None
 
 # - Open archive files --------------------------------------------------------
 
@@ -244,12 +252,21 @@ def run_batch_repack(argv):
 
 	print_with_colored_prefix('From:    ', old_path.encode(print_encoding))
 	print_with_colored_prefix('To:      ', new_path.encode(print_encoding))
-	print_with_colored_prefix('Matching:', ', '.join([x['arg'] for x in criteria]).encode(print_encoding))
+	print_with_colored_prefix('Matching:', ', '.join([x['arg'] for x in criteria]).encode(print_encoding) if criteria else '*')
 
-	count_members = 0
-	count_members_added = 0
-	count_members_matching = 0
+	count_old_folders = 0
+	count_old_files = 0
+	count_old_links = 0
+	count_old_members = 0
+
+	count_added_folders = 0
+	count_added_files = 0
+	count_added_links = 0
+	count_added_members = 0
+
+	count_matching_names = 0
 	count_skipped_by_error = 0
+
 	skip_log = None
 
 # - Iterate archived files ----------------------------------------------------
@@ -260,25 +277,38 @@ def run_batch_repack(argv):
 		if member is None:
 			break
 
-	# for member in old_file.getmembers():
-		count_members += 1
+		count_old_members += 1
+
+		if not isinstance(member, tarfile.TarInfo):
+			print_with_colored_prefix('Skipped not TarInfo:', member, 'yellow')
+
+			continue
+
 		included = include_by_default
+		is_folder = member.isdir()
+		is_file = member.isfile()
+		is_link = member.islnk() or member.issym()
 
-		for x in criteria:
-			matched = False
-			pattern = x['pattern']
+		if is_folder: count_old_folders += 1
+		elif is_file: count_old_files += 1
+		elif is_link: count_old_links += 1
 
-			if is_type_str(pattern):
-				matched = fnmatch.fnmatch(member.name, pattern)
+		if criteria:
+			for x in criteria:
+				matched = False
+				pattern = x['pattern']
 
-			elif is_type_reg(pattern):
-				matched = re.search(pattern, member.name)
+				if is_type_str(pattern):
+					matched = fnmatch.fnmatch(member.name, pattern)
 
-			if matched:
-				included = x['include_if']
+				elif is_type_reg(pattern):
+					matched = re.search(pattern, member.name)
+
+				if matched:
+					included = x['include_if']
 
 		if included:
-			count_members_matching += 1
+			count_matching_names += 1
 
 			try:
 				print(member.name)
@@ -293,21 +323,22 @@ def run_batch_repack(argv):
 
 					except (UnicodeEncodeError, UnicodeDecodeError):
 
-						cprint('<# Unprintable file path - {} #>'.format(count_members), 'red')
+						cprint('<# Unprintable file path - {} #>'.format(count_old_members), 'red')
 
 			if not TEST:
 				try:
-					if (
-						member.type == tarfile.LNKTYPE
-					or	member.type == tarfile.SYMTYPE
-					):
+					if is_link or is_folder:
 						extracted_file = member
 					else:
 						extracted_file = old_file.extractfile(member)
 
 					if extracted_file:
 						new_file.addfile(member, extracted_file)
-						count_members_added += 1
+						count_added_members += 1
+
+						if is_folder: count_added_folders += 1
+						elif is_file: count_added_files += 1
+						elif is_link: count_added_links += 1
 
 				except (KeyError, UnicodeEncodeError, UnicodeDecodeError):
 					traceback.print_exc()
@@ -330,17 +361,42 @@ def run_batch_repack(argv):
 
 							except (UnicodeEncodeError, UnicodeDecodeError):
 
-								skip_log.write(u'<# Unwritable file path - {} #>\n'.format(count_members))
+								skip_log.write(u'<# Unwritable file path - {} #>\n'.format(count_old_members))
 
 # - Result summary ------------------------------------------------------------
 
 	old_file.close()
 
-	print('')
-	print_with_colored_prefix('Found', '{} files in old archive, with {} matching.'.format(count_members, count_members_matching), 'yellow')
+	count_old_other = (
+		count_old_members
+	-	count_old_folders
+	-	count_old_files
+	-	count_old_links
+	)
 
-	if count_members_added > 0:
-		print_with_colored_prefix('Added', '{} files to new archive.'.format(count_members_added), 'green')
+	count_added_other = (
+		count_added_members
+	-	count_added_folders
+	-	count_added_files
+	-	count_added_links
+	)
+
+	print('')
+	print_with_colored_prefix('Found in old archive:', (', '.join(filter(None, [
+		'{} folders'.format(count_old_folders) if count_old_folders else None
+	,	'{} files'.format(count_old_files) if count_old_files else None
+	,	'{} links'.format(count_old_links) if count_old_links else None
+	,	'{} other'.format(count_old_other) if count_old_other else None
+	,	'{} matching names'.format(count_matching_names) if count_matching_names else None
+	])) or 'nothing') + '.', 'yellow')
+
+	if count_added_members > 0:
+		print_with_colored_prefix('Added to new archive:', (', '.join(filter(None, [
+			'{} folders'.format(count_added_folders) if count_added_folders else None
+		,	'{} files'.format(count_added_files) if count_added_files else None
+		,	'{} links'.format(count_added_links) if count_added_links else None
+		,	'{} other'.format(count_added_other) if count_added_other else None
+		])) or 'nothing') + '.', 'green')
 
 	if not TEST:
 		new_file.close()
@@ -351,7 +407,7 @@ def run_batch_repack(argv):
 		if count_skipped_by_error > 0:
 			print_with_colored_prefix('Skipped', '{} files due to errors, see log.'.format(count_skipped_by_error), 'cyan')
 
-	return 0 if count_members_added > 0 else -1
+	return 0 if count_added_members > 0 else -1
 
 # - Run from commandline, when not imported as module -------------------------
 
