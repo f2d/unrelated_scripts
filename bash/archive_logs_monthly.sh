@@ -94,8 +94,12 @@ then
 
 	# Cleanup after upload:
 
+	# Keep files available until manual admin check and deletion.
+	# Avoid using /tmp - tmpfs contents disappear on reboot, which can happen anytime.
+	# Also avoid using folders included in daily incremental backup, e.g. /root or /var, to keep backup size less at home.
+
 	# sub_dir=${log_dir}/delete_after_upload
-	sub_dir="/tmp/delete_after_upload"
+	sub_dir="/tmp_delete_after_upload"
 
 	if [ ! -d "${sub_dir}" ]
 	then
