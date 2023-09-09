@@ -12,8 +12,12 @@
 	<pre>Running:</pre>
 <?php
 
-$archive_folder_path = 'D:\mht';
-$program_arg = '"C:\Program Files\7-Zip\7z.exe"';
+// $archive_folder_path = 'D:\mht';
+// $program_arg = '"C:\Program Files\7-Zip\7z.exe"';
+
+// $archive_folder_path = 'E:\mht';
+$archive_folder_path = 'D:\_bak\_www\_news\dzen.ru\_news';
+$program_arg = '"D:\programs\7-Zip\7z.exe"';
 
 ini_set('max_execution_time', 9999);
 ini_set('error_reporting', E_ALL);
@@ -47,7 +51,6 @@ $saved_page_ids = array();
 $saved_pages = array();
 $linked_pages = array();
 
-define('PIPE', true);
 define('TEST', false);
 define('TEST_PIPE_SPLITS', false);
 define('TEST_SRC_TEXT', false);
@@ -65,60 +68,84 @@ define('CONTENT_NAME_PAT', '~^(?:[^?#]*?/+)*([^A-Z/?#]+)(?:$|[?#])~');
 define('CONTENT_TYPE_PAT', '~Content[^a-z]+type\s*=\s*(\S[^\r\n]*)~i');
 define('CONTENT_URL_PAT', '~Content[^a-z]+location\s*=\s*(\S[^\r\n]*)~i');
 
-define('COLOR_STEP', 2);
-define('COLOR_LENGTH', 6);
-define('COLOR_PADDING', '0');
+if (COLORED_RUBRICS) {
+	define('COLOR_WEIGHT_R', 1.5);
+	define('COLOR_WEIGHT_G', 2.2);
+	define('COLOR_WEIGHT_B', 1);
 
-function get_hex_color_from_hash ($hash) {
+	define('COLOR_LIGHTNESS_MAX', ceil((255 * COLOR_WEIGHT_R) + (255 * COLOR_WEIGHT_G) + (255 * COLOR_WEIGHT_B)));
+	define('COLOR_LIGHTNESS_THRESHOLD', floor(COLOR_LIGHTNESS_MAX / 3));
 
-	$hash2 = $hash.$hash;
-	$cut_stop = strlen($hash);
-	$color_pick = 0;
-	$color_pick_lightness = 0;
+	define('COLOR_STEP', 2);
+	define('COLOR_LENGTH', 6);
+	define('COLOR_PADDING', '0');
 
-	for (
-		$cut_len = COLOR_STEP;
-		$cut_len <= COLOR_LENGTH;
-		$cut_len += COLOR_STEP
-	) {
-		$prefix = str_repeat(COLOR_PADDING, COLOR_LENGTH - $cut_len);
-		$suffix = '';
-next_prefix:
+	function get_hex_color_from_hash ($hash) {
+
+		$hash2 = $hash.$hash;
+		$cut_stop = strlen($hash);
+		$color_pick = 0;
+		$color_pick_lightness = 0;
+
 		for (
-			$cut_start = 0;
-			$cut_start < $cut_stop;
-			$cut_start += COLOR_STEP
+			$cut_len = COLOR_STEP;
+			$cut_len <= COLOR_LENGTH;
+			$cut_len += COLOR_STEP
 		) {
-			if ($cut_part = substr($hash2, $cut_start, $cut_len)) {
+			$prefix = str_repeat(COLOR_PADDING, COLOR_LENGTH - $cut_len);
+			$suffix = '';
+	next_prefix:
+			for (
+				$cut_start = 0;
+				$cut_start < $cut_stop;
+				$cut_start += COLOR_STEP
+			) {
+				if ($cut_part = substr($hash2, $cut_start, $cut_len)) {
 
-				$color_hex = "$prefix$cut_part$suffix";
+					$color_hex = "$prefix$cut_part$suffix";
 
-				list($R, $G, $B) = array_map('hexdec', str_split($color_hex, COLOR_STEP));
+					list($R, $G, $B) = array_map('hexdec', str_split($color_hex, COLOR_STEP));
 
-				$L = ($R * 1.5) + ($G * 2.2) + $B;
+					$L = (
+						($R * COLOR_WEIGHT_R)
+					+	($G * COLOR_WEIGHT_G)
+					+	($B * COLOR_WEIGHT_B)
+					);
 
-				if ($L > 400 && $color_pick_lightness < $L) {
-					$color_pick = $color_hex;
-					$color_pick_lightness = $L;
+					if (
+						$L > COLOR_LIGHTNESS_THRESHOLD
+					&&	$L > $color_pick_lightness
+					) {
+						$color_pick = $color_hex;
+						$color_pick_lightness = $L;
+					}
 				}
+			}
+
+			if (strlen($prefix) > 0) {
+
+				$next_prefix_length = strlen($prefix) - COLOR_STEP;
+				$prefix = (
+					$next_prefix_length > 0
+					? str_repeat(COLOR_PADDING, $next_prefix_length)
+					: ''
+				);
+				$suffix = str_repeat(COLOR_PADDING, COLOR_LENGTH - $cut_len - $next_prefix_length);
+
+				goto next_prefix;
 			}
 		}
 
-		if (strlen($prefix) > 0) {
-
-			$next_prefix_length = strlen($prefix) - COLOR_STEP;
-			$prefix = (
-				$next_prefix_length > 0
-				? str_repeat(COLOR_PADDING, $next_prefix_length)
-				: ''
-			);
-			$suffix = str_repeat(COLOR_PADDING, COLOR_LENGTH - $cut_len - $next_prefix_length);
-
-			goto next_prefix;
-		}
+		return $color_pick.dechex(
+			ceil(
+				pow(
+					($color_pick_lightness - COLOR_LIGHTNESS_THRESHOLD)
+				/	(COLOR_LIGHTNESS_MAX - COLOR_LIGHTNESS_THRESHOLD)
+				,	3
+				) * 232
+			) + 23
+		);
 	}
-
-	return $color_pick;
 }
 
 function get_substr_by_pat ($text, $pat, $target_length = 0) {
@@ -298,141 +325,79 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 
 	flush();
 
-	if (PIPE) {
-		$process = proc_open($command_line, $descriptor_spec, $pipes);
-		$stdout = $pipes[1];
+	$process = proc_open($command_line, $descriptor_spec, $pipes);
+	$stdout = $pipes[1];
 
-		$output_buffer = '';
-		$output_lines = 0;
-		$return_code = 0;
-		$flush_time = 0;
+	$output_buffer = '';
+	$output_lines = 0;
+	$return_code = 0;
+	$flush_time = 0;
 
-		if (!$split_each_line_by) {
-			$split_each_line_by = NL;
-		}
+	if (!$split_each_line_by) {
+		$split_each_line_by = NL;
+	}
 
-		$splitter_length = strlen($split_each_line_by);
+	$splitter_length = strlen($split_each_line_by);
 
-		while (
-			is_string($output_part = stream_get_line($stdout, 0))
-		&&	strlen($output_part)
-		) {
-			$output_buffer .= $output_part;
-			$split_lines = 0;
+	while (
+		is_string($output_part = stream_get_line($stdout, 0))
+	&&	strlen($output_part)
+	) {
+		$output_buffer .= $output_part;
+		$split_lines = 0;
 
-			while (is_int($nearest_split_pos = strpos($output_buffer, $split_each_line_by))) {
+		while (is_int($nearest_split_pos = strpos($output_buffer, $split_each_line_by))) {
 
-				$line = substr($output_buffer, 0, $nearest_split_pos);
-				$output_buffer = substr($output_buffer, $nearest_split_pos + $splitter_length);
-				$output_lines++;
-				$split_lines++;
-
-				if ($filter_func_name($line)) {
-					$map_func_name($line);
-
-					if (TEST_PIPE_SPLITS) echo '+';
-				} else	if (TEST_PIPE_SPLITS) echo '-';
-			}
-
-			if (TEST_PIPE_SPLITS) {
-				if (
-					!is_int($nearest_split_pos)
-				&&	strlen($output_buffer)
-				) {
-					echo($split_lines ? NL.'|' : '|');
-				}
-			} else {
-				echo($split_lines ? NL.'.' : '.');
-			}
-
-			$read_time = time();
-
-			if ($flush_time !== $read_time) {
-				$flush_time = $read_time;
-
-				flush();
-			}
-		}
-
-		if (strlen($output_buffer)) {
+			$line = substr($output_buffer, 0, $nearest_split_pos);
+			$output_buffer = substr($output_buffer, $nearest_split_pos + $splitter_length);
 			$output_lines++;
+			$split_lines++;
 
-			if ($filter_func_name($output_buffer)) {
-				$map_func_name($output_buffer);
+			if ($filter_func_name($line)) {
+				$map_func_name($line);
 
-				if (TEST_PIPE_SPLITS) echo 'V';
-			} else	if (TEST_PIPE_SPLITS) echo 'X';
-		} else		if (TEST_PIPE_SPLITS) echo '0';
+				if (TEST_PIPE_SPLITS) echo '+';
+			} else	if (TEST_PIPE_SPLITS) echo '-';
+		}
 
-		$process_status = proc_get_status($process);
-		$return_code = $process_status['exitcode'];
+		if (TEST_PIPE_SPLITS) {
+			if (
+				!is_int($nearest_split_pos)
+			&&	strlen($output_buffer)
+			) {
+				echo($split_lines ? NL.'|' : '|');
+			}
+		} else {
+			echo($split_lines ? NL.'.' : '.');
+		}
+
+		$read_time = time();
+
+		if ($flush_time !== $read_time) {
+			$flush_time = $read_time;
+
+			flush();
+		}
+	}
+
+	if (strlen($output_buffer)) {
+		$output_lines++;
+
+		if ($filter_func_name($output_buffer)) {
+			$map_func_name($output_buffer);
+
+			if (TEST_PIPE_SPLITS) echo 'V';
+		} else	if (TEST_PIPE_SPLITS) echo 'X';
+	} else		if (TEST_PIPE_SPLITS) echo '0';
+
+	$process_status = proc_get_status($process);
+	$return_code = $process_status['exitcode'];
 
 //* Close any pipes before calling proc_close in order to avoid a deadlock:
 
-		foreach ($pipes as $pipe) if ($pipe) fclose($pipe);
+	foreach ($pipes as $pipe) if ($pipe) fclose($pipe);
 
-		proc_close($process);
-	} else {
-		$output_lines = array();
-		$return_code = 0;
-		$return_text = exec($command_line, $output_lines, $return_code);
-
-		if (TEST) {
-			if ($split_each_line_by) {
-				if (is_array($output_lines)) {
-
-//* https://stackoverflow.com/questions/526556/how-to-flatten-a-multi-dimensional-array-to-simple-one-in-php#comment98422873_14972714
-//* array_merge(...): https://stackoverflow.com/a/53891086
-//* Note: this can hit memory limit on large enough set of files (e.g. 100-1000 or more). Only do this for testing and debug.
-
-					$output_lines = array_merge(
-						...array_map(
-							function  ($line) use ($split_each_line_by) {
-								return explode($split_each_line_by, $line);
-							}, $output_lines
-						)
-					);
-				} else {
-					$output_lines = explode($split_each_line_by, "$output_lines");
-				}
-			}
-
-			if (is_array($output_lines)) {
-
-				if ($filter_func_name) {
-					$output_lines = array_filter($output_lines, $filter_func_name);
-				}
-
-				if ($map_func_name) {
-					$output_lines = array_map($map_func_name, $output_lines);
-				}
-
-				$output_lines = array_filter($output_lines, 'trim');
-				$output_lines = 'Array('.count($output_lines).')'.NL.implode(NL, array_map('get_to_print', $output_lines));
-			}
-		} else {
-
-//* Note: to avoid memory limit, do only necessary things and move on.
-
-			if ($split_each_line_by) {
-				foreach ($output_lines as $text) {
-					foreach (explode($split_each_line_by, $text) as $line) {
-						if ($filter_func_name($line)) {
-							$map_func_name($line);
-						}
-					}
-				}
-			} else {
-				foreach ($output_lines as $line) {
-					if ($filter_func_name($line)) {
-						$map_func_name($line);
-					}
-				}
-			}
-
-			$output_lines = 'Array('.count($output_lines).')';
-		}
-	}
+	proc_close($process);
 
 	$status_message = (
 		array_key_exists($return_code, $return_codes)
@@ -540,7 +505,7 @@ if ($linked_pages) {
 	foreach ($pages_by_rubric as $rubric => &$page_keys_by_title) {
 
 		echo '
-	<details '.(COLORED_RUBRICS ? 'style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'64"' : '').'>
+	<details'.(COLORED_RUBRICS ? ' style="background-color: #'.get_hex_color_from_hash(md5($rubric)).'"' : '').'>
 		<summary>('.count($page_keys_by_title).') '.$rubric.'</summary>';
 
 		ksort($page_keys_by_title);
