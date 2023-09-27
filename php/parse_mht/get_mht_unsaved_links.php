@@ -50,6 +50,7 @@ $saved_page_hashes = array();
 $saved_page_ids = array();
 $saved_pages = array();
 $linked_pages = array();
+$page_id_by_hash = array();
 
 define('TEST', false);
 define('TEST_PIPE_SPLITS', false);
@@ -203,7 +204,7 @@ function add_saved_page ($page_url) {
 }
 
 function add_linked_page ($text) {
-	global $saved_page_hashes, $saved_page_ids, $saved_pages, $linked_pages;
+	global $saved_page_hashes, $saved_page_ids, $saved_pages, $linked_pages, $page_id_by_hash;
 
 	if (
 		($text = html_entity_decode($text))
@@ -225,7 +226,11 @@ function add_linked_page ($text) {
 			if (TEST_SRC_TEXT) $page_entry['source_text'] = htmlspecialchars($text);
 		}
 
-		$page_key = $page_id ?: $page_hash;
+		if (array_key_exists($page_hash, $page_id_by_hash)) {
+			$page_key = $page_id_by_hash[$page_hash];
+		} else {
+			$page_key = $page_id_by_hash[$page_hash] = $page_id;
+		}
 
 		if (!array_key_exists($page_key, $pages)) {
 			$pages[$page_key] = array();
