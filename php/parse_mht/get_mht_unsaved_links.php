@@ -12,15 +12,22 @@
 	<pre>Running:</pre>
 <?php
 
-// $archive_folder_path = 'D:\mht';
-// $program_arg = '"C:\Program Files\7-Zip\7z.exe"';
-
-// $archive_folder_path = 'E:\mht';
-$archive_folder_path = 'D:\_bak\_www\_news\dzen.ru\_news';
-$program_arg = '"D:\programs\7-Zip\7z.exe"';
-
 ini_set('max_execution_time', 9999);
 ini_set('error_reporting', E_ALL);
+
+$current_folder_path = dirname($_SERVER['SCRIPT_FILENAME']);
+$archive_folder_path = "$current_folder_path/mht";			//* <- default, subfolder near this script
+
+$include_list_file = "$current_folder_path/get_mht_include_list.txt";	//* <- optional, overrides $archive_folder_path
+$exclude_list_file = "$current_folder_path/get_mht_exclude_list.txt";	//* <- lists contain one path or filename wildcard per line without quotes
+
+$program_exe_name = $program_arg = '7z.exe';				//* <- bare exe name used if not found in $program_folders
+$program_folders = array(
+	'C:/Program Files/7-Zip'
+,	'C:/Programs/7-Zip'
+,	'D:/Program Files/7-Zip'
+,	'D:/Programs/7-Zip'
+);
 
 $return_codes = array(
 	0 => 'OK.'
@@ -421,22 +428,37 @@ function run_test ($command_line, $filter_func_name = '', $map_func_name = '', $
 	flush();
 }
 
-$archive_arg = '-an '.implode(' ', array_map('get_quoted_include_arg', array(
-	'mht',
-	'mhtml',
-)));
+foreach ($program_folders as $path)
+if (is_file($program_exe_path = "$path/$program_exe_name")) {
+	$program_arg = get_quoted($program_exe_path);
+
+	break;
+}
+
+$archive_arg = '-an '.(
+	is_file($include_list_file)
+	? get_quoted("-air@$include_list_file")
+	: implode(' ', array_map('get_quoted_include_arg', array(
+		'mht',
+		'mhtml',
+	)))
+);
 
 $content_arg = '"-ir!*--*"';
-$content_exclude_arg = implode(' ', array_map('get_quoted_exclude_arg', array(
-	'css',
-	'gif',
-	'jpeg',
-	'jpg',
-	'js',
-	'png',
-	'svg',
-	'webp',
-)));
+$content_exclude_arg = (
+	is_file($exclude_list_file)
+	? get_quoted("-xr@$exclude_list_file")
+	: implode(' ', array_map('get_quoted_exclude_arg', array(
+		'css',
+		'gif',
+		'jpeg',
+		'jpg',
+		'js',
+		'png',
+		'svg',
+		'webp',
+	)))
+);
 
 //* "-ba" prints truncated filenames:
 // run_test("$program_arg l -ba $archive_arg $content_arg", 'is_page_filename');
