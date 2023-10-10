@@ -15,7 +15,7 @@
 ini_set('max_execution_time', 9999);
 ini_set('error_reporting', E_ALL);
 
-$current_folder_path = dirname($_SERVER['SCRIPT_FILENAME']);
+$current_folder_path = '.'; // dirname($_SERVER['SCRIPT_FILENAME']);
 $archive_folder_path = "$current_folder_path/mht";			//* <- default, subfolder near this script
 
 $include_list_file = "$current_folder_path/get_mht_include_list.txt";	//* <- optional, overrides $archive_folder_path
