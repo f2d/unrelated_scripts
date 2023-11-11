@@ -72,7 +72,7 @@ define('P_HASH_PAT', '~--(\w{32})\b~i');
 define('P_ID_PAT', '~[?&]persistent_id=([^&#]+)~i');
 define('P_TIME_PAT', '~[?&]t=([^&#]+)~i');
 define('RUBRIC_PAT', '~[?&]rubric=([^&#]+)~i');
-define('CONTENT_NAME_PAT', '~^(?:[^?#]*?/+)*([^A-Z/?#]+)(?:$|[?#])~');
+define('CONTENT_NAME_PAT', '~^(?:[^?#]*?/+)*([^/?#]+)(?:$|[?#])~');
 define('CONTENT_TYPE_PAT', '~Content[^a-z]+type\s*=\s*(\S[^\r\n]*)~i');
 define('CONTENT_URL_PAT', '~Content[^a-z]+location\s*=\s*(\S[^\r\n]*)~i');
 
