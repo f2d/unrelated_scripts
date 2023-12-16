@@ -69,6 +69,7 @@ define('A_HREF_PAT', '~(?:^|\s)href="?([^"]+)~i');
 define('A_TEXT_PAT', '~(?:^|>)([^<>]+)(?:$|<)~i');
 define('P_HASH_LENGTH', 32);
 define('P_HASH_PAT', '~--(\w{32})\b~i');
+define('P_SLUG_PAT', '~[/?&]([^/?&#]+)--(?:\w{32})\b~i');
 define('P_ID_PAT', '~[?&]persistent_id=([^&#]+)~i');
 define('P_TIME_PAT', '~[?&]t=([^&#]+)~i');
 define('RUBRIC_PAT', '~[?&]rubric=([^&#]+)~i');
@@ -156,7 +157,7 @@ if (COLORED_RUBRICS) {
 	}
 }
 
-function get_substr_by_pat ($text, $pat, $target_length = 0) {
+function get_part_by_pat ($text, $pat, $target_length = 0) {
 	return (
 		$text
 	&&	strlen($text)
@@ -167,23 +168,52 @@ function get_substr_by_pat ($text, $pat, $target_length = 0) {
 	);
 }
 
-function get_link_text   ($text) { return get_substr_by_pat ($text, A_TEXT_PAT); }
-function get_link_url    ($text) { return get_substr_by_pat ($text, A_HREF_PAT); }
-function get_page_hash   ($text) { return get_substr_by_pat ($text, P_HASH_PAT, P_HASH_LENGTH); }
-function get_page_id     ($text) { return get_substr_by_pat ($text,   P_ID_PAT); }
-function get_page_time   ($text) { return get_substr_by_pat ($text, P_TIME_PAT); }
-function get_page_rubric ($text) { return get_substr_by_pat ($text, RUBRIC_PAT); }
+function get_all_parts_joined_cut ($parts, $max_length = 128, $cut_placeholder = '(...)', $join_delimiter = ' | ') {
+
+	if (!$parts) return false;
+
+	$text = (
+		is_array($parts)
+		? implode($join_delimiter, array_filter(array_map('trim', $parts)))
+		: trim($parts)
+	);
+
+	return (
+		mb_strlen($text > $max_length, 'utf-8')
+		? mb_substr($text, 0, $max_length - strlen($cut_placeholder), 'utf-8').$cut_placeholder
+		: $text
+	);
+}
+
+function get_all_parts_by_pat ($text, $pat) {
+	return (
+		$text
+	&&	strlen($text)
+	&&	preg_match_all($pat, $text, $match)
+		? $match[1]
+		: false
+	);
+}
+
+function get_link_text   ($text) { return get_all_parts_by_pat ($text, A_TEXT_PAT); }
+function get_link_url    ($text) { return get_part_by_pat ($text, A_HREF_PAT); }
+function get_page_hash   ($text) { return get_part_by_pat ($text, P_HASH_PAT, P_HASH_LENGTH); }
+function get_page_id     ($text) { return get_part_by_pat ($text,   P_ID_PAT); }
+function get_page_rubric ($text) { return get_part_by_pat ($text, RUBRIC_PAT); }
+function get_page_slug   ($text) { return get_part_by_pat ($text, P_SLUG_PAT); }
+function get_page_time   ($text) { return get_part_by_pat ($text, P_TIME_PAT); }
 
 function get_a_parts ($text) {
 	return (
 		($page_url = get_link_url($text))
 	&&	($page_hash = get_page_hash($page_url))
-	&&	($page_title = trim(get_link_text($text)))
+	&&	($page_title = get_all_parts_joined_cut(get_link_text($text)))
 		? array(
 			'id'     => get_page_id($page_url) ?: 'no id'
 		,	'url'    => $page_url
 		,	'hash'   => $page_hash
 		,	'time'   => (intval($t = get_page_time($page_url)) > 0 ? date(DATE_ATOM, $t) : 'no time')
+		// ,	'slug'   => str_replace('_', ' ', get_page_slug($page_url) ?: 'no slug')
 		,	'title'  => $page_title
 		,	'rubric' => get_page_rubric($page_url) ?: 'no rubric'
 		) : false
@@ -196,7 +226,8 @@ function sort_linked_pages ($a, $b) {
 	?:	($a['id']	<=> $b['id'])
 	?:	($a['hash']	<=> $b['hash'])
 	?:	($a['rubric']	<=> $b['rubric'])
-	?:	($a['title']	<=> $b['title'])
+	// ?:	($a['title']	<=> $b['title'])
+	// ?:	($a['slug']	<=> $b['slug'])
 	?:	($a['url']	<=> $b['url'])
 	);
 }
@@ -221,6 +252,10 @@ function add_linked_page ($text) {
 		$page_url   = $page_entry['url'];
 		$page_hash  = $page_entry['hash'];
 		$page_title = $page_entry['title'];
+		// $page_titles = array(
+		//	$page_entry['slug'],
+		//	$page_entry['title']
+		// );
 
 		if (
 			in_array($page_hash, $saved_page_hashes)
@@ -248,12 +283,14 @@ function add_linked_page ($text) {
 		if (!array_key_exists($page_url, $pages_for_this_key)) {
 
 			unset($page_entry['title']);
+			// $page_entry['titles'] = $page_titles;
 			$page_entry['titles'] = array($page_title);
 			$pages_for_this_key[$page_url] = &$page_entry;
 
 		} else {
 			$titles_for_this_url = &$pages_for_this_key[$page_url]['titles'];
 
+			// foreach ($page_titles as $page_title)
 			if (!in_array($page_title, $titles_for_this_url)) {
 
 				array_push($titles_for_this_url, $page_title);
@@ -287,8 +324,8 @@ function is_page_filename ($text) {
 
 			$last_saved_file_name = $last_saved_file_type = '';
 		}
-		else if ($type = get_substr_by_pat ($text, CONTENT_TYPE_PAT)) $last_saved_file_type = $type;
-		else if ($name = get_substr_by_pat ($text, CONTENT_URL_PAT))  $last_saved_file_name = $name;
+		else if ($type = get_part_by_pat ($text, CONTENT_TYPE_PAT)) $last_saved_file_type = $type;
+		else if ($name = get_part_by_pat ($text, CONTENT_URL_PAT))  $last_saved_file_name = $name;
 	}
 
 	return $is_hash;
