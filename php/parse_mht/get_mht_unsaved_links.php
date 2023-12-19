@@ -65,6 +65,9 @@ define('TEST_SRC_TEXT', false);
 define('COLORED_RUBRICS', true);
 
 define('NL', "\n");
+define('CUT_PLACEHOLDER', '(...)');
+define('JOIN_DELIMITER', ' | ');
+define('TRIM_JOINED_CHARS', CUT_PLACEHOLDER.JOIN_DELIMITER);
 define('A_HREF_PAT', '~(?:^|\s)href="?([^"]+)~i');
 define('A_TEXT_PAT', '~(?:^|>)([^<>]+)(?:$|<)~i');
 define('P_HASH_LENGTH', 32);
@@ -157,30 +160,23 @@ if (COLORED_RUBRICS) {
 	}
 }
 
-function get_part_by_pat ($text, $pat, $target_length = 0) {
-	return (
-		$text
-	&&	strlen($text)
-	&&	preg_match($pat, $text, $match)
-	&&	($target_length > 0 ? $target_length === strlen($match[1]) : true)
-		? $match[1]
-		: false
-	);
+function trim_joined_tail ($text) {
+	return trim(rtrim($text, TRIM_JOINED_CHARS));
 }
 
-function get_all_parts_joined_cut ($parts, $max_length = 128, $cut_placeholder = '(...)', $join_delimiter = ' | ') {
+function get_all_parts_joined_cut ($parts, $max_length = 128) {
 
 	if (!$parts) return false;
 
 	$text = (
 		is_array($parts)
-		? implode($join_delimiter, array_filter(array_map('trim', $parts)))
+		? implode(JOIN_DELIMITER, array_filter(array_map('trim_joined_tail', $parts)))
 		: trim($parts)
 	);
 
 	return (
 		mb_strlen($text > $max_length, 'utf-8')
-		? mb_substr($text, 0, $max_length - strlen($cut_placeholder), 'utf-8').$cut_placeholder
+		? trim_joined_tail(mb_substr($text, 0, $max_length - strlen(CUT_PLACEHOLDER), 'utf-8')).CUT_PLACEHOLDER
 		: $text
 	);
 }
@@ -190,6 +186,17 @@ function get_all_parts_by_pat ($text, $pat) {
 		$text
 	&&	strlen($text)
 	&&	preg_match_all($pat, $text, $match)
+		? $match[1]
+		: false
+	);
+}
+
+function get_part_by_pat ($text, $pat, $target_length = 0) {
+	return (
+		$text
+	&&	strlen($text)
+	&&	preg_match($pat, $text, $match)
+	&&	($target_length > 0 ? $target_length === strlen($match[1]) : true)
 		? $match[1]
 		: false
 	);
@@ -536,7 +543,7 @@ if ($linked_pages) {
 		foreach ($same_page_entries as &$page_entry)
 		if (array_key_exists('titles', $page_entry)) {
 
-			$page_entry['title'] = implode(' | ', $page_entry['titles']);
+			$page_entry['title'] = get_all_parts_joined_cut($page_entry['titles']);
 			unset($page_entry['titles']);
 		}
 
@@ -596,7 +603,7 @@ if ($linked_pages) {
 
 				$title = (
 					array_key_exists('titles', $page_entry)
-					? implode(' | ', $page_entry['titles'])
+					? get_all_parts_joined_cut($page_entry['titles'])
 					: (
 					array_key_exists('title', $page_entry)
 					? $page_entry['title']
