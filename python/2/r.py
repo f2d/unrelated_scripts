@@ -615,10 +615,32 @@ def get_sub(subj, rules):
 
 				# full filename replacement:
 
-						if len(rule) > 3:
-							if is_type_reg(rule[2]) and is_type_str(rule[3]):
-								rename = re.sub(rule[2], rule[3], rename)
+						if (
+							len(rule) > 3
+						and	is_type_reg(rule[2])
+						and	is_type_str(rule[3])
+						):
+							rename = re.sub(rule[2], rule[3], rename)
 
+				# only append item ID to filename, if not yet:
+
+						elif (
+							len(rule) > 2
+						and	is_type_reg(rule[1])
+						and	is_type_str(rule[2])
+						):
+							suffix = (
+								re
+								.search(rule[1], met)
+								.expand(rule[2])
+							)
+
+							if rename.find(suffix) < 0:
+								rename = (suffix+'.').join(rename.rsplit('.', 1))
+
+				# multiple full filename replacement:
+
+						if len(rule) > 2:
 							for replacement in rule[2 : ]:
 								if (
 									is_type_arr(replacement)
@@ -626,20 +648,15 @@ def get_sub(subj, rules):
 								and	is_type_reg(replacement[0])
 								and	is_type_str(replacement[1])
 								):
-									rename = re.sub(replacement[0], replacement[1], rename)
+									renamed = re.sub(replacement[0], replacement[1], rename)
 
-				# only append item ID to filename, if not yet:
-
-						if len(rule) > 2:
-							if is_type_reg(rule[1]) and is_type_str(rule[2]):
-								suffix = (
-									re
-									.search(rule[1], met)
-									.expand(rule[2])
-								)
-
-								if rename.find(suffix) < 0:
-									rename = (suffix+'.').join(rename.rsplit('.', 1))
+									if rename != renamed:
+										rename = renamed
+									elif (
+										len(replacement) > 2
+									and	is_type_str(replacement[2])
+									):
+										dsub = replacement[2]
 
 						if rename == name:
 							rename = ''
@@ -656,7 +673,7 @@ def get_sub(subj, rules):
 								# https://stackoverflow.com/a/62658901
 								print rename.encode('utf-8').decode('ascii', 'ignore')
 
-					return [dsub, rename]
+					return (dsub + '/' + rename).rsplit('/', 1)
 
 			elif board:
 				return [rule[0], '']
@@ -904,19 +921,26 @@ def process_names(path, names, later=0):
 				if len(s) > 2:
 					x = [name, meeting, True if board else False, src_path_or_name]
 					z = s[2]
+
 					dsub, rename = (
+
 				# board threads (to scrape by other scripts):
+
 						(
 							get_sub(x, z.get('sub_threads'))
 							if board and thread
 							else None
 						)
+
 				# board roots, text boards, other specifics (not to scrape):
+
 					or	get_sub(x, z.get('sub'))
 					or	['', '']
 					)
+
 					if dsub:
 						dest += dsub+'/'
+
 					if rename:
 						name = rename
 
