@@ -471,7 +471,7 @@ def read_zip_file(src_path, return_source_html=False):
 
 		except zipfile.BadZipfile as exception:
 			if TEST:
-				print msg_prfx, colored('MAFF/ZIP test, cannot read file as ZIP:', 'yellow'), src_path
+				print msg_prfx, colored('MAFF/ZIP test, cannot read file as ZIP:', 'yellow'), src_path.encode(default_print_encoding)
 				print exception
 
 
@@ -645,14 +645,16 @@ def get_sub(subj, rules):
 							rename = ''
 
 						if TEST and rename:
+							print 'Rename:'
+
 							try:
-								print 'Rename:', rename
+								print rename.encode(default_print_encoding)
 
 							except UnicodeEncodeError:
 								cprint('<not showing unprintable unicode>', 'red')
 
 								# https://stackoverflow.com/a/62658901
-								print 'Rename:', rename.encode('utf-8').decode('ascii', 'ignore')
+								print rename.encode('utf-8').decode('ascii', 'ignore')
 
 					return [dsub, rename]
 
@@ -921,9 +923,11 @@ def process_names(path, names, later=0):
 				if TEST:
 					if arg_print_full_path:
 						print info_prfx, src_path.encode(default_print_encoding)
-					print dest, colored('<-', 'yellow'), ufull
+
+					print dest.encode(default_print_encoding), colored('<-', 'yellow'), ufull.encode(default_print_encoding)
 
 				# rename target files downloaded from RGHost/booru/yt/etc:
+
 				for p in pat_ren:
 					if not p:
 						continue
@@ -1073,7 +1077,8 @@ def process_names(path, names, later=0):
 							n_moved += 1
 							if arg_print_full_path:
 								print info_prfx, src_path.encode(default_print_encoding)
-							print dest, colored('<-', 'yellow'), ufull
+
+							print dest.encode(default_print_encoding), colored('<-', 'yellow'), ufull.encode(default_print_encoding)
 
 							print_duplicate_count=True
 						else:
@@ -1093,7 +1098,7 @@ def process_names(path, names, later=0):
 						print colored('Destination path length:', 'red'), d_len
 
 						try:
-							print colored('Destination path:', 'red'), d
+							print colored('Destination path:', 'red'), d.encode(default_print_encoding)
 						except Exception as exception:
 							print colored('Error printing:', 'red'), exception
 
@@ -1101,7 +1106,7 @@ def process_names(path, names, later=0):
 							print colored('Destination unique path length:', 'red'), dq_len
 
 							try:
-								print colored('Destination unique path:', 'red'), dq
+								print colored('Destination unique path:', 'red'), dq.encode(default_print_encoding)
 							except Exception as exception:
 								print colored('Error printing:', 'red'), exception
 
