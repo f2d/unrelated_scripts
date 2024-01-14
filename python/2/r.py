@@ -613,35 +613,15 @@ def get_sub(subj, rules):
 						dsub = rule[0]
 						rename = name
 
-				# full filename replacement:
-
-						if (
-							len(rule) > 3
-						and	is_type_reg(rule[2])
-						and	is_type_str(rule[3])
-						):
-							rename = re.sub(rule[2], rule[3], rename)
-
-				# only append item ID to filename, if not yet:
-
-						elif (
-							len(rule) > 2
-						and	is_type_reg(rule[1])
-						and	is_type_str(rule[2])
-						):
-							suffix = (
-								re
-								.search(rule[1], met)
-								.expand(rule[2])
-							)
-
-							if rename.find(suffix) < 0:
-								rename = (suffix+'.').join(rename.rsplit('.', 1))
-
-				# multiple full filename replacement:
+				# full filename and/or path replacements, parts sourced from filename itself:
 
 						if len(rule) > 2:
+							replace_pattern = None
+
 							for replacement in rule[2 : ]:
+
+				# pattern and replacements as separate lists for each pair, optional 3rd parameter - subdir for mismatches:
+
 								if (
 									is_type_arr(replacement)
 								and	len(replacement) > 1
@@ -657,6 +637,32 @@ def get_sub(subj, rules):
 									and	is_type_str(replacement[2])
 									):
 										dsub = replacement[2]
+
+				# pattern and replacement as is in the rule list, interchanging one after another:
+
+								elif is_type_reg(replacement):
+									replace_pattern = replacement
+								elif (
+									replace_pattern
+								and	is_type_str(replacement)
+								):
+									rename = re.sub(replace_pattern, replacement, rename)
+
+				# append suffix to filename, if not yet, parts sourced from URL inside (e.g. item ID):
+
+						if (
+							len(rule) > 2
+						and	is_type_reg(rule[1])
+						and	is_type_str(rule[2])
+						):
+							suffix = (
+								re
+								.search(rule[1], met)
+								.expand(rule[2])
+							)
+
+							if rename.find(suffix) < 0:
+								rename = (suffix+'.').join(rename.rsplit('.', 1))
 
 						if rename == name:
 							rename = ''
