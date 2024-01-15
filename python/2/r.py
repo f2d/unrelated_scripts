@@ -559,8 +559,12 @@ def get_sub(subj, rules):
 	if not rules:
 		return None
 
+	# given subfolder is always used, no other variants:
+
 	if is_type_str(rules):
 		return [rules, '']
+
+	# ruleset with variants:
 
 	name, meeting, board, file_path_or_name = subj
 
@@ -568,8 +572,12 @@ def get_sub(subj, rules):
 		if not rule:
 			continue
 
+	# given subfolder is the whole rule, no conditions, usable as last default:
+
 		if is_type_str(rule):
 			return [rule, '']
+
+	# conditional subfolders and renaming the file:
 
 		if is_type_arr(rule):
 			if len(rule) > 1:
@@ -587,13 +595,15 @@ def get_sub(subj, rules):
 					if rule[0] is None:
 						return None
 
-					dsub = rename = ''
+					dsub = ''
+					rename = name
 
 				# grab subfolder from URL parts:
 
 					if r0:
 						r1 = rule[1]
 						r1a = r1 if is_type_arr(r1) else [r1]
+
 						for r1 in r1a:
 							try:
 								if r1 and is_type_str(r1):
@@ -606,53 +616,51 @@ def get_sub(subj, rules):
 									break
 							except:
 								continue
+
+				# use subfolder from the rule:
+
 					else:
-
-				# specific rules:
-
 						dsub = rule[0]
-						rename = name
 
-				# full filename and/or path replacements, parts sourced from filename itself:
+				# filename replacements, sourced from filename itself, also allows prepending subdirs:
 
-						if len(rule) > 2:
-							replace_pattern = None
+					if len(rule) > 2:
+						replace_pattern = None
 
-							for replacement in rule[2 : ]:
+						for replacement in rule[2 : ]:
 
 				# pattern and replacements as separate lists for each pair, optional 3rd parameter - subdir for mismatches:
 
-								if (
-									is_type_arr(replacement)
-								and	len(replacement) > 1
-								and	is_type_reg(replacement[0])
-								and	is_type_str(replacement[1])
-								):
-									renamed = re.sub(replacement[0], replacement[1], rename)
+							if (
+								is_type_arr(replacement)
+							and	len(replacement) > 1
+							and	is_type_reg(replacement[0])
+							and	is_type_str(replacement[1])
+							):
+								renamed = re.sub(replacement[0], replacement[1], rename)
 
-									if rename != renamed:
-										rename = renamed
-									elif (
-										len(replacement) > 2
-									and	is_type_str(replacement[2])
-									):
-										dsub = replacement[2]
+								if rename != renamed:
+									rename = renamed
+								elif (
+									len(replacement) > 2
+								and	is_type_str(replacement[2])
+								):
+									dsub = replacement[2]
 
 				# pattern and replacement as is in the rule list, interchanging one after another:
 
-								elif is_type_reg(replacement):
-									replace_pattern = replacement
-								elif (
-									replace_pattern
-								and	is_type_str(replacement)
-								):
-									rename = re.sub(replace_pattern, replacement, rename)
+							elif is_type_reg(replacement):
+								replace_pattern = replacement
+							elif (
+								replace_pattern
+							and	is_type_str(replacement)
+							):
+								rename = re.sub(replace_pattern, replacement, rename)
 
-				# append suffix to filename, if not yet, parts sourced from URL inside (e.g. item ID):
+				# append suffix to filename before ext if not yet, sourced from rule-matched URL part from file content:
 
 						if (
-							len(rule) > 2
-						and	is_type_reg(rule[1])
+							is_type_reg(rule[1])
 						and	is_type_str(rule[2])
 						):
 							suffix = (
@@ -664,20 +672,20 @@ def get_sub(subj, rules):
 							if rename.find(suffix) < 0:
 								rename = (suffix+'.').join(rename.rsplit('.', 1))
 
-						if rename == name:
-							rename = ''
+					if rename == name:
+						rename = ''
 
-						if TEST and rename:
-							print 'Rename:'
+					if TEST and rename:
+						print 'Rename:'
 
-							try:
-								print rename.encode(default_print_encoding)
+						try:
+							print rename.encode(default_print_encoding)
 
-							except UnicodeEncodeError:
-								cprint('<not showing unprintable unicode>', 'red')
+						except UnicodeEncodeError:
+							cprint('<not showing unprintable unicode>', 'red')
 
-								# https://stackoverflow.com/a/62658901
-								print rename.encode('utf-8').decode('ascii', 'ignore')
+							# https://stackoverflow.com/a/62658901
+							print rename.encode('utf-8').decode('ascii', 'ignore')
 
 					return (dsub + '/' + rename).rsplit('/', 1)
 
