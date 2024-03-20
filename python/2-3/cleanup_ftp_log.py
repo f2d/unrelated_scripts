@@ -2,9 +2,6 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
-# TODO: 1. [v] dedup lines from trash IPs.
-# TODO: 2. [v] skip trash commands (non-word/binary prefix, followed by "500 Syntax error, command unrecognized" line).
-
 import os, re, sys
 
 # Use colored text if available:
@@ -17,10 +14,6 @@ try:
 except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint (*list_args, **keyword_args): print (list_args[0])
-
-# https://stackoverflow.com/a/47625614
-if sys.version_info[0] >= 3:
-	unicode = str
 
 # - Configuration and defaults ------------------------------------------------
 
@@ -65,11 +58,6 @@ def get_file_name_from_path(path):
 	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
 
 	return path
-
-def print_with_colored_prefix_line(comment, value, color=None):
-	print('')
-	cprint(comment, color or 'yellow')
-	print(value)
 
 def print_with_colored_prefix(prefix, value, color=None):
 	print('{prefix} {value}'.format(prefix=colored(prefix, color or 'yellow'), value=value))
@@ -265,8 +253,15 @@ def run_file_cleanup(argv, *list_args, **keyword_args):
 							bad_last_line_by_user[user_id] = None
 
 						write_line(each_line, skip_same=skip_same)
+
+	# Keep lines without timestamps, like "Initializing Server":
+
 				else:
 					line_counts['bad_format'] += 1
+
+					write_line(each_line)
+
+	# Optional early stop, for debug on big files:
 
 				if (
 					arg_readonly_test
