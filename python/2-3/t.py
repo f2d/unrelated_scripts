@@ -336,7 +336,7 @@ def run_batch_retime(argv):
 		except:
 			counts['dirs_errors'].add(path)
 
-			return
+			return 0
 
 		excluded_names = []
 
@@ -435,7 +435,7 @@ def run_batch_retime(argv):
 					if arg_apply:
 						modtime_value = os.path.getmtime(path_name)
 
-						if (
+						if modtime_value and (
 							(arg_apply_to_after  and modtime_value > timestamp_value)
 						or	(arg_apply_to_before and modtime_value < timestamp_value)
 						):
@@ -603,24 +603,24 @@ def run_batch_retime(argv):
 
 				(?:^|(?<=[^a-z0-9]))
 				(?:
-					(?P<WeekDay>[a-z]{3})		,?\s+
+					(?P<WeekDay>[a-z]{3})		[,\s]+
 				)?
 				(?:
 					(?P<DMY>
 						(?P<DMYDay>\d\d?)	\s+
-						(?P<DMYMonth>[a-z]{3})	,?\s+
+						(?P<DMYMonth>[a-z]{3})	[,\s]+
 						(?P<DMYYear>\d{4})
 					)
 				|	(?P<MDY>
 						(?P<MDYMonth>[a-z]{3})	\s+
-						(?P<MDYDay>\d\d?)	,?\s+
+						(?P<MDYDay>\d\d?)	[,\s]+
 						(?P<MDYYear>\d{4})
 					)
 				)
 			)
 		)
 		(?P<Time>
-								(?:\D|,?\s+(?:at\s+)?)
+								(?:\D|[,\s]+(?:at\s+)?)
 			(?P<HMS>
 				(?P<Hours>\d\d?)		(?:h|[^a-z\d])
 				(?P<Minutes>\d\d)
@@ -631,7 +631,7 @@ def run_batch_retime(argv):
 				)?
 			)
 			(?:
-								,?\s+
+								[,\s]+
 				(?P<TimeZone>
 					(?:(?:GMT|UTC)?[+-])?
 					\d\d\:?\d\d
