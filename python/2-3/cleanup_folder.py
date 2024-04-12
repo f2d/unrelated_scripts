@@ -35,6 +35,7 @@ def print_help():
 	,	colored('* Description:', 'yellow')
 	,	'	In each given folder, find and delete all files which meet given age/size criteria.'
 	,	'	At least one age/size criteria number > 0 is required.'
+	,	'	Files of age/size equal to given criteria are included.'
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
@@ -49,12 +50,13 @@ def print_help():
 	,	colored('	-l=<N> --larger=<N>  --size-above=<Number>', 'cyan') + ': pick files larger than Number of bytes.'
 	,	colored('	-s=<N> --smaller=<N> --size-below=<Number>', 'cyan') + ': pick files smaller than Number of bytes.'
 	,	''
+	,	colored('	-r --recurse         ', 'magenta') + ': process subfolders in each given path.'
 	,	colored('	-m --name-last       ', 'magenta') + ': show each file name last, after dates and sizes.'
 	,	colored('	-t --test --read-only', 'magenta') + ': show picked files, do not delete anything.'
 	,	colored('	-h, --help, /?       ', 'magenta') + ': show this help text, do nothing else.'
 	,	''
 	,	colored('* Examples:', 'yellow')
-	,	'	{0} --newer=3600'
+	,	'	{0} --newer=3600 -r -m -t'
 	,	'	{0} --age-above=60 --size-below=1024 . .. some/other/path'
 	]
 
@@ -107,7 +109,7 @@ def run_cleanup_folder(argv):
 
 		return 1
 
-	arg_name_last = READ_ONLY = False
+	arg_name_last = arg_recurse = READ_ONLY = False
 
 	arg_age_above = 0
 	arg_age_below = 0
@@ -139,6 +141,13 @@ def run_cleanup_folder(argv):
 			or (	arg_what == 'read' and arg_how == 'only')
 			):
 				READ_ONLY = True
+
+				continue
+			if (
+				arg_what == 'r'
+			or	arg_what == 'recurse'
+			):
+				arg_recurse = True
 
 				continue
 			if (
@@ -228,11 +237,11 @@ def run_cleanup_folder(argv):
 			src_names = list_dir_except_dots(each_dir)
 
 			for each_name in src_names:
-				file_path = normalize_slashes(each_dir + '/' + each_name)
+				full_path = normalize_slashes(each_dir + '/' + each_name)
 
-				if os.path.isfile(file_path):
-					file_size = os.path.getsize(file_path)
-					file_mod_time = os.path.getmtime(file_path)
+				if os.path.isfile(full_path):
+					file_size = os.path.getsize(full_path)
+					file_mod_time = os.path.getmtime(full_path)
 					file_age = now_time - file_mod_time
 
 					if arg_age_above and file_age < arg_age_above: continue
@@ -263,7 +272,11 @@ def run_cleanup_folder(argv):
 							)
 						)
 
-						os.remove(file_path)
+						os.remove(full_path)
+						
+				elif arg_recurse and os.path.isdir(full_path):
+				
+					src_dirs.append(full_path)
 	print('')
 
 	if count_found_files > 0:
