@@ -2,6 +2,9 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# Use case - imitate command like this, which must spawn new cmd process for each file:
+# FORFILES /M ?* /D -1 /C "cmd /c if @fsize leq 4234 echo @file @fdate @ftime @fsize && del /F /Q @file"
+
 import datetime, os, sys, time
 
 # Use colored text if available:
@@ -31,7 +34,7 @@ def print_help():
 		''
 	,	colored('* Description:', 'yellow')
 	,	'	In each given folder, find and delete all files which meet given age/size criteria.'
-	,	'	At least one age/size criteria is required.'
+	,	'	At least one age/size criteria number > 0 is required.'
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
@@ -171,10 +174,10 @@ def run_cleanup_folder(argv):
 		src_dirs.append(each_arg)
 
 	if not (
-		arg_age_above
-	or	arg_age_below
-	or	arg_size_above
-	or	arg_size_below
+		arg_age_above > 0
+	or	arg_age_below > 0
+	or	arg_size_above > 0
+	or	arg_size_below > 0
 	):
 		print_help()
 
