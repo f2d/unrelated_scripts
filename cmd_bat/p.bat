@@ -89,6 +89,7 @@ set "script_name=%script_name:/=%"
 set "script_name=%script_name:\=%"
 
 if "%script_name%" == "" (
+ set ERRORLEVEL=101
  echo Error: script file not specified.
  goto done
 )
@@ -207,6 +208,7 @@ if not "%script_path%" == "" goto check_version_end
 
 if not "%python_exe_path%" == "" ^
 if "%script_path%" == "" (
+ set ERRORLEVEL=102
  echo Error: script file not found: "%script_name%"
  goto done
 )
@@ -294,3 +296,4 @@ if "%pause%" == "pause" (
 @ENDLOCAL
 
 @echo on
+@EXIT /B %ERRORLEVEL%

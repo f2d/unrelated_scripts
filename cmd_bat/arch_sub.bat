@@ -23,7 +23,7 @@ rem	//* 2) "9" max compression setting (already a default)
 rem	//* 3) ";>" create "folder_name;_date_time,type_comment.ext"
 rem	//* 4) "d" delete source files
 
-set "archive_handling=_dom^;^>"
+set "archive_handling=_kdom^;^>"
 if not "%~2" == "" ^
 if not "%~2" == "-" ^
 set "archive_handling=%~2"
@@ -52,16 +52,21 @@ rem	//* put "-" in first arguments to use their default and specify next
 rem ---------------------------------------------------------------------------
 rem	//* run:
 
-FOR /D %%I IN (*) DO if exist "%%I" (
+FOR /D %%I IN (*) DO	^
+if exist "%%I"		^
+if exist "%%I\*" (
  pushd "%%I"
+ REM This stops the script with "File Not Found" when there are dirs but no files:
+ REM dir /a-D /b>nul || goto end_subdir
  @echo on
  pynp a "%archive_types%%archive_handling%=%%I"	^
 	"%src_dir_or_mask%"			^
 	"%archive_dest_dir%"			^
 	"%~5" "%~6" "%~7" "%~8" "%~9"
  @echo off
+ :end_subdir
  popd
- if not exist "%%I\*" rmdir "%%I"
+ REM if not exist "%%I\*" rmdir "%%I"
 )
 
 rem ---------------------------------------------------------------------------

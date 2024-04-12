@@ -1,0 +1,1 @@
+chkdsk /F /V /R /B "\\?\Volume{%~1}" > "chkdsk,Volume_%~1,%~2.txt"
