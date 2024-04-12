@@ -49,6 +49,7 @@ def print_help():
 	,	colored('	-l=<N> --larger=<N>  --size-above=<Number>', 'cyan') + ': pick files larger than Number of bytes.'
 	,	colored('	-s=<N> --smaller=<N> --size-below=<Number>', 'cyan') + ': pick files smaller than Number of bytes.'
 	,	''
+	,	colored('	-m --name-last       ', 'magenta') + ': show each file name last, after dates and sizes.'
 	,	colored('	-t --test --read-only', 'magenta') + ': show picked files, do not delete anything.'
 	,	colored('	-h, --help, /?       ', 'magenta') + ': show this help text, do nothing else.'
 	,	''
@@ -106,11 +107,13 @@ def run_cleanup_folder(argv):
 
 		return 1
 
-	READ_ONLY = False
+	arg_name_last = READ_ONLY = False
+
 	arg_age_above = 0
 	arg_age_below = 0
 	arg_size_above = 0
 	arg_size_below = 0
+
 	src_dirs = []
 
 	for each_arg in argv:
@@ -136,6 +139,13 @@ def run_cleanup_folder(argv):
 			or (	arg_what == 'read' and arg_how == 'only')
 			):
 				READ_ONLY = True
+
+				continue
+			if (
+				arg_what == 'm'
+			or (	arg_what == 'name' and arg_how == 'last')
+			):
+				arg_name_last = True
 
 				continue
 			if (
@@ -201,6 +211,14 @@ def run_cleanup_folder(argv):
 	count_found_files = 0
 	count_total_size = 0
 
+	each_file_print_format = (
+		('' if arg_name_last else '"{file}" ')
+	+	'{date}'
+	+	(', {age} sec. old' if READ_ONLY else '')
+	+	', {size} bytes'
+	+	(' "{file}"' if arg_name_last else '')
+	)
+
 	for each_dir in src_dirs:
 
 		print('')
@@ -228,7 +246,7 @@ def run_cleanup_folder(argv):
 					if READ_ONLY:
 						print_with_colored_prefix(
 							'Found:'
-						,	'"{file}" {date}, {age} sec. old, {size} bytes'.format(
+						,	each_file_print_format.format(
 								file=each_name.encode(print_encoding)
 							,	size=file_size
 							,	age=file_age
@@ -238,7 +256,7 @@ def run_cleanup_folder(argv):
 					else:
 						print_with_colored_prefix(
 							'Deleting:'
-						,	'"{file}" {date}, {size} bytes'.format(
+						,	each_file_print_format.format(
 								file=each_name.encode(print_encoding)
 							,	size=file_size
 							,	date=get_formatted_modtime(file_mod_time)
