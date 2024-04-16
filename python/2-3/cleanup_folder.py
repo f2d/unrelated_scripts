@@ -34,9 +34,8 @@ def print_help():
 	help_text_lines = [
 		''
 	,	colored('* Description:', 'yellow')
-	,	'	In each given folder, find and delete all files which meet given age/size criteria.'
-	,	'	At least one age/size criteria number > 0 is required.'
-	,	'	Files of age/size equal to given criteria are included.'
+	,	'	In each given folder, find and delete all files which meet given age/size/content criteria.'
+	,	'	At least one non-empty criteria is required.'
 	,	''
 	,	colored('* Usage:', 'yellow')
 	,	'	{0}'
@@ -52,9 +51,12 @@ def print_help():
 	,	colored('	-n=<N> --newer=<N>   --age-below=<Number> ', 'cyan') + ': pick files newer than Number of seconds.'
 	,	colored('	-l=<N> --larger=<N>  --size-above=<Number>', 'cyan') + ': pick files larger than Number of bytes.'
 	,	colored('	-s=<N> --smaller=<N> --size-below=<Number>', 'cyan') + ': pick files smaller than Number of bytes.'
+	,		'		Files of age/size equal to given number are included.'
+	,		'		Negative or fractional numbers are not supported.'
 	,	''
 	,	colored('	-i=<T> --include=<T> --contains=<Text>   ', 'cyan') + ': pick files containing given text.'
 	,	colored('	-x=<T> --exclude=<T> --contains-no=<Text>', 'cyan') + ': skip files containing given text.'
+	,		'		Non-empty arguments with only whitespace are supported.'
 	,		'		Multiple arguments are supported, any match counts.'
 	,		'		Exclude arguments have precedence before include.'
 	,		'		Search is performed for each line, case sensitive.'
@@ -238,8 +240,16 @@ def run_cleanup_folder(argv):
 
 		src_dirs.append(each_arg)
 
-	if not (
-		arg_age_above > 0
+	arg_contains = arg_exclude_by_content or arg_include_by_content
+
+	if (
+		arg_age_above < 0
+	or	arg_age_below < 0
+	or	arg_size_above < 0
+	or	arg_size_below < 0
+	) or not (
+		arg_contains
+	or	arg_age_above > 0
 	or	arg_age_below > 0
 	or	arg_size_above > 0
 	or	arg_size_below > 0
@@ -251,7 +261,6 @@ def run_cleanup_folder(argv):
 	if not len(src_dirs):
 		src_dirs.append(default_src_dir)
 
-	arg_contains = arg_exclude_by_content or arg_include_by_content
 	now_time = time.time()
 
 	if arg_read_only:
