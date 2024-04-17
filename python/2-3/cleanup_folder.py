@@ -25,6 +25,8 @@ print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
 
 timestamp_format = r'%Y-%m-%d %H:%M:%S'
 default_src_dir = u'.'
+max_unseparated_digits = 6
+max_unseparated_number = 999999
 
 # - Declare functions ---------------------------------------------------------
 
@@ -61,6 +63,9 @@ def print_help():
 	,		'		Exclude arguments have precedence before include.'
 	,		'		Search is performed for each line, case sensitive.'
 	,		'		Line breaks are not supported.'
+	,	''
+	,	colored('	-d=<N> --digits=<N> --unseparated-digits=<Number>', 'magenta')
+		+	': add thousand separators when showing sizes with more than Number of digits. Default: {}'.format(max_unseparated_digits)
 	,	''
 	,	colored('	-r --recurse         ', 'magenta') + ': process subfolders in each given path.'
 	,	colored('	-m --name-last       ', 'magenta') + ': show each file name last, after dates and sizes.'
@@ -107,9 +112,24 @@ def normalize_slashes(path):
 def get_formatted_modtime(mtime, format=timestamp_format):
 	return datetime.datetime.fromtimestamp(mtime).strftime(format)
 
+# Format string with spaces as thousand separator:
+# Source: https://stackoverflow.com/a/18891054
+def get_bytes_text(bytes_num, add_text=True):
+	return (
+		('{:,} bytes' if add_text else '{:,}')
+		.format(bytes_num)
+		.replace(',', ' ')
+		if bytes_num > max_unseparated_number else
+
+		('{} bytes' if add_text else '{}')
+		.format(bytes_num)
+	)
+
 # - Main job function ---------------------------------------------------------
 
 def run_cleanup_folder(argv):
+
+	global max_unseparated_digits, max_unseparated_number
 
 	argc = len(argv)
 
@@ -188,7 +208,8 @@ def run_cleanup_folder(argv):
 					or	arg_what == 'older'
 					or (	arg_what == 'age' and arg_how == 'above')
 					):
-						arg_age_above = int(arg_value)
+						value = int(arg_value)
+						if value > 0: arg_age_above = value
 
 						continue
 					if (
@@ -196,7 +217,8 @@ def run_cleanup_folder(argv):
 					or	arg_what == 'newer'
 					or (	arg_what == 'age' and arg_how == 'below')
 					):
-						arg_age_below = int(arg_value)
+						value = int(arg_value)
+						if value > 0: arg_age_below = value
 
 						continue
 					if (
@@ -204,7 +226,8 @@ def run_cleanup_folder(argv):
 					or	arg_what == 'larger'
 					or (	arg_what == 'size' and arg_how == 'above')
 					):
-						arg_size_above = int(arg_value)
+						value = int(arg_value)
+						if value > 0: arg_size_above = value
 
 						continue
 					if (
@@ -212,7 +235,17 @@ def run_cleanup_folder(argv):
 					or	arg_what == 'smaller'
 					or (	arg_what == 'size' and arg_how == 'below')
 					):
-						arg_size_below = int(arg_value)
+						value = int(arg_value)
+						if value > 0: arg_size_below = value
+
+						continue
+					if (
+						arg_what == 'd'
+					or	arg_what == 'digits'
+					or (	arg_what == 'unseparated' and arg_how == 'digits')
+					):
+						value = int(arg_value)
+						if value > 0: max_unseparated_digits = value
 
 						continue
 				if (
@@ -242,12 +275,7 @@ def run_cleanup_folder(argv):
 
 	arg_contains = arg_exclude_by_content or arg_include_by_content
 
-	if (
-		arg_age_above < 0
-	or	arg_age_below < 0
-	or	arg_size_above < 0
-	or	arg_size_below < 0
-	) or not (
+	if not (
 		arg_contains
 	or	arg_age_above > 0
 	or	arg_age_below > 0
@@ -258,6 +286,9 @@ def run_cleanup_folder(argv):
 
 		return 2
 
+	if max_unseparated_digits > 0:
+		max_unseparated_number = int('9' * max_unseparated_digits)
+
 	if not len(src_dirs):
 		src_dirs.append(default_src_dir)
 
@@ -266,16 +297,23 @@ def run_cleanup_folder(argv):
 	if arg_read_only:
 		print('')
 		print_with_colored_prefix('now_time:', now_time)
+		print_with_colored_prefix('arg_read_only:', arg_read_only)
+		print_with_colored_prefix('arg_name_last:', arg_name_last)
+		print('')
+		print_with_colored_prefix('max_unseparated_digits:', max_unseparated_digits)
+		print_with_colored_prefix('max_unseparated_number:', max_unseparated_number)
+		print('')
 		print_with_colored_prefix('arg_age_above:', arg_age_above)
 		print_with_colored_prefix('arg_age_below:', arg_age_below)
 		print_with_colored_prefix('arg_size_above:', arg_size_above)
 		print_with_colored_prefix('arg_size_below:', arg_size_below)
-		print_with_colored_prefix('arg_read_only:', arg_read_only)
+		print('')
 		print_with_colored_prefix('arg_contains:', arg_contains)
 		print_with_colored_prefix('arg_exclude_by_content:', arg_exclude_by_content)
 		print_with_colored_prefix('arg_include_by_content:', arg_include_by_content)
 		print_with_colored_prefix('exclude_content_parts:', exclude_content_parts)
 		print_with_colored_prefix('include_content_parts:', include_content_parts)
+		print('')
 		print_with_colored_prefix('src_dirs:', src_dirs)
 
 	count_found_files = 0
@@ -287,7 +325,7 @@ def run_cleanup_folder(argv):
 		('' if arg_name_last else '"{file}" ')
 	+	'{date}'
 	+	(', {age} sec. old' if arg_read_only else '')
-	+	', {size} bytes'
+	+	', {size}'
 	+	(' "{file}"' if arg_name_last else '')
 	)
 
@@ -357,7 +395,7 @@ def run_cleanup_folder(argv):
 							'Found:'
 						,	each_file_print_format.format(
 								file=each_name.encode(print_encoding)
-							,	size=file_size
+							,	size=get_bytes_text(file_size)
 							,	age=file_age
 							,	date=get_formatted_modtime(file_mod_time)
 							)
@@ -367,7 +405,7 @@ def run_cleanup_folder(argv):
 							'Deleting:'
 						,	each_file_print_format.format(
 								file=each_name.encode(print_encoding)
-							,	size=file_size
+							,	size=get_bytes_text(file_size)
 							,	date=get_formatted_modtime(file_mod_time)
 							)
 						)
@@ -383,11 +421,11 @@ def run_cleanup_folder(argv):
 
 		print_with_colored_prefix(
 			'Files to delete:' if arg_read_only else 'Deleted files:'
-		,	'{number}, total {size} bytes, min {min}, max {max} bytes.'.format(
+		,	'{number}, total {size}, min {min}, max {max}.'.format(
 				number=count_found_files
-			,	size=count_total_size
-			,	min=min_found_size
-			,	max=max_found_size
+			,	size=get_bytes_text(count_total_size)
+			,	min=get_bytes_text(min_found_size, add_text=False)
+			,	max=get_bytes_text(max_found_size)
 			)
 		,	'cyan' if arg_read_only else 'green'
 		)
