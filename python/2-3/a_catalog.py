@@ -2,8 +2,15 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# Use case - for a bunch of catalog HTML files in per board:
+# 1) Add timestamp to each HTML file name without one.
+# 2) Make 1 archive (7z or Rar) named like this: "_catalog_htm;_Y-m-d,H-M-S,[subdir1,subdir2,<...>],solid.ext"
+# 3) Delete source files and subfolders.
+
+# - Dependencies --------------------------------------------------------------
+
 import datetime, os, re, subprocess, sys, time
-import a
+import a	# <- custom script from this folder, used to call archiver programs
 
 # - Configuration and defaults ------------------------------------------------
 
@@ -14,7 +21,7 @@ pat_normalize_title = [
 	[re.compile(r'[;_]*\d{4}(\D\d\d){5}'), '']
 ]
 
-# - Declare functions ---------------------------------------------------------
+# - Utility functions ---------------------------------------------------------
 
 def pad_list(a, minimum_len=2, pad_value=''):
 	diff = minimum_len - len(a)

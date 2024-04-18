@@ -6,29 +6,7 @@
 # This script imitates command like the following, which is slow, as it must spawn new cmd process for each file:
 # FORFILES /M ?* /D -1 /C "cmd /c if @fsize leq 4234 echo @file @fdate @ftime @fsize && del /F /Q @file"
 
-import datetime, os, sys, time
-
-# Use colored text if available:
-try:
-	from termcolor import colored, cprint
-	import colorama
-
-	colorama.init()
-
-except ImportError:
-	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint (*list_args, **keyword_args): print (list_args[0])
-
-# - Configuration and defaults ------------------------------------------------
-
-print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
-
-timestamp_format = r'%Y-%m-%d %H:%M:%S'
-default_src_dir = u'.'
-max_unseparated_digits = 6
-max_unseparated_number = 999999
-
-# - Declare functions ---------------------------------------------------------
+# - Help screen shown on demand or without arguments --------------------------
 
 def print_help():
 	self_name = os.path.basename(__file__)
@@ -80,6 +58,32 @@ def print_help():
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))
+
+# - Dependencies --------------------------------------------------------------
+
+import datetime, os, sys, time
+
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint (*list_args, **keyword_args): print (list_args[0])
+
+# - Configuration and defaults ------------------------------------------------
+
+print_encoding = sys.stdout.encoding or sys.getfilesystemencoding() or 'utf-8'
+
+timestamp_format = r'%Y-%m-%d %H:%M:%S'
+default_src_dir = u'.'
+max_unseparated_digits = 6
+max_unseparated_number = 999999
+
+# - Utility functions ---------------------------------------------------------
 
 def print_with_colored_prefix(prefix, value, color=None):
 	try:
@@ -133,6 +137,8 @@ def run_cleanup_folder(argv):
 
 	argc = len(argv)
 
+# - Show help and exit --------------------------------------------------------
+
 	if (
 		argc < 1
 	or	'/?' in argv
@@ -142,6 +148,8 @@ def run_cleanup_folder(argv):
 		print_help()
 
 		return 1
+
+# - Check arguments -----------------------------------------------------------
 
 	arg_exclude_by_content = False
 	arg_include_by_content = False
@@ -275,6 +283,8 @@ def run_cleanup_folder(argv):
 
 	arg_contains = arg_exclude_by_content or arg_include_by_content
 
+# - Show help and exit --------------------------------------------------------
+
 	if not (
 		arg_contains
 	or	arg_age_above > 0
@@ -285,6 +295,8 @@ def run_cleanup_folder(argv):
 		print_help()
 
 		return 2
+
+# - Check arguments again -----------------------------------------------------
 
 	if max_unseparated_digits > 0:
 		max_unseparated_number = int('9' * max_unseparated_digits)
@@ -360,6 +372,8 @@ def run_cleanup_folder(argv):
 								return True
 		return file_matched
 
+# - Do the job ----------------------------------------------------------------
+
 	for each_dir in src_dirs:
 
 		print('')
@@ -415,6 +429,9 @@ def run_cleanup_folder(argv):
 				elif arg_recurse and os.path.isdir(full_path):
 
 					src_dirs.append(full_path)
+
+# - Result summary ------------------------------------------------------------
+
 	print('')
 
 	if count_found_files > 0:

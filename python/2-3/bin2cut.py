@@ -9,6 +9,112 @@
 # TODO: 5. for trim - try checking only start and end of file, may be faster for very big files (over 1 GB).
 # TODO: 6. option to untrim from filename, but don't overwrite the file - create anew and set modtime, as it might be hardlinked elsewhere.
 
+# - Help screen shown on demand or without arguments --------------------------
+
+def print_help():
+	self_name = os.path.basename(__file__)
+	max_file_type_length = 0
+
+	for media_type in file_exts_by_type.keys():
+		type_length = len(media_type)
+
+		if max_file_type_length < type_length:
+			max_file_type_length = type_length
+
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	Find and extract files of known formats stored as is inside other files.'
+	,	'	Or truncate extraneous data at the end of files of known formats (for deduplication).'
+	,	''
+	,	colored('* Known file formats:', 'yellow')
+	,	'	' + get_sorted_text_from_items(pat_parts_by_ext.keys())
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(' <source> <dest>', 'cyan')
+		+	colored(' <optional args> <...>', 'magenta')
+	,	''
+	,	colored('<source>', 'cyan') + ' : path to binary data file or folder with files to read.'
+	,	colored('<dest>', 'cyan') + '   : path to folder to save extracted files. If "TEST", do not save.'
+	,	''
+	,	colored(' -t --test', 'magenta') + '     : do not save or change any files.'
+	,	colored(' -q --quiet', 'magenta') + '    : print only changes and final summary.'
+	,	colored(' -s --silent', 'magenta') + '   : print nothing, usable for calling from another script.'
+	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
+	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
+	,	colored(' -l --long-time', 'magenta') + '  : print long detailed timestamps with fractional seconds and timezone.'
+	,	colored(' -m --keep-time', 'magenta') + '  : set modification time of saved file to be same as original file.'
+	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
+	,	colored(' -i --in-place', 'magenta') + '   : save to original file after cutting extraneous data.'
+	,	colored(' -f --in-folder', 'magenta') + '  : save extracted files to original folder. '
+		+	colored('<dest>', 'cyan')
+		+	' argument is not needed.'
+
+	,	colored(' -e --truncate', 'magenta') + '     : cut extraneous bytes from content,'
+		+	' added there to bypass duplicate file checks, and discard them.'
+
+	,	colored(' -n --truncate-num', 'magenta') + ' : cut extraneous digits from content,'
+		+	' and add them to saved file name as is, like "(dNN...)".'
+
+	,	colored(' -0 --truncate-null', 'magenta') + ' : cut extraneous null bytes from content,'
+		+	' and add them to saved file name as is, like "(x00...)".'
+
+	,	colored(' -x --truncate-hex', 'magenta') + ' : cut extraneous bytes from content,'
+		+	' and add them to saved file name as hex, like "(xFF...)", including null bytes.'
+
+	,	colored(' -c --content-in-arg', 'magenta') + ' : read content directly from '
+		+	colored('<source>', 'cyan')
+		+	' argument, not as path, and return a list of dictionaries, each with new file name and extracted content.'
+	,	'	This is usable for calling from another script.'
+	,	'	Otherwise, read files from path on disk, return success status (zero).'
+	]+[
+		(
+			colored(
+				' -' + media_type[0 : 1]
+			+	' --' + media_type + (' ' * (max_file_type_length - len(media_type)))
+			,	'magenta'
+			)
+			+	' : process only ' + media_type + ' files ('
+			+	get_sorted_text_from_items(
+					(
+						colored(ext, 'yellow')
+					+	' ['
+					+	get_sorted_text_from_items(
+							colored(alias, 'green')
+							for alias in file_ext_aliases_by_ext[ext]
+						)
+					+	']'
+						if file_ext_aliases_by_ext.get(ext)
+						else
+						colored(ext, 'yellow')
+					) for ext in exts
+				)
+			+	').'
+		) for media_type, exts in file_exts_by_type.items()
+	]+[
+		colored(' .<ext>', 'magenta') + (' ' * (max_file_type_length - 1))
+		+	' : process only files of given extensions, including all aliases.'
+# TODO:	,	colored(' -a=<date> --after=<time>', 'magenta') + '  : process only files modified after given date or time.'
+# TODO:	,	colored(' -b=<date> --before=<time>', 'magenta') + ' : process only files modified before given date or time.'
+	,	''
+	,	'Ending slashes in paths are optional.'
+	,	'Dash or slash signs in other args are optional.'
+	,	'Single-letter optional arguments can be concatenated, starting from single dash or slash.'
+	,	'If file type restrictions are not given, all known types will be processed.'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
+	,	'	{0} "/read/from/folder/" --in-folder --recurse --test --video'
+	,	'	{0} "/read/from/folder/" . --truncate --remove-old --picture'
+	,	'	{0} "/read/from/folder/" -r t -def --quiet ".jpeg" ".mkv"'
+	,	'	{0} "/read/from/file.dat" TEST --verbose'
+	]
+
+	print(u'\n'.join(help_text_lines).format(self_name))
+
+# - Dependencies --------------------------------------------------------------
+
 import os, re, sys, time
 
 try:
@@ -193,7 +299,7 @@ s_type = type('')
 u_type = type(u'')
 b_type = type(b'')
 
-# - Declare functions ---------------------------------------------------------
+# - Utility functions ---------------------------------------------------------
 
 def is_iterable(v): return isinstance(v, Iterable)
 def is_type_int(v): return isinstance(v, int)
@@ -335,108 +441,6 @@ def print_with_colored_prefix_line(comment, value, color=None):
 
 def print_with_colored_prefix(prefix, value, color=None):
 	print('{prefix} {value}'.format(prefix=colored(prefix, color or 'yellow'), value=value))
-
-def print_help():
-	self_name = os.path.basename(__file__)
-	max_file_type_length = 0
-
-	for media_type in file_exts_by_type.keys():
-		type_length = len(media_type)
-
-		if max_file_type_length < type_length:
-			max_file_type_length = type_length
-
-	help_text_lines = [
-		''
-	,	colored('* Description:', 'yellow')
-	,	'	Find and extract files of known formats stored as is inside other files.'
-	,	'	Or truncate extraneous data at the end of files of known formats (for deduplication).'
-	,	''
-	,	colored('* Known file formats:', 'yellow')
-	,	'	' + get_sorted_text_from_items(pat_parts_by_ext.keys())
-	,	''
-	,	colored('* Usage:', 'yellow')
-	,	'	{0}'
-		+	colored(' <source> <dest>', 'cyan')
-		+	colored(' <optional args> <...>', 'magenta')
-	,	''
-	,	colored('<source>', 'cyan') + ' : path to binary data file or folder with files to read.'
-	,	colored('<dest>', 'cyan') + '   : path to folder to save extracted files. If "TEST", do not save.'
-	,	''
-	,	colored(' -t --test', 'magenta') + '     : do not save or change any files.'
-	,	colored(' -q --quiet', 'magenta') + '    : print only changes and final summary.'
-	,	colored(' -s --silent', 'magenta') + '   : print nothing, usable for calling from another script.'
-	,	colored(' -b --verbose', 'magenta') + '  : print more internal info, for testing and debug.'
-	,	colored(' -r --recurse', 'magenta') + '  : go into subfolders, if given source path is a folder.'
-	,	colored(' -l --long-time', 'magenta') + '  : print long detailed timestamps with fractional seconds and timezone.'
-	,	colored(' -m --keep-time', 'magenta') + '  : set modification time of saved file to be same as original file.'
-	,	colored(' -d --remove-old', 'magenta') + ' : delete original file after cutting extraneous data.'
-	,	colored(' -i --in-place', 'magenta') + '   : save to original file after cutting extraneous data.'
-	,	colored(' -f --in-folder', 'magenta') + '  : save extracted files to original folder. '
-		+	colored('<dest>', 'cyan')
-		+	' argument is not needed.'
-
-	,	colored(' -e --truncate', 'magenta') + '     : cut extraneous bytes from content,'
-		+	' added there to bypass duplicate file checks, and discard them.'
-
-	,	colored(' -n --truncate-num', 'magenta') + ' : cut extraneous digits from content,'
-		+	' and add them to saved file name as is, like "(dNN...)".'
-
-	,	colored(' -0 --truncate-null', 'magenta') + ' : cut extraneous null bytes from content,'
-		+	' and add them to saved file name as is, like "(x00...)".'
-
-	,	colored(' -x --truncate-hex', 'magenta') + ' : cut extraneous bytes from content,'
-		+	' and add them to saved file name as hex, like "(xFF...)", including null bytes.'
-
-	,	colored(' -c --content-in-arg', 'magenta') + ' : read content directly from '
-		+	colored('<source>', 'cyan')
-		+	' argument, not as path, and return a list of dictionaries, each with new file name and extracted content.'
-	,	'	This is usable for calling from another script.'
-	,	'	Otherwise, read files from path on disk, return success status (zero).'
-	]+[
-		(
-			colored(
-				' -' + media_type[0 : 1]
-			+	' --' + media_type + (' ' * (max_file_type_length - len(media_type)))
-			,	'magenta'
-			)
-			+	' : process only ' + media_type + ' files ('
-			+	get_sorted_text_from_items(
-					(
-						colored(ext, 'yellow')
-					+	' ['
-					+	get_sorted_text_from_items(
-							colored(alias, 'green')
-							for alias in file_ext_aliases_by_ext[ext]
-						)
-					+	']'
-						if file_ext_aliases_by_ext.get(ext)
-						else
-						colored(ext, 'yellow')
-					) for ext in exts
-				)
-			+	').'
-		) for media_type, exts in file_exts_by_type.items()
-	]+[
-		colored(' .<ext>', 'magenta') + (' ' * (max_file_type_length - 1))
-		+	' : process only files of given extensions, including all aliases.'
-# TODO:	,	colored(' -a=<date> --after=<time>', 'magenta') + '  : process only files modified after given date or time.'
-# TODO:	,	colored(' -b=<date> --before=<time>', 'magenta') + ' : process only files modified before given date or time.'
-	,	''
-	,	'Ending slashes in paths are optional.'
-	,	'Dash or slash signs in other args are optional.'
-	,	'Single-letter optional arguments can be concatenated, starting from single dash or slash.'
-	,	'If file type restrictions are not given, all known types will be processed.'
-	,	''
-	,	colored('* Examples:', 'yellow')
-	,	'	{0} "/read/from/folder/" "/save/to/folder/"'
-	,	'	{0} "/read/from/folder/" --in-folder --recurse --test --video'
-	,	'	{0} "/read/from/folder/" . --truncate --remove-old --picture'
-	,	'	{0} "/read/from/folder/" -r t -def --quiet ".jpeg" ".mkv"'
-	,	'	{0} "/read/from/file.dat" TEST --verbose'
-	]
-
-	print(u'\n'.join(help_text_lines).format(self_name))
 
 def get_extracted_files(argv):
 	return run_batch_extract(argv, '--content-in-arg') if len(argv) > 1 else []

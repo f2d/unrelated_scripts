@@ -2,6 +2,50 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# - Help screen shown on demand or without arguments --------------------------
+
+def print_help():
+	self_name = os.path.basename(__file__)
+
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	Make resized copies of all images in current folder'
+	,	'	using external waifu2xprogram.'
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(' [<width>][x<height>]', 'cyan')
+		+	colored(' [<flags>] [<destination folder>]', 'magenta')
+	,	''
+	,	colored('<flags>', 'cyan') + ': string of letters in any order.'
+	,	'	t: show possible test info, don\'t apply changes'
+	,	'	r: recursion - go into subfolders'
+	,	'	f: keep source subfolder structure at destination, implies "r"'
+	,	'	i: resize - touch given frame inside (default)'
+	,	'	o: resize - touch given frame outside, no effect without both dimensions'
+	,	'	l: keep larger files as is (scale factor <= 1.0)'
+	,	'	s: keep smaller files as is (scale factor >= 1.0)'
+	,	'	0 or 1 or 2: noise reduction level (default = none)'
+	,	''
+	,	colored('<width>', 'cyan') + ' or ' + colored('x<height>', 'cyan') + ': use one number, calculate the other.'
+	,	colored('<width>x<height>', 'cyan') + ': use two numbers, resize to touch given frame.'
+	,	''
+	,	colored('* Note:', 'yellow')
+	,	'	After excluding the first found argument matching width/height,'
+	,	'	first remaining is flags, second is destination folder.'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} t ./dest 1920'
+	,	'	{0} x1080 o ..'
+	,	'	{0} x3840 l1 e:/4k/png/wide'
+	,	'	{0} 3840x2160 r1 e:/dest/'
+	]
+
+	print('\n'.join(help_text_lines).format(self_name))
+
+# - Dependencies --------------------------------------------------------------
+
 import os, re, sys, subprocess, traceback
 from PIL import Image
 
@@ -43,7 +87,7 @@ pats_trim_float = [
 ,	re.compile(r'(?P<Short>\d+\.\d{6})\d*')
 ] # -> r'\g<Short>'
 
-# - Declare functions ---------------------------------------------------------
+# - Utility functions ---------------------------------------------------------
 
 def get_text_encoded_for_print(text):
 	text = unicode(text)
@@ -60,46 +104,6 @@ def print_with_colored_prefix(comment, value, color=None):
 
 def print_with_colored_suffix(value, comment, color=None):
 	print('{} {}'.format(value, colored(comment, color or 'yellow')))
-
-def print_help():
-	self_name = os.path.basename(__file__)
-
-	help_text_lines = [
-		''
-	,	colored('* Description:', 'yellow')
-	,	'	Make resized copies of all images in current folder'
-	,	'	using external waifu2xprogram.'
-	,	''
-	,	colored('* Usage:', 'yellow')
-	,	'	{0}'
-		+	colored(' [<width>][x<height>]', 'cyan')
-		+	colored(' [<flags>] [<destination folder>]', 'magenta')
-	,	''
-	,	colored('<flags>', 'cyan') + ': string of letters in any order.'
-	,	'	t: show possible test info, don\'t apply changes'
-	,	'	r: recursion - go into subfolders'
-	,	'	f: keep source subfolder structure at destination, implies "r"'
-	,	'	i: resize - touch given frame inside (default)'
-	,	'	o: resize - touch given frame outside, no effect without both dimensions'
-	,	'	l: keep larger files as is (scale factor <= 1.0)'
-	,	'	s: keep smaller files as is (scale factor >= 1.0)'
-	,	'	0 or 1 or 2: noise reduction level (default = none)'
-	,	''
-	,	colored('<width>', 'cyan') + ' or ' + colored('x<height>', 'cyan') + ': use one number, calculate the other.'
-	,	colored('<width>x<height>', 'cyan') + ': use two numbers, resize to touch given frame.'
-	,	''
-	,	colored('* Note:', 'yellow')
-	,	'	After excluding the first found argument matching width/height,'
-	,	'	first remaining is flags, second is destination folder.'
-	,	''
-	,	colored('* Examples:', 'yellow')
-	,	'	{0} t ./dest 1920'
-	,	'	{0} x1080 o ..'
-	,	'	{0} x3840 l1 e:/4k/png/wide'
-	,	'	{0} 3840x2160 r1 e:/dest/'
-	]
-
-	print('\n'.join(help_text_lines).format(self_name))
 
 def is_any_char_of_a_in_b(chars, text):
 	for char in chars:

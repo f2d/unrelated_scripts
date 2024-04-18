@@ -15,6 +15,262 @@
 # TODO: keep archives by subject AND result file sum/list, instead of only subject, to avoid lost files if different program choose differently.
 # Or abort the queue before deleting new/old archive, when some subject gives different archived result by different program.
 
+# - Help screen shown on demand or without arguments --------------------------
+
+def print_help():
+	self_name = os.path.basename(__file__)
+	exe_paths = get_exe_paths()
+
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	This script calls several preinstalled programs in a batch'
+	,	'	to make a set of archives with same content with intention'
+	,	'	to compare and hand-pick the best or most suitable results.'
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(
+				' "['
+				+ ']['.join([
+					'<flags>'
+				,	def_name_separator + '<name>'
+				,	def_suffix_separator + '<suffix>'
+				])
+				+ ']"'
+			,	'cyan'
+			)
+		+	'\n		'
+		+	colored(' ["<subj>"|' + def_subj + ']', 'magenta')
+		+	colored(' ["<dest>"|' + def_dest + ']', 'magenta')
+		+	colored(' [<optional args> ...]', 'magenta')
+	,	''
+	,	colored('* Warning:', 'yellow')
+	,	'	In shell, add "quotes" around arguments,'
+	,	'	that contain any of the following symbols: "' + must_quote_chars + '",'
+	,	'	or quote/escape anything beyond latin letters and digits just in case.'
+	,	''
+	,	colored('* Current executable paths to be used (found or fallback):', 'yellow')
+	] + sorted([
+		'	{}	: {}'.format(k, v) for k, v in exe_paths.items()
+	]) + [
+		''
+	,	colored('* Flags (switch letters, concatenate in any order, any letter case):', 'yellow')
+	,	''
+	,	'	---- Archive types:'
+	,	''
+	,	'	{make_7z}: make a .7z  file with 7-Zip.'
+	,	'	{make_zip_by_7z}: make a .zip file with 7-Zip.'
+	,	'	{make_zip_by_rar}: make a .zip file with WinRAR.'
+	,	'	{make_rar}: make a .rar file with WinRAR.'
+	,	'	{solid}: make solid archives.'
+	,	'	{by_ext}: make archives with solid blocks grouped by filename extension.'
+	,	'	{non_solid}: make non-solid archives (implied unless "{solid}" or "{by_ext}" is given).'
+	,	'	{solid_shortcut}: make a set of solid variants (shortcut, equivalent to "' + make_all_solid_flags + '").'
+	,	'	{all_shortcut}: make all types currently supported (shortcut, equivalent to "' + make_all_types_flags + '").'
+	,	''
+	,	'	---- Archive filenames:'
+	,	''
+	,	'	{start_time}: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
+	,	'	{mod_time}: add each archive\'s last-modified time to its filename.'
+	,	'	{time_format}: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
+	,	'	{suffix_sep}: put timestamp before any suffix, after base filename.'
+	,	''
+	,	'	{name_sep}filename{suffix_sep}suffix:'
+	,	'		Add given suffix between timestamp and archive type.'
+	,	'		",=suffix" is autoreplaced to ",[suffix]", for usage with arch_sub.bat'
+	,	''
+	,	'	---- Compression parameters:'
+	,	''
+	,	'	{store}: no compression (store file content as is).'
+	,	'	{mega}: big data compression settings (256 MB dictionary, 256 B word size).'
+	,	'	{giga}: very big compression settings (1 GB dictionary, 273 B word size).'
+	,	''
+	,	'	{zstd_min}, up to {zstd_max}:'
+	,	'		Use Zstandard compression method.'
+	,	'		Only supported by 7-Zip custom builds or plugins.'
+	,	'		Repeat the flag for slower and higher levels ({zstd_min}={zstd_min_level}, {zstd_max}={zstd_max_level}).'
+	,	'		Much faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20.'
+	,	'		In some rare cases Zstd level 17 archive is smaller than level 20, and 2+ times faster in all cases.'
+	,	'		In some rare cases Zstd level 20 archive is smaller than LZMA2 level 9.'
+	,	'		"{mega}" and "{giga}" flags without "{by_ext}" set solid block size for Zstd, instead of dictionary size.'
+	,	''
+	,	'	{zstd_min}{store}:'
+		+	'	Use Zstandard level {zstd_store_level}.'
+	,	'		Fast alternative to uncompressed 7z format.'
+	,	''
+	,	'	{esplit}:'
+		+	'	Use eSplitter for MHTML files.'
+	,	'		Compress base64-decoded binary data separately from text.'
+	,	'		Only supported by 7-Zip, in 7z format, and requires eSplitter plugin.'
+	,	'		Repeat the flag to use different methods:'
+	,	'			Default (single "{esplit}") = use the same main method for all data.'
+	,	'			Even count ("'
+		+ (esplit_flag * 2) + '", "'
+		+ (esplit_flag * 4) + '", etc) = use "'
+		+ esplit_glue_method + '" for glue data, faster, sometimes smaller.'
+	,	'			Every 3-4 of 4 ("'
+		+ (esplit_flag * 3) + '", '
+		+ (esplit_flag * 4) + '", x7, x8, etc) = use PPMD for text files data, slower, "{mega}" and "{giga}" flags set mem size.'
+	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
+	,	'		Discussion: https://sourceforge.net/p/sevenzip/discussion/45797/thread/8df7e14e/'
+	,	''
+	,	'	{dedup}:'
+		+	'	Store identical files as links to one copy of archived content.'
+	,	'		Limits storage redundancy and archive editing.'
+	,	'		Only supported by WinRAR since v5.'
+	,	'		7-Zip may show file errors when testing or unpacking such archives.'
+	,	''
+	,	'	---- Group subjects into separate archives:'
+	,	''
+	,	'		Each name is appended with comma to "{name_sep}filename" from arguments.'
+	,	''
+	,	'	{group_by_name}:'
+		+	'	Make separate archives for each group of subjects'
+	,	'		by first found numeric ID in subject name.'
+	,	'		(name1part2 -> name1*, "{name_sep}filename,name1")'
+	,	''
+	,	'	{group_lists}:'
+		+	'	Same as "{group_by_name}" but create filelist files (in destination folder)'
+	,	'		to separate ambiguous cases, like when "name1*" mask'
+	,	'		would undesirably capture "name1a" and "name12" files.'
+	,	''
+	,	'	{group_by_name}{group_lists}:'
+		+	'	Same as "{group_lists}" but files without ID go to one list, not separate.'
+	,	''
+	,	'	{group_dot} and/or {group_comma}:'
+	,	'		Same as "{group_by_name}" or "{group_lists}" but ID may contain dots and/or commas.'
+	,	'		"{group_by_name}" is implied unless "{group_lists}" is given.'
+	,	''
+	,	'	{group_shortcut}: shortcut, equivalent to "' + group_by_num_dot_flags + '".'
+	,	'	{foreach_dir}: make separate archives for each dir of subject mask.'
+	,	'	{foreach_file}: make separate archives for each file of subject mask.'
+	,	'		Use one of "{foreach_dir}" or "{foreach_file}" with any of "' + group_by_num_any_sep_flags + '"'
+	,	'		to add only dirs or files to the groups.'
+#	,	'TODO ->	5 and/or g: make separate archives for each group of subjects'
+#	,	'TODO ->		by longest common subject name parts.'
+#	,	'TODO ->		5: name part break can include alphanumerics, etc.'
+#	,	'TODO ->		g: name part break only by punctuation or spaces.'
+#	,	'TODO ->		g5: start comparing from longest filenames.'
+#	,	'TODO ->		5g: start comparing from shortest filenames.'
+#	,	'TODO ->		if "4" or "f" is not set, skip singletons.'
+#	,	'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+group_by_num_any_sep_flags+'").'
+#	,	'TODO ->	9, 99, 999, etc.: keep each group population below this number.'
+#	,	'TODO ->		(split first by mod.dates - years, then months, days, hours,'
+#	,	'TODO ->		minutes, seconds, at last batch subjects with same-second'
+#	,	'TODO ->		timestamps alphabetically in simple N+1 groups - 10, 100, etc.)'
+	,	''
+	,	'	---- Clean up:'
+	,	''
+	,	'	{keep_1}: keep only the smallest archive for each subject, delete other archives on the go.'
+	,	'	{delete_src}: delete subjects (source files and dirs) when done.'
+	,	'		Only supported by WinRAR, or 7-Zip since v17.'
+	,	'		WinRAR will test its archives before deleting subjects.'
+	,	''
+	,	'		Warning: using "{delete_src}" with "{keep_1}" is NOT safe, because'
+	,	'		in complicated cases with masks, list files or additional include/exclude arguments,'
+	,	'		different programs may choose different subject files, which'
+	,	'		may not coincide between the archive made by the last program to do subject clean up'
+	,	'		and the archive selected as the smallest to be kept,'
+	,	'		possibly resulting in some files lost completely.'
+	,	''
+	,	'	---- Other:'
+	,	''
+	,	'	{list_cmd}: check resulting command lines without running them.'
+	,	'	{no_key_press}: don\'t wait for key press after errors.'
+	,	'	{minimized}: start all processes minimized.'
+	,	''
+	,	'	{split}:'
+		+	'	Split flags before filename suffix, make combinations with common last part.'
+	,	'		("part_1{split}part_2{split}_last" -> "part_1_last" + "part_2_last")'
+	,	'		Any flags unrelated to archive types and compression methods apply to all combinations.'
+	,	'		Flag "{delete_src}" (delete files) in any part is automatically moved to the last combination.'
+	,	'		Using WinRAR in the last part is recommended, because it will test the archive before deleting anything.'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0}'
+		+	colored(' {solid_shortcut}', 'cyan')
+	,	'	(default subj = current folder, destination = 1 folder up)'
+	,	''
+	,	'	{0}'
+		+	colored(' {solid_shortcut}', 'cyan')
+		+	colored(' "*some*thing*"', 'magenta')
+	,	'	(default destination = 1 up, so wildcard won\'t grab result archives)'
+	,	''
+	,	'	{0}'
+		+	colored(' {solid_shortcut}', 'cyan')
+		+	colored(' "subfolder/file"', 'magenta')
+	,	'	(default destination = here, safe because no wildcard)'
+	,	''
+	,	'	{0}'
+		+	colored(' "{list_cmd}{time_format}{group_shortcut}{delete_src}{solid_shortcut}{start_time}{keep_1}"', 'cyan')
+		+	colored(' "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"', 'magenta')
+	,	''
+	,	'	{0}'
+		+	colored(' "{list_cmd}' + '{split}'.join([
+				'{zstd_min}{make_7z}'
+			,	'{store}{zstd_min}{all_shortcut}'
+			,	'{solid_shortcut}'
+			,	'{minimized}{mod_time}{keep_1}{delete_src}'
+			]) + '{name_sep}dest_filename"', 'cyan')
+		+	colored(' "@path/to/subj_listfile" "../../dest/folder"', 'magenta')
+	]
+
+	print('\n'.join(help_text_lines).format(
+
+		self_name
+
+	,	make_7z = make_7z_flag
+	,	make_rar = make_rar_flag
+	,	make_zip_by_7z = make_zip_by_7z_flag
+	,	make_zip_by_rar = make_zip_by_rar_flag
+	,	solid_shortcut = make_all_solid_flags_shortcut
+	,	all_shortcut = make_all_types_flags_shortcut
+
+	,	zstd_min = zstd_flag
+	,	zstd_max = zstd_flag * zstd_levels_max_index
+	,	zstd_store_level = zstd_levels[0]
+	,	zstd_min_level = zstd_levels[1]
+	,	zstd_max_level = zstd_levels[zstd_levels_max_index]
+
+	,	by_ext = make_solid_by_ext_flag
+	,	non_solid = make_non_solid_flag
+	,	solid = make_solid_flag
+	,	store = uncompressed_flag
+
+	,	dedup = dedup_flag
+	,	esplit = esplit_flag
+	,	giga = giga_size_flag
+	,	mega = mega_size_flag
+
+	,	foreach_dir = for_each_dir_flag
+	,	foreach_file = for_each_file_flag
+
+	,	group_by_name = group_flag
+	,	group_comma = group_sep_comma_flag
+	,	group_dot = group_sep_dot_flag
+	,	group_lists = group_listfile_flag
+	,	group_shortcut = group_flags_shortcut
+
+	,	delete_src = delete_sources_flag
+	,	keep_1 = keep_smallest_archive_flag
+	,	list_cmd = only_list_commands_flag
+	,	minimized = minimized_flag
+	,	no_key_press = no_waiting_keypress_flag
+
+	,	mod_time = add_mod_time_flag
+	,	start_time = add_start_time_flag
+	,	time_format = alt_time_format_flag
+
+	,	name_sep = def_name_separator
+	,	suffix_sep = def_suffix_separator
+
+	,	split = split_flag_combo
+
+	))
+
+# - Dependencies --------------------------------------------------------------
+
 import datetime, glob, io, os, re, subprocess, sys, time
 
 # Use colored text if available:
@@ -306,258 +562,6 @@ def get_text_encoded_for_print(text):
 
 def print_with_colored_prefix(prefix, value, color=None):
 	print('{} {}'.format(colored(prefix, color or 'yellow'), value))
-
-def print_help():
-	self_name = os.path.basename(__file__)
-	exe_paths = get_exe_paths()
-
-	help_text_lines = [
-		''
-	,	colored('* Description:', 'yellow')
-	,	'	This script calls several preinstalled programs in a batch'
-	,	'	to make a set of archives with same content with intention'
-	,	'	to compare and hand-pick the best or most suitable results.'
-	,	''
-	,	colored('* Usage:', 'yellow')
-	,	'	{0}'
-		+	colored(
-				' "['
-				+ ']['.join([
-					'<flags>'
-				,	def_name_separator + '<name>'
-				,	def_suffix_separator + '<suffix>'
-				])
-				+ ']"'
-			,	'cyan'
-			)
-		+	'\n		'
-		+	colored(' ["<subj>"|' + def_subj + ']', 'magenta')
-		+	colored(' ["<dest>"|' + def_dest + ']', 'magenta')
-		+	colored(' [<optional args> ...]', 'magenta')
-	,	''
-	,	colored('* Warning:', 'yellow')
-	,	'	In shell, add "quotes" around arguments,'
-	,	'	that contain any of the following symbols: "' + must_quote_chars + '",'
-	,	'	or quote/escape anything beyond latin letters and digits just in case.'
-	,	''
-	,	colored('* Current executable paths to be used (found or fallback):', 'yellow')
-	] + sorted([
-		'	{}	: {}'.format(k, v) for k, v in exe_paths.items()
-	]) + [
-		''
-	,	colored('* Flags (switch letters, concatenate in any order, any letter case):', 'yellow')
-	,	''
-	,	'	---- Archive types:'
-	,	''
-	,	'	{make_7z}: make a .7z  file with 7-Zip.'
-	,	'	{make_zip_by_7z}: make a .zip file with 7-Zip.'
-	,	'	{make_zip_by_rar}: make a .zip file with WinRAR.'
-	,	'	{make_rar}: make a .rar file with WinRAR.'
-	,	'	{solid}: make solid archives.'
-	,	'	{by_ext}: make archives with solid blocks grouped by filename extension.'
-	,	'	{non_solid}: make non-solid archives (implied unless "{solid}" or "{by_ext}" is given).'
-	,	'	{solid_shortcut}: make a set of solid variants (shortcut, equivalent to "' + make_all_solid_flags + '").'
-	,	'	{all_shortcut}: make all types currently supported (shortcut, equivalent to "' + make_all_types_flags + '").'
-	,	''
-	,	'	---- Archive filenames:'
-	,	''
-	,	'	{start_time}: add "_YYYY-mm-dd_HH-MM-SS" script start time to all filenames.'
-	,	'	{mod_time}: add each archive\'s last-modified time to its filename.'
-	,	'	{time_format}: timestamp fotmat = ";_YYYY-mm-dd,HH-MM-SS".'
-	,	'	{suffix_sep}: put timestamp before any suffix, after base filename.'
-	,	''
-	,	'	{name_sep}filename{suffix_sep}suffix:'
-	,	'		Add given suffix between timestamp and archive type.'
-	,	'		",=suffix" is autoreplaced to ",[suffix]", for usage with arch_sub.bat'
-	,	''
-	,	'	---- Compression parameters:'
-	,	''
-	,	'	{store}: no compression (store file content as is).'
-	,	'	{mega}: big data compression settings (256 MB dictionary, 256 B word size).'
-	,	'	{giga}: very big compression settings (1 GB dictionary, 273 B word size).'
-	,	''
-	,	'	{zstd_min}, up to {zstd_max}:'
-	,	'		Use Zstandard compression method.'
-	,	'		Only supported by 7-Zip custom builds or plugins.'
-	,	'		Repeat the flag for slower and higher levels ({zstd_min}={zstd_min_level}, {zstd_max}={zstd_max_level}).'
-	,	'		Much faster than LZMA/LZMA2 at both compression and decompression, at least up to level 20.'
-	,	'		In some rare cases Zstd level 17 archive is smaller than level 20, and 2+ times faster in all cases.'
-	,	'		In some rare cases Zstd level 20 archive is smaller than LZMA2 level 9.'
-	,	'		"{mega}" and "{giga}" flags without "{by_ext}" set solid block size for Zstd, instead of dictionary size.'
-	,	''
-	,	'	{zstd_min}{store}:'
-		+	'	Use Zstandard level {zstd_store_level}.'
-	,	'		Fast alternative to uncompressed 7z format.'
-	,	''
-	,	'	{esplit}:'
-		+	'	Use eSplitter for MHTML files.'
-	,	'		Compress base64-decoded binary data separately from text.'
-	,	'		Only supported by 7-Zip, in 7z format, and requires eSplitter plugin.'
-	,	'		Repeat the flag to use different methods:'
-	,	'			Default (single "{esplit}") = use the same main method for all data.'
-	,	'			Even count ("'
-		+ (esplit_flag * 2) + '", "'
-		+ (esplit_flag * 4) + '", etc) = use "'
-		+ esplit_glue_method + '" for glue data, faster, sometimes smaller.'
-	,	'			Every 3-4 of 4 ("'
-		+ (esplit_flag * 3) + '", '
-		+ (esplit_flag * 4) + '", x7, x8, etc) = use PPMD for text files data, slower, "{mega}" and "{giga}" flags set mem size.'
-	,	'		More info: https://www.tc4shell.com/en/7zip/edecoder/'
-	,	'		Discussion: https://sourceforge.net/p/sevenzip/discussion/45797/thread/8df7e14e/'
-	,	''
-	,	'	{dedup}:'
-		+	'	Store identical files as links to one copy of archived content.'
-	,	'		Limits storage redundancy and archive editing.'
-	,	'		Only supported by WinRAR since v5.'
-	,	'		7-Zip may show file errors when testing or unpacking such archives.'
-	,	''
-	,	'	---- Group subjects into separate archives:'
-	,	''
-	,	'		Each name is appended with comma to "{name_sep}filename" from arguments.'
-	,	''
-	,	'	{group_by_name}:'
-		+	'	Make separate archives for each group of subjects'
-	,	'		by first found numeric ID in subject name.'
-	,	'		(name1part2 -> name1*, "{name_sep}filename,name1")'
-	,	''
-	,	'	{group_lists}:'
-		+	'	Same as "{group_by_name}" but create filelist files (in destination folder)'
-	,	'		to separate ambiguous cases, like when "name1*" mask'
-	,	'		would undesirably capture "name1a" and "name12" files.'
-	,	''
-	,	'	{group_by_name}{group_lists}:'
-		+	'	Same as "{group_lists}" but files without ID go to one list, not separate.'
-	,	''
-	,	'	{group_dot} and/or {group_comma}:'
-	,	'		Same as "{group_by_name}" or "{group_lists}" but ID may contain dots and/or commas.'
-	,	'		"{group_by_name}" is implied unless "{group_lists}" is given.'
-	,	''
-	,	'	{group_shortcut}: shortcut, equivalent to "' + group_by_num_dot_flags + '".'
-	,	'	{foreach_dir}: make separate archives for each dir of subject mask.'
-	,	'	{foreach_file}: make separate archives for each file of subject mask.'
-	,	'		Use one of "{foreach_dir}" or "{foreach_file}" with any of "' + group_by_num_any_sep_flags + '"'
-	,	'		to add only dirs or files to the groups.'
-#	,	'TODO ->	5 and/or g: make separate archives for each group of subjects'
-#	,	'TODO ->		by longest common subject name parts.'
-#	,	'TODO ->		5: name part break can include alphanumerics, etc.'
-#	,	'TODO ->		g: name part break only by punctuation or spaces.'
-#	,	'TODO ->		g5: start comparing from longest filenames.'
-#	,	'TODO ->		5g: start comparing from shortest filenames.'
-#	,	'TODO ->		if "4" or "f" is not set, skip singletons.'
-#	,	'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+group_by_num_any_sep_flags+'").'
-#	,	'TODO ->	9, 99, 999, etc.: keep each group population below this number.'
-#	,	'TODO ->		(split first by mod.dates - years, then months, days, hours,'
-#	,	'TODO ->		minutes, seconds, at last batch subjects with same-second'
-#	,	'TODO ->		timestamps alphabetically in simple N+1 groups - 10, 100, etc.)'
-	,	''
-	,	'	---- Clean up:'
-	,	''
-	,	'	{keep_1}: keep only the smallest archive for each subject, delete other archives on the go.'
-	,	'	{delete_src}: delete subjects (source files and dirs) when done.'
-	,	'		Only supported by WinRAR, or 7-Zip since v17.'
-	,	'		WinRAR will test its archives before deleting subjects.'
-	,	''
-	,	'		Warning: using "{delete_src}" with "{keep_1}" is NOT safe, because'
-	,	'		in complicated cases with masks, list files or additional include/exclude arguments,'
-	,	'		different programs may choose different subject files, which'
-	,	'		may not coincide between the archive made by the last program to do subject clean up'
-	,	'		and the archive selected as the smallest to be kept,'
-	,	'		possibly resulting in some files lost completely.'
-	,	''
-	,	'	---- Other:'
-	,	''
-	,	'	{list_cmd}: check resulting command lines without running them.'
-	,	'	{no_key_press}: don\'t wait for key press after errors.'
-	,	'	{minimized}: start all processes minimized.'
-	,	''
-	,	'	{split}:'
-		+	'	Split flags before filename suffix, make combinations with common last part.'
-	,	'		("part_1{split}part_2{split}_last" -> "part_1_last" + "part_2_last")'
-	,	'		Any flags unrelated to archive types and compression methods apply to all combinations.'
-	,	'		Flag "{delete_src}" (delete files) in any part is automatically moved to the last combination.'
-	,	'		Using WinRAR in the last part is recommended, because it will test the archive before deleting anything.'
-	,	''
-	,	colored('* Examples:', 'yellow')
-	,	'	{0}'
-		+	colored(' {solid_shortcut}', 'cyan')
-	,	'	(default subj = current folder, destination = 1 folder up)'
-	,	''
-	,	'	{0}'
-		+	colored(' {solid_shortcut}', 'cyan')
-		+	colored(' "*some*thing*"', 'magenta')
-	,	'	(default destination = 1 up, so wildcard won\'t grab result archives)'
-	,	''
-	,	'	{0}'
-		+	colored(' {solid_shortcut}', 'cyan')
-		+	colored(' "subfolder/file"', 'magenta')
-	,	'	(default destination = here, safe because no wildcard)'
-	,	''
-	,	'	{0}'
-		+	colored(' "{list_cmd}{time_format}{group_shortcut}{delete_src}{solid_shortcut}{start_time}{keep_1}"', 'cyan')
-		+	colored(' "c:/subfolder/*.txt" "d:/dest/folder" "-x!readme.txt"', 'magenta')
-	,	''
-	,	'	{0}'
-		+	colored(' "{list_cmd}' + '{split}'.join([
-				'{zstd_min}{make_7z}'
-			,	'{store}{zstd_min}{all_shortcut}'
-			,	'{solid_shortcut}'
-			,	'{minimized}{mod_time}{keep_1}{delete_src}'
-			]) + '{name_sep}dest_filename"', 'cyan')
-		+	colored(' "@path/to/subj_listfile" "../../dest/folder"', 'magenta')
-	]
-
-	print('\n'.join(help_text_lines).format(
-
-		self_name
-
-	,	make_7z = make_7z_flag
-	,	make_rar = make_rar_flag
-	,	make_zip_by_7z = make_zip_by_7z_flag
-	,	make_zip_by_rar = make_zip_by_rar_flag
-	,	solid_shortcut = make_all_solid_flags_shortcut
-	,	all_shortcut = make_all_types_flags_shortcut
-
-	,	zstd_min = zstd_flag
-	,	zstd_max = zstd_flag * zstd_levels_max_index
-	,	zstd_store_level = zstd_levels[0]
-	,	zstd_min_level = zstd_levels[1]
-	,	zstd_max_level = zstd_levels[zstd_levels_max_index]
-
-	,	by_ext = make_solid_by_ext_flag
-	,	non_solid = make_non_solid_flag
-	,	solid = make_solid_flag
-	,	store = uncompressed_flag
-
-	,	dedup = dedup_flag
-	,	esplit = esplit_flag
-	,	giga = giga_size_flag
-	,	mega = mega_size_flag
-
-	,	foreach_dir = for_each_dir_flag
-	,	foreach_file = for_each_file_flag
-
-	,	group_by_name = group_flag
-	,	group_comma = group_sep_comma_flag
-	,	group_dot = group_sep_dot_flag
-	,	group_lists = group_listfile_flag
-	,	group_shortcut = group_flags_shortcut
-
-	,	delete_src = delete_sources_flag
-	,	keep_1 = keep_smallest_archive_flag
-	,	list_cmd = only_list_commands_flag
-	,	minimized = minimized_flag
-	,	no_key_press = no_waiting_keypress_flag
-
-	,	mod_time = add_mod_time_flag
-	,	start_time = add_start_time_flag
-	,	time_format = alt_time_format_flag
-
-	,	name_sep = def_name_separator
-	,	suffix_sep = def_suffix_separator
-
-	,	split = split_flag_combo
-
-	))
 
 def remove_trailing_dots_in_path_parts(path):
 	return '/'.join(
@@ -1266,9 +1270,9 @@ def run_batch_archiving(argv):
 	argv_dest = argv.pop(0) if len(argv) > 0 else None
 	argv_rest = argv if len(argv) > 0 else None
 
-# - Show help and exit --------------------------------------------------------
-
 	flag_parts_left = list(filter(bool, argv_flag.split(split_flag_combo)))
+
+# - Show help and exit --------------------------------------------------------
 
 	if (
 		not len(argv_flag) > 0

@@ -2,6 +2,10 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# - Dependencies --------------------------------------------------------------
+
+import subprocess, sys
+
 # Use colored text if available:
 try:
 	from termcolor import colored, cprint
@@ -13,10 +17,8 @@ except ImportError:
 	def colored(*list_args, **keyword_args): return list_args[0]
 	def cprint (*list_args, **keyword_args): print (list_args[0])
 
-# Check versions of python and pip:
+# Check versions of python and pip: -------------------------------------------
 # https://stackoverflow.com/a/9079062
-
-import subprocess, sys
 
 python_version_string = str(sys.version_info.major)
 
@@ -52,7 +54,7 @@ print(
 +	'\n'
 )
 
-# Update packages:
+# Get list of packages to update: ---------------------------------------------
 # https://stackoverflow.com/a/5839291
 
 # if pip_version < 10.0.1:
@@ -84,6 +86,8 @@ print(
 
 cprint('Press Enter to continue.', 'cyan')
 
+# Update packages: ------------------------------------------------------------
+
 if sys.version_info.major == 2:
 	raw_input()
 else:
@@ -92,3 +96,5 @@ else:
 subprocess.call(cmd_string, shell=True)
 
 cprint('\nDone.', 'green')
+
+# - End -----------------------------------------------------------------------

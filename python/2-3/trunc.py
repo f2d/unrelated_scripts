@@ -1,31 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
-import os, sys
-
-# Use colored text if available:
-try:
-	from termcolor import colored, cprint
-	import colorama
-
-	colorama.init()
-
-except ImportError:
-	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint (*list_args, **keyword_args): print (list_args[0])
-
-# - Configuration and defaults ------------------------------------------------
-
-default_file_size = 1000
-default_root_path = u'.'
-
-# - Declare functions ---------------------------------------------------------
-
-def print_with_colored_prefix(comment, value, color=None):
-	print('{} {}'.format(colored(comment, color or 'yellow'), value))
-
-def print_with_colored_suffix(value, comment, color=None):
-	print('{} {}'.format(value, colored(comment, color or 'yellow')))
+# - Help screen shown on demand or without arguments --------------------------
 
 def print_help():
 	self_name = os.path.basename(__file__)
@@ -53,13 +29,41 @@ def print_help():
 
 	print('\n'.join(help_text_lines).format(self_name))
 
+# - Dependencies --------------------------------------------------------------
+
+import os, sys
+
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint (*list_args, **keyword_args): print (list_args[0])
+
+# - Configuration and defaults ------------------------------------------------
+
+default_file_size = 1000
+default_root_path = u'.'
+
+# - Utility functions ---------------------------------------------------------
+
+def print_with_colored_prefix(comment, value, color=None):
+	print('{} {}'.format(colored(comment, color or 'yellow'), value))
+
+def print_with_colored_suffix(value, comment, color=None):
+	print('{} {}'.format(value, colored(comment, color or 'yellow')))
+
 # - Main job function ---------------------------------------------------------
 
 def run_batch_truncate(argv):
 
-# - Show help and exit --------------------------------------------------------
-
 	argc = len(argv)
+
+# - Show help and exit --------------------------------------------------------
 
 	if argc < 1:
 		print_help()

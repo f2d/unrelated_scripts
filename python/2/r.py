@@ -1,6 +1,67 @@
 ﻿#!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
+# - Help screen shown on demand or without arguments --------------------------
+
+def print_help():
+	self_name = os.path.basename(__file__)
+
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	Move files from unsorted pile, e.g. download folder,'
+	,	'	into predesignated places depending on file names and/or contents.'
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(' <flags>', 'cyan')
+		+	colored(' [<other options>] ...', 'magenta')
+	,	''
+	,	colored('<flags>', 'cyan') + ': string of letters in any order as first argument.'
+	,	'	t: for test, output only (don\'t apply changes)'
+	,	'	e: for debug, turn warnings (just printed) into exceptions (stop the script if uncatched)'
+	,	'	f: for name cutting, check length of full path instead of only name'
+	,	'	o: print full path instead of only name'
+	,	'	r: recurse into subfolders (default = stay in working folder)'
+	,	''
+	,	'	b: move aib-grabbed files into subdir by thread ID in filename'
+	,	'	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
+	,	'	p: move pixiv-grabbed files into subdir by work ID in filename'
+	,	'	s: move files with specific ext to configured paths'
+	,	'	u: move files up from subdir by type (flash, gif, video, etc, may start from underscore)'
+	,	'	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
+	,	'	x: move non-image files into subdir by type in ext (flash, gif, video, etc)'
+	,	'	y: rename Complete YouTube Saver downloads in sub/same-folder by ID in URL and filenames'
+	,	''
+	,	colored('<other options>', 'magenta') + ': separate each with a space.'
+	,	'	'+arg_name_cut+': cut long names to '+str(default_name_cut_length)
+	,	'	'+arg_name_cut+'<number>: cut long names to specified length'
+	,	''
+	,	'	'+arg_name_sub+': move each leftover file into a subdir named by first character of its name'
+	,	'	'+arg_name_sub+'<number>: name subdir by specified number of first characters of subject name'
+	,	''
+	,	'	y:   move leftover files into subdir named by mod-time year'
+	,	'	m:   subdir by month'
+	,	'	d:   subdir by day'
+	,	'	ym:  subdir by year-month'
+	,	'	ymd: subdir by year-month-day'
+	,	'		Notes: may be combined,'
+	,	'		interpreted as switches (on/off),'
+	,	'		resulting always in this order: y/ym/m/ymd/d/'+arg_name_sub
+	,	''
+	,	'	dir: move dirs into subdir by name and/or mod-time too'
+	,	''
+	,	colored('* Examples:', 'yellow')
+	,	'	{0} rwb'
+	,	'	{0} tfo '+arg_name_cut+'234'
+	,	'	{0} o dir '+arg_name_sub
+	,	'	{0} o dir y ym ymd'
+	]
+
+	print('\n'.join(help_text_lines).format(self_name))
+
+# - Dependencies --------------------------------------------------------------
+
 import datetime, json, os, re, sys, zipfile
 
 # Use colored text if available:
@@ -19,6 +80,8 @@ from r_config import default_print_encoding, default_name_cut_length, default_re
 from r_config import dest_root, dest_root_by_ext, dest_root_yt
 from r_config import ext_web, ext_web_remap, ext_web_read_bytes, ext_web_index_file, sites
 
+# - Check arguments -----------------------------------------------------------
+
 arg_name_cut = 'cut'
 arg_name_sub = 'sub'
 
@@ -28,62 +91,19 @@ argc = len(args)
 arg_flags = args[1] if argc > 1 else ''
 other_args = args[2 : ] if argc > 2 else []
 
-if argc < 2 or arg_flags[0] == '-' or arg_flags[0] == '/':
-	self_name = os.path.basename(__file__)
+# - Show help and exit --------------------------------------------------------
 
-	help_text_lines = [
-		''
-	,	'* Description:'
-	,	'	Move files from unsorted pile, e.g. download folder,'
-	,	'	into predesignated places depending on file names and/or contents.'
-	,	''
-	,	'* Usage:'
-	,	'	%s <flags> [<other options>] ...'
-	,	''
-	,	'<flags>: string of letters in any order as first argument.'
-	,	'	t: for test, output only (don\'t apply changes)'
-	,	'	e: for debug, turn warnings (just printed) into exceptions (stop the script if uncatched)'
-	,	'	f: for name cutting, check length of full path instead of only name'
-	,	'	o: print full path instead of only name'
-	,	'	r: recurse into subfolders (default = stay in working folder)'
-	,	''
-	,	'	b: move aib-grabbed files into subdir by thread ID in filename'
-	,	'	d: move booru-grabbed duplicates into subdir by md5 in filename, keep oldest'
-	,	'	p: move pixiv-grabbed files into subdir by work ID in filename'
-	,	'	s: move files with specific ext to configured paths'
-	,	'	u: move files up from subdir by type (flash, gif, video, etc, may start from underscore)'
-	,	'	w: move web page archive files ('+'/'.join(ext_web)+') by URL in file content'
-	,	'	x: move non-image files into subdir by type in ext (flash, gif, video, etc)'
-	,	'	y: rename Complete YouTube Saver downloads in sub/same-folder by ID in URL and filenames'
-	,	''
-	,	'<other options>: separate each with a space.'
-	,	'	'+arg_name_cut+': cut long names to '+str(default_name_cut_length)
-	,	'	'+arg_name_cut+'<number>: cut long names to specified length'
-	,	''
-	,	'	'+arg_name_sub+': move each leftover file into a subdir named by first character of its name'
-	,	'	'+arg_name_sub+'<number>: name subdir by specified number of first characters of subject name'
-	,	''
-	,	'	y:   move leftover files into subdir named by mod-time year'
-	,	'	m:   subdir by month'
-	,	'	d:   subdir by day'
-	,	'	ym:  subdir by year-month'
-	,	'	ymd: subdir by year-month-day'
-	,	'		Notes: may be combined,'
-	,	'		interpreted as switches (on/off),'
-	,	'		resulting always in this order: y/ym/m/ymd/d/'+arg_name_sub
-	,	''
-	,	'	dir: move dirs into subdir by name and/or mod-time too'
-	,	''
-	,	'* Examples:'
-	,	'	%s rwb'
-	,	'	%s tfo '+arg_name_cut+'234'
-	,	'	%s o dir '+arg_name_sub
-	,	'	%s o dir y ym ymd'
-	]
+if (
+	argc < 2
+or	'-' == arg_flags[0]
+or	'/' == arg_flags[0]
+or	'h' in arg_flags
+):
+	print_help()
 
-	print('\n'.join(help_text_lines).replace('%s', self_name))
+	sys.exit(1)
 
-	sys.exit()
+# - Calculate params ----------------------------------------------------------
 
 TEST = 't' in arg_flags
 DO = not TEST
@@ -136,6 +156,8 @@ arg_cut_name_to_rename_len = get_number_from_args(arg_name_cut, default_name_cut
 
 print_duplicate_count=True
 unprinted_duplicate_count=0
+
+# - Configuration and defaults ------------------------------------------------
 
 pat_url = get_rei(r'''
 (?:^|[>\r\n]\s*)
@@ -287,7 +309,7 @@ pat_sub = [
 #	optional match for the smallest value to leave one duplicate at old place (to delete others manually, etc)
 # ]
 	{
-		'match': get_rei(r'^.*?\b(\w+#\d+),\d+(,\s+\d+\s+*\w+,\s+\d+x\d+([.,].*)?)?\.\w+$')
+		'match': get_rei(r'^.*?\b(\w+#\d+),\d+(,\s+\d+\s+\w+,\s+\d+x\d+([.,].*)?)?\.\w+$')
 	,	'subdir': r'\1'
 	} if arg_move_aib_by_threads else None
 ,	{
@@ -343,6 +365,8 @@ u_type = type(u'')
 local_path_prefix = u'//?/'
 info_prfx = '\t'
 msg_prfx = '\n-\t'
+
+# - Utility functions ---------------------------------------------------------
 
 def is_type_int(v): return isinstance(v, int)
 def is_type_arr(v): return isinstance(v, a_type)
@@ -1262,7 +1286,9 @@ def process_names(path, names, later=0):
 
 	return files_to_check_later if later else None
 
-def run(later=0):
+# - Main job function ---------------------------------------------------------
+
+def run_batch_move(later=0):
 	global n_later, dup_lists_by_ID
 
 	process_dir(get_long_abs_path(u'.'), later)
@@ -1321,6 +1347,8 @@ def run(later=0):
 			elif TEST:
 				print colored('%d:' % len(d), 'yellow'), d
 
+# - Result summary ------------------------------------------------------------
+
 	a = []
 	n = [
 		[n_i	,	'checks']
@@ -1339,4 +1367,13 @@ def run(later=0):
 
 	return n_later if DO else 0
 
-run(1) #and run(0)
+# - Run from commandline, when not imported as module -------------------------
+
+if __name__ == '__main__':
+	sys.exit(
+		run_batch_move(1)
+	# and	run_batch_move(0)
+	#	run_batch_move(sys.argv[1 : ]))
+	)
+
+# - End -----------------------------------------------------------------------

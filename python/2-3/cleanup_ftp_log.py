@@ -2,6 +2,32 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
+# - Help screen shown on demand or without arguments --------------------------
+
+def print_help():
+	self_name = os.path.basename(__file__)
+
+	help_text_lines = [
+		''
+	,	colored('* Description:', 'yellow')
+	,	'	Cleanup FileZilla FTP Server log files after DDoS.'
+	,	''
+	,	colored('* Usage:', 'yellow')
+	,	'	{0}'
+		+	colored(' <source> <dest>', 'cyan')
+	#	+	colored(' <optional args> [1234567890] [R|recurse] <...>', 'magenta')	# for debug
+	,	''
+	,	colored('<source>', 'cyan') + ' : path to log file or folder with files to read.'
+	,	colored('<dest>', 'cyan') + '   : path to file or folder to save filtered log lines.'
+	,	'	If "TEST", do not save.'
+	,	'	If file, append all lines into it from all source(s).'
+	,	'	If folder, overwrite each file in it with same name as source file(s).'
+	]
+
+	print(u'\n'.join(help_text_lines).format(self_name))
+
+# - Dependencies --------------------------------------------------------------
+
 import os, re, sys
 
 # Use colored text if available:
@@ -38,7 +64,7 @@ pat_log_line = re.compile(br'[ \t]+'.join([
 ,	br')(?P<LineContent>[^\r\n]*)(?P<LineBreak>[\r\n]*)$'
 ]))
 
-# - Declare functions ---------------------------------------------------------
+# - Utility functions ---------------------------------------------------------
 
 def normalize_slashes(path):
 	return path.replace('\\', '/')
@@ -61,28 +87,6 @@ def get_file_name_from_path(path):
 
 def print_with_colored_prefix(prefix, value, color=None):
 	print('{prefix} {value}'.format(prefix=colored(prefix, color or 'yellow'), value=value))
-
-def print_help():
-	self_name = os.path.basename(__file__)
-
-	help_text_lines = [
-		''
-	,	colored('* Description:', 'yellow')
-	,	'	Cleanup FileZilla FTP Server log files after DDoS.'
-	,	''
-	,	colored('* Usage:', 'yellow')
-	,	'	{0}'
-		+	colored(' <source> <dest>', 'cyan')
-	#	+	colored(' <optional args> [1234567890] [R|recurse] <...>', 'magenta')	# for debug
-	,	''
-	,	colored('<source>', 'cyan') + ' : path to log file or folder with files to read.'
-	,	colored('<dest>', 'cyan') + '   : path to file or folder to save filtered log lines.'
-	,	'	If "TEST", do not save.'
-	,	'	If file, append all lines into it from all source(s).'
-	,	'	If folder, overwrite each file in it with same name as source file(s).'
-	]
-
-	print(u'\n'.join(help_text_lines).format(self_name))
 
 # - Main job function ---------------------------------------------------------
 

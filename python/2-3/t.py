@@ -2,60 +2,7 @@
 # -*- coding: UTF-8 -*-
 # Python 2 or 3 should work.
 
-from email.utils import parsedate
-import datetime, fnmatch, io, os, re, sys, time, traceback
-
-# Use colored text if available:
-try:
-	from termcolor import colored, cprint
-	import colorama
-
-	colorama.init()
-
-except ImportError:
-	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint (*list_args, **keyword_args): print (list_args[0])
-
-# - Configuration and defaults ------------------------------------------------
-
-read_encodings = 'utf_8|utf_16_le|utf_16_be|cp1251'.split('|')
-
-exp_date = [
-	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:\g<Seconds>'
-,	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:00'
-,	r'\g<Year>-\g<Month>-\g<Day> 00:00:00'
-# ,	r'\1-\2-\3 \4:\5:\6'
-# ,	r'\1-\2-\3 \4:\5:00'
-# ,	r'\1-\2-\3 00:00:00'
-]
-
-fmt_date = r'%Y-%m-%d %H:%M:%S'
-
-t_min_valid = 60
-
-# - Declare functions ---------------------------------------------------------
-
-def print_with_colored_prefix(prefix, value, color=None):
-	try:
-		print('{} {}'.format(colored(prefix, color or 'yellow'), value))
-
-	except UnicodeEncodeError:
-		print('{} {} {}'.format(
-			colored(prefix, color or 'yellow')
-		,	colored('<not showing unprintable unicode>', 'red')
-		,	value.encode('utf_8').decode('ascii', 'ignore')	# https://stackoverflow.com/a/62658901
-		))
-
-def print_with_colored_suffix(value, suffix, color=None):
-	try:
-		print('{} {}'.format(value, colored(suffix, color or 'yellow')))
-
-	except UnicodeEncodeError:
-		print('{} {} {}'.format(
-			value.encode('utf_8').decode('ascii', 'ignore')	# https://stackoverflow.com/a/62658901
-		,	colored('<not showing unprintable unicode>', 'red')
-		,	colored(suffix, color or 'yellow')
-		))
+# - Help screen shown on demand or without arguments --------------------------
 
 def print_help():
 	self_name = os.path.basename(__file__)
@@ -110,6 +57,63 @@ def print_help():
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))
+
+# - Dependencies --------------------------------------------------------------
+
+from email.utils import parsedate
+import datetime, fnmatch, io, os, re, sys, time, traceback
+
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint (*list_args, **keyword_args): print (list_args[0])
+
+# - Configuration and defaults ------------------------------------------------
+
+read_encodings = 'utf_8|utf_16_le|utf_16_be|cp1251'.split('|')
+
+exp_date = [
+	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:\g<Seconds>'
+,	r'\g<Year>-\g<Month>-\g<Day> \g<Hours>:\g<Minutes>:00'
+,	r'\g<Year>-\g<Month>-\g<Day> 00:00:00'
+# ,	r'\1-\2-\3 \4:\5:\6'
+# ,	r'\1-\2-\3 \4:\5:00'
+# ,	r'\1-\2-\3 00:00:00'
+]
+
+fmt_date = r'%Y-%m-%d %H:%M:%S'
+
+t_min_valid = 60
+
+# - Utility functions ---------------------------------------------------------
+
+def print_with_colored_prefix(prefix, value, color=None):
+	try:
+		print('{} {}'.format(colored(prefix, color or 'yellow'), value))
+
+	except UnicodeEncodeError:
+		print('{} {} {}'.format(
+			colored(prefix, color or 'yellow')
+		,	colored('<not showing unprintable unicode>', 'red')
+		,	value.encode('utf_8').decode('ascii', 'ignore')	# https://stackoverflow.com/a/62658901
+		))
+
+def print_with_colored_suffix(value, suffix, color=None):
+	try:
+		print('{} {}'.format(value, colored(suffix, color or 'yellow')))
+
+	except UnicodeEncodeError:
+		print('{} {} {}'.format(
+			value.encode('utf_8').decode('ascii', 'ignore')	# https://stackoverflow.com/a/62658901
+		,	colored('<not showing unprintable unicode>', 'red')
+		,	colored(suffix, color or 'yellow')
+		))
 
 def print_exception(title, path):
 	print('')
