@@ -11,88 +11,9 @@
 # 7. Replace all subsequences in the sequence.
 # 8. Replace all sequences in the source text.
 
-from dl_config import *
+# - Help screen shown on demand or without arguments --------------------------
 
-from email.utils import parsedate
-import datetime, glob, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
-
-# Use compressed download if available:
-try:
-	import brotli
-except ImportError:
-	brotli = None
-
-try:
-	import gzip
-except ImportError:
-	gzip = None
-
-# TODO: fix this script for python 3, then remove this crutch:
-# https://stackoverflow.com/a/4383597
-sys.path.insert(1, 'd:/programs/!_dev/Python/scripts/2-3')
-
-# Use automatic trim of extraneous digits at the end of files for deduplication, if available:
-try:
-	from bin2cut import get_extracted_files, run_batch_extract
-
-except ImportError:
-	def get_extracted_files(*list_args, **keyword_args): return
-	def run_batch_extract  (*list_args, **keyword_args): return
-
-# Use colored text if available:
-try:
-	from termcolor import colored, cprint
-	import colorama
-
-	colorama.init()
-
-except ImportError:
-	def colored(*list_args, **keyword_args): return list_args[0]
-	def cprint (*list_args, **keyword_args): print (list_args[0])
-
-# https://stackoverflow.com/a/17510727
-try:
-	# Python 3.0 and later:
-	from urllib.error import URLError, HTTPError
-	from urllib.request import urlopen, Request
-
-except ImportError:
-	# Python 2.x fallback:
-	from urllib2 import URLError, HTTPError, urlopen, Request
-
-# https://stackoverflow.com/a/47625614
-if sys.version_info[0] >= 3:
-	unicode = str
-
-# Configure -------------------------------------------------------------------
-
-print_enc = default_encoding
-local_path_prefix = u'//?/'
-tab_separator = '\t'
-line_separator = '\n'
-empty_line_separator = line_separator * 2
-content_type_separators = ['+', '-']
-exts_to_add_from_content_type = ['json', 'xml']
-exts_to_add_from_url = ['flac', 'jxl', 'jxr']
-known_image_exts = ['jxl', 'jxr']
-
-TEST = 0
-
-# Command line arguments ------------------------------------------------------
-
-if len(sys.argv) > 1:
-	help = 0
-	for a in sys.argv:
-		a = a[-4 : ].lower()
-		L = a[-1 : ]
-		if (a == L or a.lstrip('-/') == L) and (L == '?' or L == 'h' or a == 'help'):
-			help = 1
-
-			break
-else:
-	help = 1
-
-if help:
+def print_help():
 	self_name = os.path.basename(__file__)
 
 	help_text_lines = [
@@ -158,7 +79,96 @@ if help:
 
 	print('\n'.join(help_text_lines).format(self_name))
 
+# - Dependencies --------------------------------------------------------------
+
+from dl_config import *
+
+from email.utils import parsedate
+import datetime, glob, hashlib, json, os, re, ssl, string, StringIO, subprocess, sys, time, traceback, zlib
+
+# Use compressed download if available:
+try:
+	import brotli
+except ImportError:
+	brotli = None
+
+try:
+	import gzip
+except ImportError:
+	gzip = None
+
+# TODO: fix this script for python 3, then remove this crutch:
+# https://stackoverflow.com/a/4383597
+sys.path.insert(1, 'd:/programs/!_dev/Python/scripts/2-3')
+
+# Use automatic trim of extraneous digits at the end of files for deduplication, if available:
+try:
+	from bin2cut import get_extracted_files, run_batch_extract
+
+except ImportError:
+	def get_extracted_files(*list_args, **keyword_args): return
+	def run_batch_extract  (*list_args, **keyword_args): return
+
+# Use colored text if available:
+try:
+	from termcolor import colored, cprint
+	import colorama
+
+	colorama.init()
+
+except ImportError:
+	def colored(*list_args, **keyword_args): return list_args[0]
+	def cprint (*list_args, **keyword_args): print (list_args[0])
+
+# https://stackoverflow.com/a/17510727
+try:
+	# Python 3.0 and later:
+	from urllib.error import URLError, HTTPError
+	from urllib.request import urlopen, Request
+
+except ImportError:
+	# Python 2.x fallback:
+	from urllib2 import URLError, HTTPError, urlopen, Request
+
+# https://stackoverflow.com/a/47625614
+if sys.version_info[0] >= 3:
+	unicode = str
+
+# - Configuration and defaults ------------------------------------------------
+
+print_enc = default_encoding
+local_path_prefix = u'//?/'
+tab_separator = '\t'
+line_separator = '\n'
+empty_line_separator = line_separator * 2
+content_type_separators = ['+', '-']
+exts_to_add_from_content_type = ['json', 'xml']
+exts_to_add_from_url = ['flac', 'jxl', 'jxr']
+known_image_exts = ['jxl', 'jxr']
+
+TEST = 0
+
+# - Show help and exit --------------------------------------------------------
+
+if len(sys.argv) > 1:
+	help = 0
+
+	for a in sys.argv:
+		a = a[-4 : ].lower()
+		L = a[-1 : ]
+		if (a == L or a.lstrip('-/') == L) and (L == '?' or L == 'h' or a == 'help'):
+			help = 1
+
+			break
+else:
+	help = 1
+
+if help:
+	print_help()
+
 	sys.exit(1)
+
+# - Check arguments -----------------------------------------------------------
 
 flags = ''
 add_time = None
@@ -239,7 +249,7 @@ for p in read_paths:
 			print colored('Path not found:', 'red'), d
 
 if not f:
-	sys.exit(1)
+	sys.exit(2)
 
 # Set up ----------------------------------------------------------------------
 
@@ -403,7 +413,7 @@ pat2replace_before_checking = [			# <- strings before this can have any of "/pat
 ,	[get_rei(r'^(?P<Protocol>\w+):/+(?P<Domain>[^/?#]+)/+'					), r'\g<Protocol>://\g<Domain>/']	# <- remove redundant slashes
 ,	[get_rei(r'^https(?P<NoProtocol>:/+(?:[^:/?#]+\.)?(?:i\.imgur)\.)'			), r'http\g<NoProtocol>']		# <- remove https for deduplication
 ,	[get_rei(r'^(?P<FullVersion>(?:\w+:/+)?(?:[^:/?#]+\.)?(?:i\.imgur)\.\w+/+\w{7})[rh]\.'	), r'\g<FullVersion>.']			# <- skip downscaled copy
-,	[get_rei(r'^(?P<Path>\w+:/+(?:[^:/?#]+\.)?discord[^?#]+/[^?#]+)(?P<Query>[?#].*)$'	), r'\g<Path>#\g<Query>']		# <- ?query to #anchor
+# ,	[get_rei(r'^(?P<Path>\w+:/+(?:[^:/?#]+\.)?discord[^?#]+/[^?#]+)(?P<Query>[?#].*)$'	), r'\g<Path>#\g<Query>']		# <- ?query to #anchor
 
 # remove discord web-proxy:
 
@@ -416,7 +426,7 @@ pat2replace_before_checking = [			# <- strings before this can have any of "/pat
 ,	[get_rei(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?P<Protocol>\w+)/+'), r'\g<Protocol>://']
 # ,	[get_rei(r'^\w+:/+(?:[^:/?#]+\.)?images-ext-[^:/?#]+\.discord[^/?#]+/+external/+[^/?#]+/+(?:\W[^/?#]+/+)*(?P<Protocol>\w+)/+'), r'\g<Protocol>://']
 
-,	[get_rei(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?(?:discordapp\.\w+/+)(?P<Path>attachments/.*?)(?:#\?.*)?$'), r'https://cdn.discordapp.com/\g<Path>']
+# ,	[get_rei(r'^(?:\w+:/+)?(?:[^:/?#]+\.)?(?:discordapp\.\w+/+)(?P<Path>attachments/.*?)(?:#\?.*)?$'), r'https://cdn.discordapp.com/\g<Path>']
 
 #,	[get_rei(r'^(?:\w+:/+)?(?:(?:danbo+ru|w+)\.)?(?P<Domain>donmai\.us)/+'), r'http://shima.\g<Domain>/']	# <- this needs changing domains, better rely on auto-trying web-proxy instead
 
@@ -426,7 +436,7 @@ pat2replace_before_checking = [			# <- strings before this can have any of "/pat
 ,	[get_rei(r'^(?P<NoDL>\w+:/+(?:[^:/?#]+\.)?dropbox\.com/s/[^?#]+)[?#]dl=.*$'		), r'\g<NoDL>']
 ,	[get_rei(r'(?P<Path>file.qip.ru/(?:file|photo)/[^?#]+)(?:\?.*)?$'			), r'\g<Path>?action=downloads']
 ,	[get_rei(r'shot\.qip\.ru[^-#]*-(?P<Prefix>.)(?P<File>[^/?#]+)(?P<Sub>/+.*)?$'		), r'f\g<Prefix>.s.qip.ru/\g<File>.png']
-,	[get_rei(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:(?:\w*x)?twitter\.com|nitter(?:\.\w+)*)/+(?P<Path>[^/?#])'), twitter_front_end + r'\g<Path>']
+# ,	[get_rei(r'^(?:\w+:/+)(?:[^:/?#]+\.)?(?:(?:fixupx(?:\w*x)?|twitter)\.com|nitter(?:\.\w+)*)/+(?P<Path>[^/?#])'), twitter_front_end + r'\g<Path>']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+media/+[^.:?&#%]+)(?:%3F|\?)(?:[^&#]*(?:%26|\&))*?format(?:%3D|\=)(?P<Format>[^&#%]+).*?$'		), r'\g<Path>.\g<Format>']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+media/+[^:?&#%]+\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'					), r'\g<Path>:orig']
 ,	[get_rei(r'\b(?P<Path>twimg\.com/+profile_images?/+[^:?&#%]+)(?:_[^/:?&#%]+)(?P<File>\.[^.:?&#%]+)(?:(?:[:?&#]|%3A|%3F|%26|%23).*)?$'	), r'\g<Path>\g<File>']
@@ -960,7 +970,7 @@ pat2open_in_browser = [	# <- too complicated to grab, so handle it by a prepared
 pat2recheck_next_time = [
 	get_rei(r'^\w+:/+([^:/?#]+\.)?imgur\.com/(a|ga[lery]+|t/[^/]+)/\w+')
 ,	get_rei(r'^\w+:/+([^:/?#]+\.)?dropbox(usercontent)?\.\w+/')
-,	get_rei(r'^\w+:/+([^:/?#]+\.)?(t\.co|(fx)?twitter\.com|nitter(?:\.\w+)*)/\w+')
+,	get_rei(r'^\w+:/+([^:/?#]+\.)?(t\.co|(fixupx|(fx)?twitter)\.com|nitter(\.\w+)*)/\w+')
 ]
 
 #pat2etag = [	# <- TODO: request using ETag header from the copy saved before, will get "304: not modified" for unchanged without full dl
@@ -994,6 +1004,8 @@ pat2replace_before_saving_file = [
 	$'''), r'\g<TargetProtocol>;,,\g<TargetPath>\g<TargetArguments>']
 # ,	[get_rei(r'\w+[;,:/]+([^,&/?#]+\.)?images-ext-[^,&/?#]+\.discord[^,&/?#]+[,/]+external[,/]+[^,&/?#]+[,/]+(\W[^,&/?#]+[,/]+)*(\w+)[,/]+'), r'\3;,,']				# <- tested in TCMD
 ,	[get_rei(r'(?P<Path>(?:\w+;,+)?(?:[^,&]+\.)?(?:joy)?reactor\.\w+,[^%]*)(?:[^%]*?(?P<Percent>[%])[a-z0-9]{2,4})+(?P<Suffix>[^%]*)$'), r'\g<Path>\g<Percent>(...)\g<Suffix>']	# <- tested in TCMD
+,	[get_rei(r'^(?P<Path>\w+[;,:/]+(?:[^;,:/?#]+\.)?discord[^?#&]+[,/]+[^?#&]+)(?P<Query>[?#&].*)$'			), r'\g<Path>#\g<Query>']
+,	[get_rei(r'^(?:\w+[;,:/]+)?(?:[^;,:/?#]+\.)?(?:discordapp\.\w+[,/]+)(?P<Path>attachments[,/]+[^?#&]+)(?:[#?&].*)?$'),'https;,,cdn.discordapp.com,\g<Path>']
 ,	[get_rei(r'(?P<Path>file.qip.ru,file,\w+),.*?&action=d\w+'			), r'\g<Path>']
 ,	[get_rei(r'(?P<Path>\.(?:cdninstagram\.com|fbcdn\.net)[,/]+[^;:&?#]+)[;:&?#].+$'), r'\g<Path>']			# <- remove URL arguments
 ,	[get_rei(r'(?P<Arg>[&?#]token(-\w+)?)(=|%3D)[^&?#=]+?(?P<Ext>\.\w+)$'		), r'\g<Arg>=(...)\g<Ext>']
@@ -1042,7 +1054,7 @@ false_ctx = ssl.create_default_context()
 false_ctx.check_hostname = False
 false_ctx.verify_mode = ssl.CERT_NONE
 
-# Functionality ---------------------------------------------------------------
+# - Utility functions ---------------------------------------------------------
 
 def is_type_int(v): return isinstance(v, int)
 def is_type_arr(v): return isinstance(v, a_type)
@@ -1318,7 +1330,7 @@ def timestamp_now(str_format=format_epoch):
 # http://code.activestate.com/recipes/577015-parse-http-date-time-string/
 # http://stackoverflow.com/questions/11743019/convert-python-datetime-to-epoch-with-strftime
 
-def timestamp_from_http_modtime(str_modtime, str_format=format_epoch):
+def get_timestamp_from_http_modtime(str_modtime, str_format=format_epoch):
 	t = datetime.datetime(*parsedate(str_modtime)[ : 6])
 	s = str(int((t - datetime.datetime(1970,1,1)).total_seconds()))
 	t = datetime.datetime.fromtimestamp(time.mktime(t.timetuple()))
@@ -2219,7 +2231,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 					time_text = get_by_caseless_key(headers, 'Last-Modified').lower()
 
 					if time_text:
-						time_text = timestamp_from_http_modtime(time_text, add_time_fmt)
+						time_text = get_timestamp_from_http_modtime(time_text, add_time_fmt)
 				else:
 					time_text = timestamp_now(add_time_fmt)
 
@@ -2502,7 +2514,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 
 	return finished
 
-# Run -------------------------------------------------------------------------
+# Prepare to run --------------------------------------------------------------
 
 urls_passed = set()
 urls_done = set()
@@ -2551,6 +2563,8 @@ if 'l' in flags:
 	print colored('Normalized unique URLs:', 'yellow'), len(urls_done)
 
 count_urls_done_this_run = new_meta = old_meta = i = 0
+
+# Run in endless cycle until interrupted --------------------------------------
 
 while 1:
 	i += 1
@@ -2612,3 +2626,5 @@ while 1:
 		cprint('Done.', 'green')
 
 		break
+
+# - End -----------------------------------------------------------------------
