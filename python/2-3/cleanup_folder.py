@@ -332,6 +332,8 @@ def run_cleanup_folder(argv):
 	count_total_size = 0
 	min_found_size = 0
 	max_found_size = 0
+	min_found_time = 0
+	max_found_time = 0
 
 	each_file_print_format = (
 		('' if arg_name_last else '"{file}" ')
@@ -403,6 +405,8 @@ def run_cleanup_folder(argv):
 
 					if not min_found_size or min_found_size > file_size: min_found_size = file_size
 					if not max_found_size or max_found_size < file_size: max_found_size = file_size
+					if not min_found_time or min_found_time > file_mod_time: min_found_time = file_mod_time
+					if not max_found_time or max_found_time < file_mod_time: max_found_time = file_mod_time
 
 					if arg_read_only:
 						print_with_colored_prefix(
@@ -438,11 +442,13 @@ def run_cleanup_folder(argv):
 
 		print_with_colored_prefix(
 			'Files to delete:' if arg_read_only else 'Deleted files:'
-		,	'{number}, total {size}, min {min}, max {max}.'.format(
+		,	'{number}, total {size}, min {min_size}, max {max_size}, from {min_time} to {max_time}.'.format(
 				number=count_found_files
 			,	size=get_bytes_text(count_total_size)
-			,	min=get_bytes_text(min_found_size, add_text=False)
-			,	max=get_bytes_text(max_found_size)
+			,	min_size=get_bytes_text(min_found_size, add_text=False)
+			,	max_size=get_bytes_text(max_found_size)
+			,	min_time=get_formatted_modtime(min_found_time)
+			,	max_time=get_formatted_modtime(max_found_time)
 			)
 		,	'cyan' if arg_read_only else 'green'
 		)
