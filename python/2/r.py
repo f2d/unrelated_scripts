@@ -49,13 +49,14 @@ def print_help():
 	,	'		interpreted as switches (on/off),'
 	,	'		resulting always in this order: y/ym/m/ymd/d/'+arg_name_sub
 	,	''
-	,	'	dir: move dirs into subdir by name and/or mod-time too'
+	,	'	d2s, dirs2sub, dir: move dirs into subdir by name and/or mod-time too'
+	,	'	s2r, sub2root: move to subdirs relative to current working folder instead of to source'
 	,	''
 	,	colored('* Examples:', 'yellow')
 	,	'	{0} rwb'
 	,	'	{0} tfo '+arg_name_cut+'234'
 	,	'	{0} o dir '+arg_name_sub
-	,	'	{0} o dir y ym ymd'
+	,	'	{0} o dirs2sub sub2root y ym ymd'
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))
@@ -121,7 +122,8 @@ arg_move_types_by_ext   = 's' in arg_flags
 arg_move_subtypes       = 'x' in arg_flags
 arg_move_subtypes_up    = 'u' in arg_flags
 arg_move_web_pages      = 'w' in arg_flags
-arg_move_dirs_to_subdir_by_modtime = 'dir' in other_args
+arg_move_dirs_to_subdir_by_modtime  = 'd2s' in other_args or 'dirs2sub' in other_args or 'dir' in other_args
+arg_move_to_subdir_relative_to_root = 's2r' in other_args or 'sub2root' in other_args
 
 arg_subdir_modtime_format = ''
 
@@ -362,7 +364,9 @@ r_type = type(pat_url)
 s_type = type('')
 u_type = type(u'')
 
-local_path_prefix = u'//?/'
+root_path = u'.'
+local_path_prefix = u''
+# local_path_prefix = u'//?/'
 info_prfx = '\t'
 msg_prfx = '\n-\t'
 
@@ -737,7 +741,7 @@ def move_processed_target(src_path, path, name, dest_dir=None):
 	or	arg_cut_name_to_subdir_len
 	):
 		dest_dir = '/'.join(filter(None, [
-			path.rstrip('/')
+			root_path if arg_move_to_subdir_relative_to_root else path.rstrip('/')
 		,	get_formatted_modtime(src_path, arg_subdir_modtime_format).strip('/') if arg_subdir_modtime_format else None
 		,	name[ : arg_cut_name_to_subdir_len] if arg_cut_name_to_subdir_len else None
 		]))
@@ -1291,7 +1295,7 @@ def process_names(path, names, later=0):
 def run_batch_move(later=0):
 	global n_later, dup_lists_by_ID
 
-	process_dir(get_long_abs_path(u'.'), later)
+	process_dir(root_path, later)
 
 	if later:
 		for i in dup_lists_by_ID:
