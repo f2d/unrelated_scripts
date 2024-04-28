@@ -125,6 +125,9 @@ def print_help():
 	,	''
 	,	'		Each name is appended with comma to "{name_sep}filename" from arguments.'
 	,	''
+	,	'	{group_by_ext}:'
+		+	'	Make separate archives for each file extension.'
+	,	''
 	,	'	{group_by_name}:'
 		+	'	Make separate archives for each group of subjects'
 	,	'		by first found numeric ID in subject name.'
@@ -145,7 +148,7 @@ def print_help():
 	,	'	{group_shortcut}: shortcut, equivalent to "' + group_by_num_dot_flags + '".'
 	,	'	{foreach_dir}: make separate archives for each dir of subject mask.'
 	,	'	{foreach_file}: make separate archives for each file of subject mask.'
-	,	'		Use one of "{foreach_dir}" or "{foreach_file}" with any of "' + group_by_num_any_sep_flags + '"'
+	,	'		Use one of "{foreach_dir}" or "{foreach_file}" with any of "' + group_by_name_parts_flags + '"'
 	,	'		to add only dirs or files to the groups.'
 #	,	'TODO ->	5 and/or g: make separate archives for each group of subjects'
 #	,	'TODO ->		by longest common subject name parts.'
@@ -154,7 +157,7 @@ def print_help():
 #	,	'TODO ->		g5: start comparing from longest filenames.'
 #	,	'TODO ->		5g: start comparing from shortest filenames.'
 #	,	'TODO ->		if "4" or "f" is not set, skip singletons.'
-#	,	'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+group_by_num_any_sep_flags+'").'
+#	,	'TODO ->		("45fg" are cross-compatible, but disabled with any of "'+group_by_name_parts_flags+'").'
 #	,	'TODO ->	9, 99, 999, etc.: keep each group population below this number.'
 #	,	'TODO ->		(split first by mod.dates - years, then months, days, hours,'
 #	,	'TODO ->		minutes, seconds, at last batch subjects with same-second'
@@ -247,6 +250,7 @@ def print_help():
 	,	foreach_file = for_each_file_flag
 
 	,	group_by_name = group_flag
+	,	group_by_ext = group_ext_flag
 	,	group_comma = group_sep_comma_flag
 	,	group_dot = group_sep_dot_flag
 	,	group_lists = group_listfile_flag
@@ -312,6 +316,7 @@ group_listfile_flag = '2'
 group_flags_shortcut = '3'
 group_sep_dot_flag = '.'
 group_sep_comma_flag = ','
+group_ext_flag = 'X'
 
 group_by_num_dot_flags = (
 	group_flag
@@ -322,6 +327,11 @@ group_by_num_dot_flags = (
 group_by_num_any_sep_flags = (
 	group_by_num_dot_flags
 +	group_sep_comma_flag
+)
+
+group_by_name_parts_flags = (
+	group_by_num_any_sep_flags
++	group_ext_flag
 )
 
 for_each_dir_flag = '4'
@@ -462,6 +472,14 @@ def fix_slashes(path):
 		path = path.replace('\\', os.sep)
 
 	return path
+
+def get_file_ext_from_path(path):
+	path = normalize_slashes(path)
+
+	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
+	if path.find('.') >= 0: path = path.rsplit('.', 1)[1]
+
+	return path.lower()
 
 def get_exe_paths():
 
@@ -1328,16 +1346,19 @@ def run_batch_archiving(argv):
 	is_subj_list   = (subj[0] == '@')
 
 	foreach_subj_names = None
+
 	foreach_dir  = for_each_dir_flag in flags
 	foreach_file = for_each_file_flag in flags
 	foreach_dir_or_file = (foreach_dir or foreach_file) and not is_subj_list
+
+	foreach_ext = group_ext_flag in flags
 	foreach_ID_flags = ''.join([
 		x
 		for x in group_by_num_any_sep_flags
 		if x in flags
 	])
 
-	if foreach_dir_or_file or foreach_ID_flags:
+	if foreach_dir_or_file or foreach_ID_flags or foreach_ext:
 
 		names = list(map(
 			normalize_slashes
@@ -1357,17 +1378,33 @@ def run_batch_archiving(argv):
 				r'^(\D*\d[\d' + dots + ']*)(?=[^\d' + dots + ']|$)' if dots else
 				r'^(\D*\d+)(?=\D|$)'
 			)
+		else:
+			pat_ID = None
+
+		if foreach_ID_flags or foreach_ext:
+
+# Write each source file/dir name to listfile in destination folder, for disambiguation:
 
 			if group_listfile_flag in foreach_ID_flags:
 				other_to_1 = group_flag in foreach_ID_flags
 				d = {}
 
 				for each_subj in names:
-					s = re.search(pat_ID, each_subj)
-					n = s.group(1) if s else '' if other_to_1 else each_subj
+					n = None
+
+					if pat_ID:
+						s = re.search(pat_ID, each_subj)
+						n = s.group(1) if s else '' if other_to_1 or foreach_ext else each_subj
+
+					if foreach_ext:
+						ext = get_file_ext_from_path(each_subj)
+
+						if n: n += '.' + ext
+						else: n = ext
 
 					if not n in d:
 						d[n] = []
+
 					d[n].append(each_subj)
 
 				names = []
@@ -1393,12 +1430,25 @@ def run_batch_archiving(argv):
 
 						except (UnicodeEncodeError, UnicodeDecodeError):
 							if f: f.close()
+
+# Prepare wildcard mask arguments to match source files/dirs, may be ambiguous:
+
 			else:
 				d = []
 				for each_subj in names:
-					s = re.search(pat_ID, each_subj)
-					if s:
-						n = s.group(1) + '*'
+					n = None
+
+					if pat_ID:
+						s = re.search(pat_ID, each_subj)
+						if s: n = s.group(1) + '*'
+
+					if foreach_ext:
+						ext = get_file_ext_from_path(each_subj)
+
+						if n: n += '.' + ext
+						else: n = '*.' + ext
+
+					if n:
 						if not (n in d):
 							d.append(n)
 					else:
