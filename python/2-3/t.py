@@ -44,8 +44,8 @@ def print_help():
 	,	'	l: Set each file mod-time to last found time in file name/content.'
 	,	'	m: Set each file mod-time to latest found time in file name/content.'
 	,	'	n: Set each file mod-time to earliest found time in file name/content.'
-	,	'		Note: last in the whole file, not 1st on the last line,'
-	,	'		may be found after any log-formatted timestamps,'
+	,	'		Note: unlike 1st on the last line,'
+	,	'		last in the whole file may be found after any log-formatted timestamps,'
 	,	'		including partial timestamps (e.g. dates, y-m-d only) in log content.'
 	,	''
 	,	colored('<mask>', 'cyan') + ': filename or wildcard to ignore for time checking, if anything else exists.'
@@ -216,7 +216,8 @@ def run_batch_retime(argv):
 			result = last_time
 
 			if arg_verbose_testing:
-				print_with_colored_prefix('File size:', len(text), 'yellow')
+				print_with_colored_prefix('File size:' if read_mode else 'Name length:', len(text), 'yellow')
+				print_with_colored_prefix('Find part:', pat, 'yellow')
 
 			for match in re.finditer(pat or pat_date, text):
 				timestamp_text = ''
@@ -504,7 +505,8 @@ def run_batch_retime(argv):
 			and	timestamp_value
 			and	timestamp_value > t_min_valid
 			and	(
-					modtime_value < t_min_valid
+					not arg_apply
+				or	modtime_value < t_min_valid
 				or	(arg_apply_to_after  and modtime_value > timestamp_value)
 				or	(arg_apply_to_before and modtime_value < timestamp_value)
 				)
