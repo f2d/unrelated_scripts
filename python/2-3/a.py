@@ -127,6 +127,7 @@ def print_help():
 	,	''
 	,	'	{group_by_ext}:'
 		+	'	Make separate archives for each file extension.'
+		+	'	Repeat the flag N times to pick by N-part dot-separated suffix.'
 	,	''
 	,	'	{group_by_name}:'
 		+	'	Make separate archives for each group of subjects'
@@ -473,11 +474,11 @@ def fix_slashes(path):
 
 	return path
 
-def get_file_ext_from_path(path):
+def get_file_ext_from_path(path, count=1):
 	path = normalize_slashes(path)
 
 	if path.find('/') >= 0: path = path.rsplit('/', 1)[1]
-	if path.find('.') >= 0: path = path.rsplit('.', 1)[1]
+	if path.find('.') >= 0: path = path.rsplit('.', 1)[1] if not (count > 1) else path[len(path.rsplit('.', count)[0]) + 1 : ]
 
 	return path.lower()
 
@@ -1351,7 +1352,7 @@ def run_batch_archiving(argv):
 	foreach_file = for_each_file_flag in flags
 	foreach_dir_or_file = (foreach_dir or foreach_file) and not is_subj_list
 
-	foreach_ext = group_ext_flag in flags
+	foreach_ext = flags.count(group_ext_flag)
 	foreach_ID_flags = ''.join([
 		x
 		for x in group_by_num_any_sep_flags
@@ -1397,7 +1398,7 @@ def run_batch_archiving(argv):
 						n = s.group(1) if s else '' if other_to_1 or foreach_ext else each_subj
 
 					if foreach_ext:
-						ext = get_file_ext_from_path(each_subj)
+						ext = get_file_ext_from_path(each_subj, count=foreach_ext)
 
 						if n: n += '.' + ext
 						else: n = ext
@@ -1443,7 +1444,7 @@ def run_batch_archiving(argv):
 						if s: n = s.group(1) + '*'
 
 					if foreach_ext:
-						ext = get_file_ext_from_path(each_subj)
+						ext = get_file_ext_from_path(each_subj, count=foreach_ext)
 
 						if n: n += '.' + ext
 						else: n = '*.' + ext
@@ -1455,11 +1456,11 @@ def run_batch_archiving(argv):
 						d.append(each_subj)
 				names = d
 
-		foreach_subj_names = names if foreach_dir == foreach_file else [
+		foreach_subj_names = sorted(names if foreach_dir == foreach_file else [
 			each_subj
 			for each_subj in names
 			if foreach_dir == os.path.isdir(each_subj)
-		]
+		])
 
 	add_mod_time   = add_mod_time_flag in flags
 	add_start_time = add_start_time_flag in flags
