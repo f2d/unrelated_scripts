@@ -11,6 +11,7 @@ if [ -z "${cert_dir}"     ]; then cert_dir="/etc/letsencrypt/live/${HOSTNAME}/" 
 echo "- ${start_date} - Started SSL cert upload script."
 
 source "${script_dir}/update_hostname_ip.sh" ${ftp_hostname}
+ftp_hostname=${target_addr}
 
 cd "${cert_dir}"
 
@@ -20,7 +21,8 @@ cd "${cert_dir}"
 # Feed script output into a FTP client, to avoid writing files or showing password in arguments:
 # https://stackoverflow.com/a/60655361
 
-source "${script_dir}/upload_bak_cert.ftp.sh" > >(lftp)
+ftp_upload_cmd='mput *.pem'
+source "${script_dir}/upload_bak.ftp.sh" > >(lftp)
 
 # Wait for all running background jobs and the last-executed process substitution:
 # https://man7.org/linux/man-pages/man1/bash.1.html

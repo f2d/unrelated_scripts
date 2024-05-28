@@ -85,7 +85,9 @@ then
 	# Feed script output into a FTP client, to avoid writing files or showing password in arguments:
 	# https://stackoverflow.com/a/60655361
 
-	source "${script_dir}/upload_bak_logs.ftp.sh" > >(lftp)
+	ftp_upload_cmd='mput *.gz.tar
+mput *.tar.xz'
+	source "${script_dir}/upload_bak.ftp.sh" > >(lftp)
 
 	# Wait for all running background jobs and the last-executed process substitution:
 	# https://man7.org/linux/man-pages/man1/bash.1.html
