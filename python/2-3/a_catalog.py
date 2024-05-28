@@ -10,7 +10,9 @@
 # - Dependencies --------------------------------------------------------------
 
 import datetime, os, re, subprocess, sys, time
-import a	# <- custom script from this folder, used to call archiver programs
+
+# Custom script from this folder:
+from a import run_batch_archiving
 
 # - Configuration and defaults ------------------------------------------------
 
@@ -89,11 +91,13 @@ def get_label(root_path, fix_timestamps=True):
 # - Main job function ---------------------------------------------------------
 
 def run_catalog_batch_archiving(argv):
-	root_path = argv[0] if len(argv) > 0 else default_root_path
+	root_path     = argv[0]    if len(argv) > 0 else default_root_path
+	archive_types = argv[1]    if len(argv) > 1 else '7rs'
+	archive_args  = argv[2 : ] if len(argv) > 2 else []
 	archive_label = get_label(root_path)
 
 	if archive_label:
-		return a.run_batch_archiving(['7r_sdom;=_catalog_htm>' + archive_label, '.', '..'])
+		return run_batch_archiving([archive_types + '_dom;=_catalog_htm>' + archive_label, '.', '..'] + archive_args)
 	else:
 		print('')
 		print('Nothing to archive.')
