@@ -181,8 +181,12 @@ def print_help():
 	,	'	---- Other:'
 	,	''
 	,	'	{list_cmd}: check resulting command lines without running them.'
-	,	'	{no_key_press}: don\'t wait for key press after errors.'
 	,	'	{minimized}: start all processes minimized.'
+	,	''
+	,	'	{no_key_press}:'
+		+	'	Don\'t wait for key press after errors.'
+	,	'		Repeat the flag to use CLI version or each archiver,'
+	,	'		to avoid stalling a script by GUI window left open if any errors occured.'
 	,	''
 	,	'	{split}:'
 		+	'	Split flags before filename suffix, make combinations with common last part.'
@@ -968,7 +972,7 @@ def run_batch_archiving(argv):
 		cmd_template = {}
 		cmd_template['7z'] = (
 			[
-				exe_paths['7z']
+				exe_paths['7z' if is_gui else '7z_cmd']
 			,	'a'
 			# ,	'-bt'	# <- Show execution time statistics, only for 'b' command.
 			# ,	'-slt'	# <- Show technical information, only for 'l' command.
@@ -1014,7 +1018,7 @@ def run_batch_archiving(argv):
 
 		cmd_template['rar'] = (
 			[
-				exe_paths['rar']
+				exe_paths['rar' if is_gui else 'rar_cmd']
 			,	'a'
 			,	'-dh'	# <- Open shared files.
 			,	'-ma5'	# <- Version of archiving format.
@@ -1332,19 +1336,20 @@ def run_batch_archiving(argv):
 		flags, name = split_text_in_two(common_part_with_name, def_name_separator)
 		flags = expand_flag_shortcuts(flags)
 
-	if minimized_flag in flags:
+	is_delete_enabled = delete_sources_flag in flags
+	is_keep_only_1 = keep_smallest_archive_flag in flags
+	is_no_waiting  = no_waiting_keypress_flag in flags
+	is_only_check  = only_list_commands_flag in flags
+	is_subj_list   = (subj[0] == '@')
+	is_gui = flags.count(no_waiting_keypress_flag) < 2
+
+	if is_gui and minimized_flag in flags:
 		SW_MINIMIZE = 6
 		minimized = subprocess.STARTUPINFO()
 		minimized.dwFlags = subprocess.STARTF_USESHOWWINDOW
 		minimized.wShowWindow = SW_MINIMIZE
 	else:
 		minimized = None
-
-	is_delete_enabled = delete_sources_flag in flags
-	is_keep_only_1 = keep_smallest_archive_flag in flags
-	is_no_waiting  = no_waiting_keypress_flag in flags
-	is_only_check  = only_list_commands_flag in flags
-	is_subj_list   = (subj[0] == '@')
 
 	foreach_subj_names = None
 
