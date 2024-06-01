@@ -19,7 +19,9 @@
 
 def print_help():
 	self_name = os.path.basename(__file__)
+
 	exe_paths = get_exe_paths()
+	exe_paths_with_zstd = get_exe_paths(prefer_zstd_version=True)
 
 	help_text_lines = [
 		''
@@ -52,6 +54,8 @@ def print_help():
 	,	''
 	,	colored('* Current executable paths to be used (found or fallback):', 'yellow')
 	] + sorted([
+		'	{}	: {}'.format(k + '(zstd)', v) for k, v in exe_paths_with_zstd.items() if exe_paths[k] != v
+	]) + sorted([
 		'	{}	: {}'.format(k, v) for k, v in exe_paths.items()
 	]) + [
 		''
@@ -486,7 +490,7 @@ def get_file_ext_from_path(path, count=1):
 
 	return path.lower()
 
-def get_exe_paths():
+def get_exe_paths(prefer_zstd_version=False):
 
 	exe_try_root_dirs = [
 		'%ProgramW6432%'
@@ -512,7 +516,7 @@ def get_exe_paths():
 	]
 
 	subdirs_rar = ['WinRAR']
-	subdirs_7z = [
+	subdirs_7z = ([
 		'7-Zip-ZS'
 	,	'7-Zip_ZS'
 	,	'7-Zip ZS'
@@ -521,7 +525,8 @@ def get_exe_paths():
 	,	'7zip_ZS'
 	,	'7zip ZS'
 	,	'7zipZS'
-	,	'7-Zip'
+	] if prefer_zstd_version else []) + [
+		'7-Zip'
 	,	'7zip'
 	]
 
@@ -1340,6 +1345,7 @@ def run_batch_archiving(argv):
 	is_keep_only_1 = keep_smallest_archive_flag in flags
 	is_no_waiting  = no_waiting_keypress_flag in flags
 	is_only_check  = only_list_commands_flag in flags
+	is_zstd_used   = zstd_flag in flags
 	is_subj_list   = (subj[0] == '@')
 	is_gui = flags.count(no_waiting_keypress_flag) < 2
 
@@ -1477,7 +1483,7 @@ def run_batch_archiving(argv):
 
 	t0 = time.strftime(time_format)
 
-	exe_paths = get_exe_paths()
+	exe_paths = get_exe_paths(prefer_zstd_version=is_zstd_used)
 	cmd_queue = []
 	cmd_count = error_count = del_warn = 0
 	cmd_queue_by_subj = {}
