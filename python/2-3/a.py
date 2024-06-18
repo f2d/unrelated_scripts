@@ -799,7 +799,7 @@ def run_batch_archiving(argv):
 						else	(None if uncompressed_flag in flags else '-mfb=256') if arg[0 : 5] == '-mfb='
 						else	arg
 						)
-						for arg in cmd_args
+						for arg in cmd_args if arg
 					]
 
 				elif suffix.find('.7z') and '-ms=e' in cmd_args:
@@ -808,7 +808,7 @@ def run_batch_archiving(argv):
 							None if arg[0 : 4] == '-mqs'
 						else	arg
 						)
-						for arg in cmd_args
+						for arg in cmd_args if arg
 					] + ['-mqs']
 
 				# dest = get_unique_clean_path(dest, suffix, t0)
