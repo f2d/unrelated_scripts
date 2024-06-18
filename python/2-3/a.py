@@ -985,6 +985,9 @@ def run_batch_archiving(argv):
 			,	'-ssw'	# <- Compress files open for writing.
 			,	'-stl'	# <- Set archive timestamp from the most recently modified file.
 			,	(
+					'-scsUTF-8' if group_listfile_flag in foreach_ID_flags else	# <- List files encoding.
+					None
+				), (
 					'-mqs-' if esplit_flag in flags else	# <- Sort files by full name, all supposed to be MHT type.
 					'-mqs'				# <- Sort files by type (name extension) in solid archives.
 				)
@@ -1030,6 +1033,9 @@ def run_batch_archiving(argv):
 			,	'-qo+'	# <- Add quick open information.
 			,	'-tl'	# <- Set archive time to newest file.
 			,	(
+					'-scfl' if group_listfile_flag in foreach_ID_flags else	# <- UTF-8 (F) List files (L) encoding.
+					None
+				), (
 					'-ibck' if minimized else	# <- Run WinRAR in background.
 					None
 				), (
