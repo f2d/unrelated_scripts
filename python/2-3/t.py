@@ -148,6 +148,24 @@ def get_timestamp_value(text):
 def get_timestamp_value_from_parsedate(text):
 	return time.mktime(datetime.datetime(*parsedate(text)[ : 6]).timetuple())
 
+def get_comparison(new_value, old_value, new_text='new', old_text='old', suffix='of', prefix=None):
+
+	comparison_sign = (
+		'<' if new_value < old_value else
+		'>' if new_value > old_value else
+		'='
+	)
+
+	return ' '.join(filter(None, [
+			colored(prefix, 'yellow') if prefix else None
+		,	get_timestamp_text(new_value)
+		,	colored(new_text, 'yellow') if new_text else None
+		,	comparison_sign
+		,	colored(old_text, 'yellow') if old_text else None
+		,	get_timestamp_text(old_value)
+		,	colored(suffix, 'yellow') if suffix else None
+	]))
+
 # - Main job function ---------------------------------------------------------
 
 def run_batch_retime(argv):
@@ -421,21 +439,7 @@ def run_batch_retime(argv):
 
 				if timestamp_value > t_min_valid:
 					counts['files_read'] += 1
-
-					if arg_verbose:
-						try:
-							print_with_colored_prefix(
-								' '.join([
-									colored(counts['files_read'], 'yellow')
-								,	timestamp_text
-								,	colored(timestamp_value, 'yellow')
-								])
-							,	path_name
-							,	'white'
-							)
-
-						except Exception as exception:
-							print_and_collect_exception('Error printing path info for:', path_name)
+					change = False
 
 					if arg_apply:
 						modtime_value = os.path.getmtime(path_name)
@@ -445,8 +449,25 @@ def run_batch_retime(argv):
 						or	(arg_apply_to_before and modtime_value < timestamp_value)
 						):
 							counts['files_changed'] += 1
+							change = True
 
-							os.utime(path_name, (timestamp_value, timestamp_value))
+					if arg_verbose:
+						try:
+							print_with_colored_prefix(
+								' '.join([
+									'F'
+								,	colored(counts['files_read'], 'yellow')
+								,	colored(timestamp_value, 'green' if change else 'yellow')
+								,	get_comparison(timestamp_value, modtime_value) if arg_apply else timestamp_text
+								])
+							,	path_name
+							)
+
+						except Exception as exception:
+							print_and_collect_exception('Error printing path info for:', path_name)
+
+					if change:
+						os.utime(path_name, (timestamp_value, timestamp_value))
 
 				if arg_dirs_modtime_by_files:
 					modtime_value = os.path.getmtime(path_name)
@@ -477,7 +498,8 @@ def run_batch_retime(argv):
 				if arg_verbose:
 					print_with_colored_prefix(
 						' '.join([
-							str(counts['dirs_deleted'])
+							'E'
+						,	str(counts['dirs_deleted'])
 						,	colored(
 								'empty folder deleted:' if arg_apply else
 								'empty folder found:'
@@ -485,7 +507,6 @@ def run_batch_retime(argv):
 							)
 						])
 					,	path
-					,	'white'
 					)
 			except:
 				if arg_verbose:
@@ -513,23 +534,13 @@ def run_batch_retime(argv):
 			):
 				if arg_verbose:
 					try:
-						comparison_sign = (
-							'<' if timestamp_value < modtime_value else
-							'>' if timestamp_value > modtime_value else
-							'='
-						)
-
 						print_with_colored_prefix(
 							' '.join([
-								get_timestamp_text(timestamp_value)
-							,	colored('inside', 'yellow')
-							,	comparison_sign
-							,	colored('own', 'yellow')
-							,	get_timestamp_text(modtime_value)
-							,	colored('of', 'yellow')
+								'D'
+							,	colored(counts['dirs_checked'], 'yellow')
+							,	get_comparison(timestamp_value, modtime_value, 'inside')
 							])
 						,	path
-						,	'white'
 						)
 
 					except Exception as exception:
