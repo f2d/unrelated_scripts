@@ -3,14 +3,17 @@
 
 import fnmatch, os, re, sys
 
-#	Content-Location: http://www.0chan.ru/d/res/12952.html
-pat = re.compile('''(?:
+# Content-Location: http://www.0chan.ru/d/res/12952.html
+
+pat = re.compile(r'''(?:
 Content-Location: |<!-- saved from url=\(\d+\))http[^
 ]+?/([^/]+)/res/(\d+)''', re.IGNORECASE & re.MULTILINE)
+
 ext = 'mht'
-sup = re.compile('^[^,]+,\s*(.*?)(;_[0-9-_,]{19}.*)?\.[^.]+$', re.IGNORECASE)
+sup = re.compile(r'^[^,]+,\s*(.*?)(;_[0-9-_,]{19}.*)?\.[^.]+$', re.IGNORECASE)
 src = os.listdir(u'.')
 i = 0
+
 for mht in src:
 	if fnmatch.fnmatch(mht, '*,*.'+ext):
 		f = open(mht)

@@ -131,7 +131,7 @@ def print_help():
 	,	''
 	,	'	{group_by_ext}:'
 		+	'	Make separate archives for each file extension.'
-		+	'	Repeat the flag N times to pick by N-part dot-separated suffix.'
+	,	'		Repeat the flag N times to pick by N-part dot-separated suffix.'
 	,	''
 	,	'	{group_by_name}:'
 		+	'	Make separate archives for each group of subjects'
@@ -151,6 +151,8 @@ def print_help():
 	,	'		"{group_by_name}" is implied unless "{group_lists}" is given.'
 	,	''
 	,	'	{group_shortcut}: shortcut, equivalent to "' + group_by_num_dot_flags + '".'
+#	,	'TODO ->	Repeat any ID-grouping flag N times to pick by Nth numeric ID prefix.'
+	,	''
 	,	'	{foreach_dir}: make separate archives for each dir of subject mask.'
 	,	'	{foreach_file}: make separate archives for each file of subject mask.'
 	,	'		Use one of "{foreach_dir}" or "{foreach_file}" with any of "' + group_by_name_parts_flags + '"'
@@ -1393,7 +1395,7 @@ def run_batch_archiving(argv):
 			])
 
 			pat_ID = re.compile(
-				r'^(\D*\d[\d' + dots + ']*)(?=[^\d' + dots + ']|$)' if dots else
+				r'^(\D*\d[\d' + dots + r']*)(?=[^\d' + dots + r']|$)' if dots else
 				r'^(\D*\d+)(?=\D|$)'
 			)
 		else:

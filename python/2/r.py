@@ -248,7 +248,7 @@ pat_ren = [
 	}
 ,	{
 		'type': 'filehosting'
-	,	'page': get_rei(r'''^			# <- ur'' gives "SyntaxError: invalid syntax" in python3
+	,	'page': get_rei(r'''^				# <- ur'' gives "SyntaxError: invalid syntax" in python3
 			(?P<Domain>\{[^{}\s]+\})?		# <- added by SavePageWE
 			(?P<Prefix>
 				(?P<SiteName>[^{}\s]+)\s+
@@ -261,10 +261,10 @@ pat_ren = [
 			(?P<FileName>\S.*?)\s+[-\u2014\S]+\s+
 			(?P<Suffix>
 			''' + '|'.join([
-				'RGhost(?:\s+\S\s+[^.]+)?'
-			,	'Yandex[.\S]Dis[ck]'
-			,	u'Яндекс[.\S]Диск		# <- "yandex.disk"'
-			,	'\S+\s+Mail\.Ru			# <- "cloud mail.ru"'
+				r'RGhost(?:\s+\S\s+[^.]+)?'
+			,	r'Yandex[.\S]Dis[ck]'
+			,	u'Яндекс'+r'[.\S]'+u'Диск	# <- "yandex.disk"'
+			,	r'\S+\s+Mail\.Ru		# <- "cloud mail.ru"'
 			]) + r'''
 			)
 			(?P<PageName>\s+-\s+\S+?)?		# <- added by UnMHT
@@ -1092,7 +1092,7 @@ def process_names(path, names, later=0):
 								+	f + '|/'
 								+	f + '.'
 								+	child_ext
-								+	'(\?[^">]*)?">Save'
+								+	r'(\?[^">]*)?">Save'
 								), page_content)	# <- [^w] to workaround /preview/ child post list
 								if f:
 									prfx = page_match.group('Prefix')+(' full,' if f.group(1) else ',')
