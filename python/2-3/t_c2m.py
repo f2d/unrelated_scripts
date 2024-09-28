@@ -113,6 +113,14 @@ def run_batch_retime(argv):
 
 				if arg_apply:
 					os.utime(filepath, (c_time, c_time))
+			else:
+				print(' '.join([
+					colored(count_checked, 'yellow')
+				,	colored('c/m time diff =', 'red')
+				,	'{:.2f}'.format(time_difference)
+				,	colored('for file', 'red')
+				,	get_text_encoded_for_print(filepath)
+				]))
 
 			if arg_test and count_changed > 9:
 				break
@@ -130,7 +138,8 @@ def run_batch_retime(argv):
 
 	flags = argv[0]
 	arg_recurse = ('r' in flags)
-	arg_apply = ('a' in flags) and not ('t' in flags)
+	arg_verbose = ('t' in flags)
+	arg_apply = ('a' in flags) and not arg_verbose
 	arg_test = not arg_apply
 
 	threshold = (int(argv[1]) if argc > 1 else 0) or default_time_threshold
