@@ -328,6 +328,7 @@ def run_cleanup_folder(argv):
 		print('')
 		print_with_colored_prefix('src_dirs:', src_dirs)
 
+	count_deleted_files = 0
 	count_found_files = 0
 	count_total_size = 0
 	min_found_size = 0
@@ -400,13 +401,13 @@ def run_cleanup_folder(argv):
 					if arg_age_below and file_age > arg_age_below: continue
 					if arg_contains and not is_file_content_included(full_path): continue
 
-					count_found_files += 1
-					count_total_size += file_size
-
 					if not min_found_size or min_found_size > file_size: min_found_size = file_size
 					if not max_found_size or max_found_size < file_size: max_found_size = file_size
 					if not min_found_time or min_found_time > file_mod_time: min_found_time = file_mod_time
 					if not max_found_time or max_found_time < file_mod_time: max_found_time = file_mod_time
+
+					count_found_files += 1
+					skipped = False
 
 					if arg_read_only:
 						print_with_colored_prefix(
@@ -419,8 +420,15 @@ def run_cleanup_folder(argv):
 							)
 						)
 					else:
+						try:
+							os.remove(full_path)
+							
+							count_deleted_files += 1
+						except:
+							skipped = True
+
 						print_with_colored_prefix(
-							'Deleting:'
+							'Cannot delete:' if skipped else 'Deleted:'
 						,	each_file_print_format.format(
 								file=each_name.encode(print_encoding)
 							,	size=get_bytes_text(file_size)
@@ -428,7 +436,8 @@ def run_cleanup_folder(argv):
 							)
 						)
 
-						os.remove(full_path)
+					if not skipped:
+						count_total_size += file_size						
 
 				elif arg_recurse and os.path.isdir(full_path):
 
@@ -438,12 +447,15 @@ def run_cleanup_folder(argv):
 
 	print('')
 
-	if count_found_files > 0:
+	if (count_found_files if arg_read_only else count_deleted_files) > 0:
 
 		print_with_colored_prefix(
 			'Files to delete:' if arg_read_only else 'Deleted files:'
 		,	'{number}, total {size}, min {min_size}, max {max_size}, from {min_time} to {max_time}.'.format(
-				number=count_found_files
+				number=(
+					count_found_files if arg_read_only else
+					'{} / {}'.format(count_deleted_files, count_found_files)
+				)
 			,	size=get_bytes_text(count_total_size)
 			,	min_size=get_bytes_text(min_found_size, add_text=False)
 			,	max_size=get_bytes_text(max_found_size)
