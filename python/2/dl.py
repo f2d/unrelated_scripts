@@ -1022,22 +1022,25 @@ pat2replace_before_saving_file = [
 ,	[get_rei(r'[.,&#]+$'			), '.htm']	# <- remove trailing garbage
 ]
 
+part_link_html_prefix = r'(^|\]\s*=\>\s*)\w+:/+'
+part_blocked_host = r'([^:/?#]+\.)?(blocked\.netbynet\.\w+|rpn\.tmpk\.net)'
+
 pat_blocked_url = [
-	get_rei(r'^\w+:/+[^/?#]+/rkndeny')
-,	get_rei(r'^\w+:/+([^:/?#]+\.)?blocked\.netbynet\.\w+/')
+	get_rei(r'^\w+:/+' + part_blocked_host + r'/')
+,	get_rei(r'^\w+:/+[^/?#]+/rkndeny')
 ]
 
 pat_blocked_content = [
-	get_rei(r'(^|\]\s*=\>\s*)\w+:/+[^/?#]+/rkndeny')
-,	get_rei(r'(^|\]\s*=\>\s*)\w+:/+([^:/?#]+\.)?blocked\.netbynet\.\w+/')
+	get_rei(part_link_html_prefix + part_blocked_host + r'/')
+,	get_rei(part_link_html_prefix + r'[^/?#]+/rkndeny')
 ,	get_rei(ur'''
-		<title>\s*
-			Доступ\s+
-			к\s+
-			запрашиваемому\s+
-			ресурсу\s+
-			ограничен\s*
-		</title>
+		<title>
+	\s*		Доступ
+	\s+		к
+	\s+		(запрашиваемому|информационному)
+	\s+		ресурсу
+	\s+		ограничен
+	\s*	</title>
 	''')
 ]
 
