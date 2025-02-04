@@ -345,7 +345,7 @@ sites = [
 ,	[['nigelpickles.com'				],'_business/_money/ko-fi.com/']
 ,	[['paypal.me','paypal-communication.com','paypal-community.com','paypalobjects.com'	],'_business/_money/paypal.com/']
 ,	[get_rei(r'^paypal\.\w+$'			),'_business/_money/paypal.com',{'sub': [['paypal.me',['paypalme']]]}]
-,	[['sovest.ru'					],'_business/_money/qiwi.ru/']
+,	[['qiwiwallet.ru','sovest.ru'			],'_business/_money/qiwi.ru/']
 ,	[get_rei(r'^qiwi\.\w+$'				),'_business/_money/qiwi.ru']
 ,	[get_rei(r'^visa(\.com)?.\w+$'			),'_business/_money/visa.com']
 ,	[['wmtransfer.com'				],'_business/_money/webmoney.ru/']
@@ -483,13 +483,14 @@ sites = [
 ,	[['buzzheavier.com','flashbang.sh','trashbytes.net'	],'_fileshares//']
 ,	[['dropbox.com','dropboxusercontent.com','db.tt'	],'_fileshares//']
 ,	[['ifolder.ru','rusfolder.com','rusfolder.net'		],'_fileshares//']
+,	[['multiup.org','multiup.io'				],'_fileshares//']
 ,	[['pomf.se','uguu.se','pomf.cat','pantsu.cat','1339.cf'	],'_fileshares//']
 ,	[['safe.moe','catbox.moe'				],'_fileshares//']
 ,	[['uploadfiles.io','ufile.io'				],'_fileshares//']
 ,	[['yadi.sk','disk.yandex.ru'				],'_fileshares//']
 ,	[['zalil.ru','slil.ru','gfile.ru'			],'_fileshares//']
 ,	[
-		['mega','mega:','mega.co.nz','mega.nz','megaupload.com','96d0d4e7-1ed7-4efb-99d0-b1bd780800b3']
+		['mega','mega:','mega.co.nz','mega.nz','mega.io','megaupload.com','96d0d4e7-1ed7-4efb-99d0-b1bd780800b3']
 	,	'_fileshares/MEGA'
 	,	{
 			'sub': [
@@ -510,7 +511,7 @@ sites = [
 		,	'fileplanet.com','fileserve.com','filesmelt.com'
 		,	'firedrop.com','funct.app'
 		,	'ge.tt','getuploader.com','gofile.io','ichigo-up.com','ipfs.io','littlebyte.net','krakenfiles.com'
-		,	'mediafire.com','mixtape.moe','multcloud.com','multiup.org','my-files.ru','nofile.io','nya.is'
+		,	'mediafire.com','mixtape.moe','multcloud.com','my-files.ru','nofile.io','nya.is'
 		,	'odrive.com','pixeldrain.com','rapidgator.net','sendspace.com','solidfiles.com','storagon.com','sync.com'
 		,	'tinyupload.com','tmp.ninja','topshape.me','transfiles.ru','tstorage.info','turbobit.net'
 		,	'ulozto.net','upload.cat','uploadable.ch','uploaded.net','uptobox.com'
@@ -592,15 +593,16 @@ sites = [
 #--[ games ]-------------------------------------------------------------------
 
 ,	[['chessprogramming.org','chesstactics.org','chessvariants.com','lichess.org'	],'_games/_chess/']
-,	[['nesdev.com','parodius.com'							],'_games/_console,emul//']
+,	[['nesdev.org','nesdev.com','parodius.com'					],'_games/_console,emul//']
 ,	[['nintendo.com','nintendo.ru'							],'_games/_console,emul//']
+,	[['vba-m.com','visualboyadvance-m.org','visualboyadvance.org'			],'_games/_console,emul//']
 ,	[['forums.pcsx2.net'								],'_games/_console,emul/pcsx2.net/']
 ,	[
 		[	'asfdfdfd.com','coolrom.com','dosbox.com','dosbox-x.com'
 		,	'emu-land.net','emu-russia.net','emuhq.com','emulation-evolved.net','emulatorgames.net','emuparadise.me'
-		,	'famicom.party','gbatemp.net','kuribo64.net','mamedev.org','mametesters.org','mameworld.info','mgba.io','ngemu.com'
-		,	'pcsx2.net','planetemu.net','problemkaputt.de','pspx.ru','psxdev.ru'
-		,	'redump.net','romhack.net','romhacking.net','romhustler.net','romsgames.net','ryujinx.org','tic.computer','vba-m.com'
+		,	'famicom.party','gbatemp.net','kuribo64.net','mamedev.org','mametesters.org','mameworld.info','mgba.io'
+		,	'ngemu.com','pcsx2.net','planetemu.net','problemkaputt.de','pspx.ru','psxdev.ru'
+		,	'redump.net','romhack.net','romhacking.net','romhustler.net','romsgames.net','ryujinx.org','tic.computer'
 		]
 	,	'_games/_console,emul/'
 	]
@@ -801,21 +803,22 @@ sites = [
 		,	'nicalis.com','nintendolife.com','nisamerica.com','noclip.website','noelberry.ca','nrvnqsr.com'
 		,	'old-games.com','old-games.ru','oneangrygamer.net','onegameamonth.com','onlyhgames.com'
 		,	'osu.ppy.sh','outfit7.com','oxygine.org'
-		,	'pcgamer.com','pcgamingwiki.com','phantasy-star.net','pikointeractive.com','pixeljoint.com'
-		,	'playism.com','polygon.com','positech.co.uk','primitive-games.jp','projectwritten.com'
+		,	'p1x.in','pcgamer.com','pcgamingwiki.com','phantasy-star.net','pikointeractive.com','pixeljoint.com'
+		,	'playism.com','polygon.com','positech.co.uk','primitive-games.jp','projectwritten.com','psdeals.net'
 		,	'raphkoster.com','ratalaikagames.com','rawg.io'
 		,	'rednuht.org','remar.se','renegadeware.com','resetera.com','revora.net'
 		,	'roblox.com','rockpapershotgun.com','rockstargames.com','roguetemple.com','rpg.net','rpgcodex.net','ruinergame.com'
 		,	'sakevisual.com','scmapdb.com','sefan.ru','sekaiproject.com','sgn.net','shedevr.org.ru','shmuplations.com','shmups.com'
 		,	'siliconera.com','sinemoragame.com','skullgirls.com','smaghetti.com','small-games.info','smwstuff.net','snk-games.net'
 		,	'socksmakepeoplesexy.net','softhouse-seal.com','sonicretro.org','sovietgames.su'
-		,	'speedrun.com','spriters-resource.com','spritesmind.net'
+		,	'speedrun.com','speedrunwiki.com','spriters-resource.com','spritesmind.net'
 		,	'square-enix-games.com','squarefaction.ru','squares.net','squidi.net'
 		,	'stabyourself.net','stopgame.ru','summertimesaga.com'
 		,	'strategycore.co.uk','strategywiki.org','suki.jp','sunrider-vn.com','superhippo.com','sureai.net','system11.org'
 		,	't-ono.net','tasvideos.org','tatrix.org','tcrf.net','ternoxgames.com','tesera.ru'
 		,	'the-tale.org','theclassicgamer.net','thegamer.com','themissingquests.com','three-eyed-games.com'
-		,	'tigsource.com','tinykeep.com','totaljerkface.com','tozicode.com','trinitymugen.net','tv-games.ru','twoweeks.ru'
+		,	'tigsource.com','tinykeep.com','totaljerkface.com','tozicode.com'
+		,	'trinitymugen.net','trueachievements.com','tv-games.ru','twoweeks.ru'
 		,	'ultimatehistoryvideogames.jimdofree.com','unepicgame.com','unseen64.net','usamin.info','uvlist.net'
 		,	'vg247.com','vgmuseum.com','vkplay.ru','vlambeer.com','vn-russian.ru','vndb.org','vogons.org','vogonswiki.com'
 		,	'warframe.com','warnworld.com','wayforward.com','wesnoth.org','wieringsoftware.nl','worldoftanks.ru','worldofwarships.ru'
@@ -834,7 +837,7 @@ sites = [
 ,	[['cosonic.net.cn','doctorhead.ru'					],'_hardware/_audio/']
 ,	[['adexelec.com','ameri-rack.com'					],'_hardware/_cables,ports/']
 ,	[['dahua-spb.ru','dahuasecurity.com','dahuawiki.com','dh-russia.ru'	],'_hardware/_cam/']
-,	[['eraworld.ru','svetlix.ru'						],'_hardware/_lamp/']
+,	[['artstyle-lamp.ru','eraworld.ru','svetlix.ru'				],'_hardware/_lamp/']
 ,	[['4pda.ru','4pda.to'							],'_hardware/_mobile,phone,tablet//']
 ,	[['alcatelonetouch.com','alcatelonetouch.eu','alcatel-mobile.com'	],'_hardware/_mobile,phone,tablet//']
 ,	[['irbis-digital.ru','irbis.biz'					],'_hardware/_mobile,phone,tablet//']
@@ -1170,15 +1173,16 @@ sites = [
 ,	[['gurochan.ch','gurochan.cx'			],'_img/_board//']
 ,	[['kurisu.ru','kurisa.ch'			],'_img/_board//']
 ,	[['miskatonic.ml','miskatonic.ko.tl','m-ch.ml'	],'_img/_board//']
+,	[['owlchan.ru','owlchan.org'			],'_img/_board//',subscrape]
 ,	[['tbpchan.net','tbpchan.cz'			],'_img/_board//']
+,	[['touhou-project.com','touhouproject.com'	],'_img/_board//']
 ,	[['xynta.ch','nahuya.ch'			],'_img/_board//']
 ,	[['wakachan.org','secchan.net'			],'_img/_board//',subscrape]
 ,	[['zerochan.in','snyb.tk','jaggy.site90.net'	],'_img/_board//']
-,	[['touhou-project.com','touhouproject.com'	],'_img/_board//']
 ,	[['arhivach.org','arhivach.cf','arhivach.net','arhivach.ng','arhivach.top'],'_img/_board//']
 ,	[
 		[	'13ch.ru','2chan.net','4-ch.net','d3w.org','lampach.net','lolifox.org','n0l.ch','nowere.net'
-		,	'owlchan.ru','rollach.ru','sibirchan.ru','zadraw.ch'
+		,	'rollach.ru','sibirchan.ru','zadraw.ch'
 		]
 	,	'_img/_board/'
 	,	subscrape
@@ -1204,9 +1208,10 @@ sites = [
 		,	'lapchan.moe','lenta-chan.ru','lolcow.farm','loopchan.top','lotusbbs.org','lucidchan.org','lulz.net','lynxhub.com'
 		,	'maruchan.ru','metachan.ru','microchan.net','midorichan.ru'
 		,	'neboard.me','neonchan.vip','nest.rf.gd','netchan.ru','nichan.net','nowai.ru','nullchan.org','nyamo.org'
-		,	'ololoepepe.me','osach.ru','outchan.cf','overchan.ru','owlchan.ru'
+		,	'ololoepepe.me','osach.ru','outchan.cf','overchan.ru'
 		,	'pinkchan.top','ponyach.ru','post0chan.ru','pregchan.com','rakochan.ru','rchan.ru','retrochan.org','rfch.rocks'
-		,	'samechan.ru','shanachan.org','sich.co','slothchan.net','smuglo.li','so-slow.com','spamchan.xyz','spirech.org','syn-ch.ru'
+		,	'samechan.ru','shanachan.org','shitaraba.com','sich.co','slothchan.net'
+		,	'smuglo.li','so-slow.com','spamchan.xyz','spirech.org','syn-ch.ru'
 		,	'tanami.org','tchan.fun','tinyboard.org','tripfags.com','trln.hk','twbbs.org'
 		,	'u18chan.com','uboachan.net','uchan.to','ukrachan.org','utochan.ru'
 		,	'vichan.net','void.rest','volgach.ru','voxpopuli.to','wizchan.org'
@@ -1327,7 +1332,7 @@ sites = [
 		,	'extraimage.com','flickr.com','framecompare.com','funkyimg.com','gyazo.com','hqpix.net'
 		,	'ibb.co','imagebam.com','imageban.ru','imgchest.com','imgsafe.org','imgsli.com','imgup.co','instagram.com'
 		,	'joxi.ru','jpegshare.net','jpg.to','nudes.nut.cc'
-		,	'pinbrowse.com','photobucket.com','postimages.org','publicdomainpictures.net','pxhere.com','radikal.ru'
+		,	'pinbrowse.com','pixhost.org','photobucket.com','postimages.org','publicdomainpictures.net','pxhere.com','radikal.ru'
 		,	'savepic.net','screencapture.ru','screencast.com','screenshotcomparison.com','sli.mg','sm.ms','snag.gy'
 		,	'unsplash.com'
 		]
@@ -1375,8 +1380,8 @@ sites = [
 			]
 		}
 	]
-,	[['bato.to','vatoto.com'		],'_img/_manga//']
-,	[['dlraw.co','dlraw.net','dl-raw.co'	],'_img/_manga//']
+,	[['bato.to','vatoto.com'			],'_img/_manga//']
+,	[['dlraw.co','dlraw.net','dlraw.to','dl-raw.co'	],'_img/_manga//']
 ,	[['kissmanga.com','kissmanga.nl'	],'_img/_manga//']
 ,	[['mangadex.org','mangadex.com'		],'_img/_manga//']
 ,	[['mangakakalot.com','mangakakalots.com'],'_img/_manga//']
@@ -1395,11 +1400,11 @@ sites = [
 		,	'hitomi.asia','hitomi.la'
 		,	'jpmangaraw.com','lhtranslation.com','lovehug.net'
 		,	'manga.life','manga-chan.me','mangachan.me','mangachan.ru'
-		,	'mangafox.me','mangahere.co','mangalib.me'
+		,	'mangafox.me','mangahere.co','mangakatana.com','mangalib.me'
 		,	'manganelo.com','mangaonlinehere.com','mangareader.net','mangarock.com'
 		,	'mangashare.com','mangatensei.com','mangawindow.net'
 		,	'mydailymanga.com','mymanga.me','onemanga.com','onepiecechapters.com'
-		,	'rawlh.com','readms.com','remanga.org','senmanga.com','simple-scans.com'
+		,	'rawlh.com','rawotaku.com','readms.com','remanga.org','senmanga.com','simple-scans.com'
 		,	'tonarinoyj.jp','tsumino.com'
 		]
 	,	'_img/_manga/'
@@ -1570,7 +1575,7 @@ sites = [
 		,	'gakken-eizo.com','gokoro.me','gundam-seed.net'
 		,	'haruha.ru','haruhichan.com','hentai-for.me','hi10anime.com','hungry-bags.ru'
 		,	'idforums.net','intercambiosvirtuales.org','isekaimaou-anime.com'
-		,	'jacobswaggedup2.com','japari-library.com','jatshop.ru','judging.it'
+		,	'j-novel.club','jacobswaggedup2.com','japari-library.com','jatshop.ru','judging.it'
 		,	'kaleido.kageru.moe','kametsu.com','kanzaki.ru','kaze-online.de','keyfc.net'
 		,	'kiss-anime.co','kitsu.io','kodansha.us','kumo-anime.com','kyotoanimation.co.jp'
 		,	'leopard-raws.org','loveanim.com'
@@ -1584,7 +1589,7 @@ sites = [
 		,	'riczroninfactories.eu','russia-in-anime.ru','russian-cards.ru'
 		,	'sahadou.com','saishuu.com','sayoasa.jp','sevenseasentertainment.com','shamanking-project.com'
 		,	'slowanime.com','space-dandy.com','sukasuka-anime.com','suzumiya.ru'
-		,	'theanimedaily.com','theindex.moe','tlnotes.com','translationchicken.com','trashstudio.jp','twist.moe'
+		,	'theanimedaily.com','theindex.moe','tlnotes.com','translationchicken.com','trashstudio.jp','tvnihon.com','twist.moe'
 		,	'uccuss.com','urusei-yatsura.ru','ushwood.ru','vcb-s.com','vivy-portal.com','viz.com','wakanim.tv'
 		,	'xlm.ru','yaposha.com','yousei-raws.org','zimmerit.moe','zohead.moe'
 		]
@@ -1592,7 +1597,7 @@ sites = [
 	]
 ,	[
 		[	'animeshinigami.altervista.org','anisab-subs.ru','ankokufs.us','asenshi.moe'
-		,	'chihiro-subs.com','coalgirls.wakku.to','damedesuyo.com','dats.us','doki.co'
+		,	'chihiro-subs.com','coalgirls.wakku.to','commiesubs.com','damedesuyo.com','dats.us','doki.co'
 		,	'fallensoul.es','fansub.co','fansubs.ru','ggkthx.org','goodjobmedia.com'
 		,	'hologfx.com','honobono.cc','honyaku-subs.ru','horriblesubs.info','ii-subs.net','inka-subs.net'
 		,	'kitsunekko.net','lazylily.moe','live-evil.org','m33w-fansubs.com','mazuisubs.com','melon-subs.de','mod16.org'
@@ -1731,7 +1736,7 @@ sites = [
 		,	'a-pesni.org','agargara.com','allthemusic.info','animelyrics.com','aninx.com'
 		,	'audiomania.ru','audionautix.com','audioschool.ru'
 		,	'bad-band.net','barryvan.com.au','beatles.ru','boscaceoil.net'
-		,	'cbcmusic.ca','cctrax.com','chiptuneswin.com','clyp.it','cylinders.library.ucsb.edu'
+		,	'cbcmusic.ca','cctrax.com','chiparchive.com','chiptuneswin.com','clyp.it','cylinders.library.ucsb.edu'
 		,	'daimp3.org','dbpoweramp.com','deezer.com','defytheocean.com','discogs.com','electroshock.ru','eurovision.tv'
 		,	'fbits.ru','filmmusic.io','freedb.org','freemusicarchive.org','freepd.com','freesound.org'
 		,	'gendou.com','gnudb.org','gracenote.com'
@@ -1739,13 +1744,15 @@ sites = [
 		,	'karaokes.moe','karaoke.ru','khinsider.com','kosmosky.ru','kuukunen.net'
 		,	'larc-en-ciel.com','last.fm','lastfm.ru','lenin.ru','lesser-vibes.com'
 		,	'lilypond.org','linear.nu','linkco.re','littlesounddj.com','lyrical-nonsense.com'
-		,	'megalyrics.ru','metapop.com','midi.ru','mixcloud.com','mp3ller.ru','mobygratis.com','modarchive.org','mora.jp'
+		,	'megalyrics.ru','metapop.com','midi.ru','mixcloud.com','mp3ller.ru'
+		,	'mobygratis.com','modarchive.org','modland.com','mora.jp'
 		,	'musescore.com','music.uiowa.edu','musicbrainz.org','musicishere.com','musicxml.com','musixmatch.com'
 		,	'mutopiaproject.org','muzlostyle.ru','myzuka.org'
 		,	'nashipesni.info','no-fate.net','nocopyrightsounds.co.uk','noteserver.org','ocremix.org'
 		,	'patefon.fm','picosong.com','planetronica.ru','pleer.com','pouet.net','rateyourmusic.com','realmusic.ru','recochoku.jp'
 		,	's3m.it','s3m.us','sampleswap.org','scottbuckley.com.au','sh-whitecrow.com','shemusic.org','silvermansound.com'
-		,	'song-story.ru','soundcloud.com','soundprogramming.net','spinninrecords.com','spotify.com','surasshu.com','synthmania.com'
+		,	'song-story.ru','soundcloud.com','soundprogramming.net','sovietguitars.com'
+		,	'spinninrecords.com','spotify.com','surasshu.com','synthmania.com'
 		,	'teknoaxe.com','tekst-pesni-tut.ru','tenshi.ru','themes.moe','theremin.ru','thes1n.com','tlmc.eu'
 		,	'ubiktune.com','untergrund.net','vgmdb.net','vgmpf.com','vgmrips.net','vmuzike.net','webamp.org','zaycev.net'
 		]
@@ -1850,7 +1857,7 @@ sites = [
 	]
 ,	[
 		[	'buhitter.com','fixupx.com','fxtwitter.com','sdlcqz.com','shadowban.eu','ssstwitter.com','stwity.com'
-		,	'threader.app','threadreaderapp.com'
+		,	'threader.app','threadreaderapp.com','threads.net'
 		,	'twicomi.com','twimg.com','twitlonger.com','twitpic.com','twitrss.me'
 		,	'twittercommunity.com','twitterstat.us','twpublic.com','twtimez.net'
 		,	'vxtwitter.com','whotwi.com'
@@ -1933,7 +1940,7 @@ sites = [
 	]
 ,	[
 		[	'00f.net','0xd34df00d.me','0xj0e.sh','100r.co','1hakr.com','6vcr.com'
-		,	'aaronbarker.net','abdulkadir.net','acegikmo.com','adameivy.com','adriancourreges.com'
+		,	'aakinshin.net','aaronbarker.net','abdulkadir.net','acegikmo.com','adameivy.com','adriancourreges.com'
 		,	'aivanf.com','akkartik.name','akr.am'
 		,	'al3x.net','alexanderell.is','alexandersandberg.com','alexanderwales.com','alexdevs.pw','alexguichet.com'
 		,	'anastasiaopara.com','andrea.corbellini.name','andrew.im','andylomas.com','annevankesteren.nl'
@@ -1982,7 +1989,7 @@ sites = [
 		,	'rodrigofranco.com','rolandcrosby.com','romaricpascal.is','ross.net','rsms.me','rudd.fyi'
 		,	'saboteur.com.ua','sagebl.eu','sam.hocevar.net','samaltman.com','samip.fi','samy.pl','sarang.net','saschawillems.de'
 		,	'schizofreni.co','schlueters.de','scobleizer.com','scripting.com'
-		,	'sean.wtf','sebastiansylvan.com','sebastienlorber.com','sekao.net','seventeenzero.name'
+		,	'sean.wtf','sebastiansylvan.com','sebastienlorber.com','sekao.net','sepr0.com','seventeenzero.name'
 		,	'shadura.me','shakesville.com','shazow.net','shontell.me','shoorick.ru','siipo.la','sirtetris.com','sjm.io'
 		,	'slash7.com','slatestarcodex.com','slavfox.space','slbtty.info','smotko.si','snellman.net','sneyers.info','snook.ca'
 		,	'stallman.org','starkravingfinkle.org'
@@ -2141,7 +2148,6 @@ sites = [
 ,	[['glimpse-editor.org'				],'_software/_media/_grafix/gimp.org/']
 ,	[['docs.krita.org','krita-artists.org'		],'_software/_media/_grafix/krita.org/']
 ,	[['community.mypaint.org'			],'_software/_media/_grafix/mypaint.org/']
-,	[['forum.xnview.com','newsgroup.xnview.com'	],'_software/_media/_grafix/xnview.com//']
 ,	[['fluxometer.com','justgetflux.com'		],'_software/_media/_grafix/Flux']
 ,	[['cinepaint.org','cinepaint.bigasterisk.com'	],'_software/_media/_grafix//']
 ,	[['imagemagick.org','imagetragick.com'		],'_software/_media/_grafix//']
@@ -2149,6 +2155,19 @@ sites = [
 ,	[['procreate.art','procreate.si'		],'_software/_media/_grafix//']
 ,	[['pureref.com'					],'_software/_media/_grafix//',{'sub': [['forum',['forum']]]}]
 ,	[['systemax.jp'					],'_software/_media/_grafix//',{'sub': [['en',['en']],['ja',['ja']]]}]
+,	[['forum.xnview.com','newsgroup.xnview.com'	],'_software/_media/_grafix/xnview.com//']
+,	[
+		['xnview.com']
+	,	'_software/_media/_grafix//'
+	,	{
+			'sub': [
+				['_wiki'	,['wiki']]
+			,	['_bug_tracker'	,['mantisbt']]
+			,	['en'		,['en']]
+			,	['fr'		,['fr']]
+			]
+		}
+	]
 ,	[
 		[	'acdsee.com','apophysis.org','ardfry.com','artrage.com','binomial.info','blender.org'
 		,	'calligra.org','cdisplayex.com','darktable.org','digilinux.ru','drawpile.net'
@@ -2164,7 +2183,7 @@ sites = [
 		,	'planetside.co.uk','polycount.com','povray.org'
 		,	'qualibyte.com','quickmark.com.tw','renderhjs.net','riot-optimizer.com','simplefilter.de','spillerrec.dk'
 		,	'tachiyomi.org','taron.de','terawell.net','topazlabs.com'
-		,	'vectormagic.com','vizref.com','vulkan.org','xcont.com','xnview.com'
+		,	'vectormagic.com','vizref.com','vulkan.org','xcont.com'
 		]
 	,	'_software/_media/_grafix/'
 	]
@@ -2198,10 +2217,10 @@ sites = [
 		]
 	,	'_software/_net/_HTTP/_browser/_addons/_user_scripts/'
 	]
-,	[['isebaro.com','sebaro.pro'	],'_software/_net/_HTTP/_browser/_addons/_user_scripts//']
-,	[get_rei(r'^lunascape\.\w+$'	),'_software/_net/_HTTP/_browser/lunascape.tv']
-,	[get_rei(r'^vivaldi\.\w+$'	),'_software/_net/_HTTP/_browser/vivaldi.net/']
-,	[['vivaldi.net'			],'_software/_net/_HTTP/_browser/',{'sub': sub_domain_exc_www_directly}]
+,	[['isebaro.com','sebaro.pro'		],'_software/_net/_HTTP/_browser/_addons/_user_scripts//']
+,	[get_rei(r'^lunascape\.\w+$'		),'_software/_net/_HTTP/_browser/lunascape.tv']
+,	[get_rei(r'^vivaldi(status)?\.\w+$'	),'_software/_net/_HTTP/_browser/vivaldi.net/']
+,	[['vivaldi.net'				],'_software/_net/_HTTP/_browser/',{'sub': sub_domain_exc_www_directly}]
 ,	[
 		[	'basilisk-browser.org','mypal-browser.org','nightlizard.libinfo.science','palemoon.org'
 		]
@@ -2211,7 +2230,7 @@ sites = [
 		[	'amadzone.org','ashughes.com','canvasblocker.kkapsner.de'
 		,	'fasezero.com','firefox.com','geckoworld.ru','kmeleonbrowser.org'
 		,	'm64.info','mozdev.org','mozilla-community.org','mozilla-russia.org','mozilla64bit.com','mozillazine.org','mozvr.com'
-		,	'searchfox.org','servo.org','waterfox.net'
+		,	'seamonkey-project.org','searchfox.org','servo.org','waterfox.net'
 		]
 	,	'_software/_net/_HTTP/_browser/mozilla.org/'
 	]
@@ -2403,12 +2422,13 @@ sites = [
 		,	'codr.cc','concurrencykit.org','coredump.cx','corte.si'
 		,	'daringfireball.net','db0.company','devdocs.io'
 		,	'emojicode.org','enigma-dev.org','esolangs.org','example-code.com','exceptionnotfound.net'
-		,	'float.exposed','floating-point-gui.de','gafferongames.com','garagegames.com','golancourses.net','golf.shinh.org'
+		,	'float.exposed','floating-point-gui.de'
+		,	'gafferongames.com','garagegames.com','gitverse.ru','golancourses.net','golf.shinh.org'
 		,	'handmade.network','hardmo.de','icontem.com','ideone.com','idownvotedbecau.se','infoq.com','iolanguage.org'
 		,	'jacobdoescode.com','jemalloc.net','jetbrains.com','joelonsoftware.com','johndcook.com','jonskeet.uk','juliobiason.net'
 		,	'kukuruku.co','leetcode.com','lgtm.com','lolcode.org','martinfowler.com','mergely.com','merrymage.com','mingw.org'
 		,	'nim-lang.org','notepad-plus-plus.org','ocks.org','oneapi.io'
-		,	'prettier.io','prideout.net','probablydance.com','probablyprogramming.com','programmersforum.ru'
+		,	'prettier.io','prideout.net','probablydance.com','probablyprogramming.com','programmersforum.ru','programming.dev'
 		,	'realtimerendering.com','rosettacode.org'
 		,	'schema.org','scintilla.org','semver.org','sfml-dev.org','spinroot.com','sscce.org'
 		,	'thebookofshaders.com','thecodist.com','thedailywtf.com','tiobe.com','tproger.ru','tympanus.net'
@@ -2583,7 +2603,7 @@ sites = [
 		,	'cockos.com','code.horse','codeclimate.com','codecpack.co','codeplex.com'
 		,	'cr.yp.to','crackwatch.com','crystalidea.com','crystalmark.info','cyberforum.ru'
 		,	'ddecode.com','dege.freeweb.hu','dependencywalker.com','deskchan.info','desksoft.com','destroyallsoftware.com','dev.to'
-		,	'dinaburg.org','diskanalyzer.com','docker.com','donationcoder.com','dunnbypaul.net','dz.rus'
+		,	'dinaburg.org','diskanalyzer.com','djvu.org','docker.com','donationcoder.com','dunnbypaul.net','dz.rus'
 		,	'ekioh.com','endoflife.date','entropymine.com','epubread.com','evolt.org','eyeleo.com'
 		,	'filehippo.com','forkhq.com','fosshub.com','freedos.org','fsf.org','fuchsia.dev','fulgan.com'
 		,	'geekly.info','ghacks.net'
@@ -2665,8 +2685,9 @@ sites = [
 ,	[
 		[	'7books.ru','an-ovel.com','baen.com','bhv.ru','blindsight.space','bookmate.com','chitai-gorod.ru'
 		,	'dmkpress.com','ekniga.org','gutenberg.org','harry-harrison.ru','hell.pl','isfdb.org','kodges.ru'
-		,	'librebook.me','libs.ru','litresp.com','online-knigi.com','paraknig.me'
-		,	'ranobehub.org','readli.net','ridero.ru','rifters.com','sfsfss.com','uazdao.ru','unotices.com','vse-knigi.org'
+		,	'librebook.me','libs.ru','litresp.com','novelupdatesforum.com','online-knigi.com','paraknig.me'
+		,	'ranobehub.org','readli.net','ridero.ru','rifters.com','sfsfss.com','shmtranslations.com','syosetu.com'
+		,	'uazdao.ru','unotices.com','vse-knigi.org','woodtools.nov.ru'
 		]
 	,	'_text/_books/'
 	]
@@ -2701,7 +2722,8 @@ sites = [
 	,	'_torrents/'
 	,	{
 			'sub': [
-				['_search'	,['search']]
+				['_search'	,get_rei(r'^/*search(?:[?&]+[^?&#=]*=[^?&#]*)*?[?&]+aid=(?P<ID>\d+)'), r' - \g<ID>', replace_title_tail_unmht]
+			,	['_search'	,['search']]
 			,	['_series'	,get_rei(r'^/*series'	+ part_url_tail_ID), r' - \g<ID>', replace_title_tail_unmht]
 			,	['_series'	,['series']]
 			,	['_episode'	,get_rei(r'^/*episode'	+ part_url_tail_ID), r' - \g<ID>', replace_title_tail_unmht]
@@ -2738,6 +2760,8 @@ sites = [
 ,	[['ouo.si'						],'_torrents//']
 ,	[['rarbg.to','rarbgaccess.org'				],'_torrents//']
 ,	[['rutor.org','freedom-tor.org'				],'_torrents//']
+,	[['seadex.','releases.moe'				],'_torrents//']
+,	[['sneedex.moe'						],'_torrents//']
 ,	[get_rei(r'^anidex\.\w+$'				),'_torrents/anidex.info']
 ,	[get_rei(r'^forums?\.bakabt\.\w+$'			),'_torrents/bakabt.me/_forum']
 ,	[get_rei(r'^wiki\.bakabt\.\w+$'				),'_torrents/bakabt.me/_wiki']
@@ -2815,7 +2839,7 @@ sites = [
 		,	'picarto.tv','piczel.tv','polsy.org.uk','pornhub.com','rutube.ru','rule34video.com'
 		,	'smashcast.tv','snep.pw','snotr.com','spankbang.com','streamable.com','synchtube.ru'
 		,	'tenor.com','thisishorosho.ru','tiktok.com','twitch.tv'
-		,	'vid.me','video.eientei.org','videvo.net','vidivodo.com','vimeo.com','vine.co'
+		,	'vid.me','video.eientei.org','videvo.net','vidivodo.com','vimeo.com','vine.co','vkvideo.ru'
 		,	'w0bm.com','wasd.tv','webcams.travel','webkams.com','webm.host','webm.red','webmshare.com','webmup.com'
 		,	'xhevc.com','xnxx.com','xvideos.com','youdubber.com','youku.com','youtubemultiplier.com','ytmnd.com'
 		,	'z0r.de','zanorg.net','zenrus.ru'
@@ -2954,6 +2978,7 @@ sites = [
 	]
 ,	[['downdetector.com','downdetector.ru'		],'_web/_site/_is_it_up_or_down//']
 ,	[['downforeveryoneorjustme.com','downfor.io'	],'_web/_site/_is_it_up_or_down//']
+,	[[u'сбой.рф','xn--90aqok.xn--p1ai'		],'_web/_site/_is_it_up_or_down//']
 ,	[
 		[	'doj.me','isitblockedinrussia.com','isitdownrightnow.com','isup.me','uptimestat.ru'
 		]
@@ -3062,10 +3087,10 @@ sites = [
 	,	'_wiki/wikipedia.org/'
 	]
 ,	[
-		[	'1d4chan.org','allll.net','allthetropes.org','asianwiki.com','boobpedia.com'
+		[	'1d4chan.org','allll.net','allthetropes.org','asianwiki.com','atwiki.jp','boobpedia.com'
 		,	'c2.com','cirnopedia.info','cyclowiki.org','dramatica.org.ua'
 		,	'emoji.wiki','emojipedia.org','eswiki.ru','everything2.com','fanlore.org','fractalwiki.org'
-		,	'genworld.info','gfwiki.com','implyingrigged.info','kiwix.org','knowledgr.com','koumakan.jp','krsw-wiki.org'
+		,	'genworld.info','gfwiki.com','implyingrigged.info','incels.wiki','kiwix.org','knowledgr.com','koumakan.jp','krsw-wiki.org'
 		,	'liquipedia.net','lostmediawiki.com','lspace.org','lukomore.org','lurklurk.com','lurkmore.com'
 		,	'miraheze.org','moegirl.org','neolurk.org','posmotre.li','posmotreli.su'
 		,	'rationalwiki.org','ruwiki.ru','ruxpert.ru','scp-wiki.net','shoutwiki.com','sonichu.com'
@@ -3095,7 +3120,7 @@ sites = [
 		}
 	]
 ,	[
-		[	'9to5google.com','goog','googleapis.com','googleblog.com','googlelabs.com'
+		[	'9to5google.com','gearthblog.com','goog','googleapis.com','googleblog.com','googlelabs.com'
 		,	'googlesource.com','googlesyndication.com','googleusercontent.com','gstatic.com'
 		,	'killedbygoogle.com','thinkwithgoogle.com','withgoogle.com'
 		]
