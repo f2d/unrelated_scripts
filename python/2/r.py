@@ -49,6 +49,7 @@ def print_help():
 	,	'		interpreted as switches (on/off),'
 	,	'		resulting always in this order: y/ym/m/ymd/d/'+arg_name_sub
 	,	''
+	,	'	n2m, not2make: only move into existing subdirs, ignore files that need to make new'
 	,	'	d2s, dirs2sub, dir: move dirs into subdir by name and/or mod-time too'
 	,	'	s2r, sub2root: move to subdirs relative to current working folder instead of to source'
 	,	''
@@ -124,6 +125,7 @@ arg_move_subtypes_up    = 'u' in arg_flags
 arg_move_web_pages      = 'w' in arg_flags
 arg_move_dirs_to_subdir_by_modtime  = 'd2s' in other_args or 'dirs2sub' in other_args or 'dir' in other_args
 arg_move_to_subdir_relative_to_root = 's2r' in other_args or 'sub2root' in other_args
+arg_move_only_to_existing_subdirs   = 'n2m' in other_args or 'not2make' in other_args
 
 arg_subdir_modtime_format = ''
 
@@ -754,8 +756,13 @@ def move_processed_target(src_path, path, name, dest_dir=None):
 
 			try:
 				if not os.path.exists(dest_dir):
-					print colored('Path not found, make dirs:', 'yellow'), dest_dir.encode(default_print_encoding)
-					os.makedirs(dest_dir)
+					if arg_move_only_to_existing_subdirs:
+						print colored('Path not found, skipped:', 'yellow'), dest_dir.encode(default_print_encoding)
+						
+						return
+					else:
+						print colored('Path not found, make dirs:', 'yellow'), dest_dir.encode(default_print_encoding)
+						os.makedirs(dest_dir)
 
 				os.rename(src_path, dest)
 				n_moved += 1
