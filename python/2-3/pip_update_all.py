@@ -55,26 +55,35 @@ print(
 )
 
 # Get list of packages to update: ---------------------------------------------
+# https://stackoverflow.com/a/24736563
+
+try:
+	from importlib.metadata import distributions
+	packages = [dist.metadata['Name'] for dist in distributions()]
+
+	cprint('Got packages from importlib.metadata\n', 'yellow')
+
+except ImportError:
+
 # https://stackoverflow.com/a/5839291
 
-# if pip_version < 10.0.1:
-if (
-	(len(pip_version_numbers) < 1 or pip_version_numbers[0] < 10)
-or	(
-		(len(pip_version_numbers) < 1 or pip_version_numbers[0] == 10)
-	and	(len(pip_version_numbers) < 2 or pip_version_numbers[1] <= 0)
-	and	(len(pip_version_numbers) < 3 or pip_version_numbers[2] < 1)
-	)
-):
-	cprint('Get packages for pip version <= 10.0.0:\n', 'yellow')
+	if (
+		(len(pip_version_numbers) < 1 or pip_version_numbers[0] < 10)
+	or	(
+			(len(pip_version_numbers) < 1 or pip_version_numbers[0] == 10)
+		and	(len(pip_version_numbers) < 2 or pip_version_numbers[1] <= 0)
+		and	(len(pip_version_numbers) < 3 or pip_version_numbers[2] < 1)
+		)
+	):
+		cprint('Get packages for pip version <= 10.0.0:\n', 'yellow')
 
-	import pip
-	packages = [dist.project_name for dist in pip.get_installed_distributions()]
-else:
-	cprint('Get packages for pip version >= 10.0.1:\n', 'yellow')
+		import pip
+		packages = [dist.project_name for dist in pip.get_installed_distributions()]
+	else:
+		cprint('Get packages for pip version >= 10.0.1:\n', 'yellow')
 
-	import pkg_resources
-	packages = [dist.project_name for dist in pkg_resources.working_set]
+		import pkg_resources
+		packages = [dist.project_name for dist in pkg_resources.working_set]
 
 cmd_string = pip_exe_filename + ' install --upgrade ' + ' '.join(packages)
 
