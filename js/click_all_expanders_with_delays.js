@@ -14,16 +14,30 @@ Enter the following line to stop it:
 
 (function () {
 
+	var targetTextParts = [
+		/\d+\s+repl(y|ies)/i,	//* youtube.com/watch
+		'read more',		//* youtube.com/watch
+		'more replies',		//* youtube.com/watch
+		'show more',		//* vk.com
+		'see more',		//* vk.com
+		'load more comment',	//* reddit
+		'[+]',			//* reddit
+		'loading...',		//* reddit
+		'показать',		//* pikabu.ru, ru.wiktionary.org
+		'раскрыть ветку',	//* pikabu.ru
+		'комментари',		//* pikabu.ru, dtf.ru, naked-science.ru
+		/Ещё\s+\d+\s+комментари/i,	//* dzen.ru
+		/Показать\s+\d+\s+ответ/i,	//* dzen.ru
+		'ещё',				//* dzen.ru
+		' ответ',			//* dzen.ru
+		'▼',
+		'[show replies]',
+		'more>>',
+		'spoiler',
+		'expand',
+	];
+
 	var targetCssClasses = [
-		'comment-more-button _child',		//* dzen.ru
-		'comment-toggle-children_collapse',	//* pikabu.ru
-		'comment-hidden-group__toggle',		//* pikabu.ru
-		'community-info-block__read-more-label',//* pikabu.ru
-		'story__read-more-label',		//* pikabu.ru
-		'shesht-comments-block-form-readmore',	//* naked-science.ru
-		'toggle-comment',			//* naked-science.ru
-		'ytd-continuation-item-renderer',	//* youtube.com/watch
-		'more-button',				//* youtube.com/watch
 		'comment__more',
 		'comment__load-more',	//* dtf.ru
 		'button',		//* reddit
@@ -32,33 +46,43 @@ Enter the following line to stop it:
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
 		'mw-collapsible-text',	//* wiktionary.org
-		'NavToggle',
-		'HQToggle',
+		'NavToggle',		//* wiktionary.org
+		'HQToggle',		//* wiktionary.org
+		'comment-toggle-children_collapse',	//* pikabu.ru
+		'comment-hidden-group__toggle',		//* pikabu.ru
+		'community-info-block__read-more-label',//* pikabu.ru
+		'story__read-more-label',		//* pikabu.ru
+		'shesht-comments-block-form-readmore',	//* naked-science.ru
+		'toggle-comment',			//* naked-science.ru
+		'ytd-continuation-item-renderer',	//* youtube.com/watch
+		'more-button',				//* youtube.com/watch
+		'comment-more-button_child',			//* dzen.ru
+		'comments2--more-comments-button__block-3P',	//* dzen.ru
+		'comments2--root-comment__textBtn-1S',		//* dzen.ru
+		'comments2--rich-text__expandWord-2_',		//* dzen.ru
+		'showreplies',
+		'ml-px',
+		'morelink',
+		'sp-head',
+		/styles_lia-g-loader-btn__\S/i,
 	];
 
-	var targetTextParts = [
-		/\d+\s+repl(y|ies)/i,	//* youtube.com/watch
-		'Read more',		//* youtube.com/watch
-		'show more replies',	//* youtube.com/watch
-		'Show more',		//* vk.com
-		'see more',		//* vk.com
-		'load more comment',	//* reddit
-		'[+]',			//* reddit
-		'loading...',		//* reddit
-		'показать',		//* ru.wiktionary.org, pikabu.ru
-		'раскрыть ветку',	//* pikabu.ru
-		'комментари',		//* dtf.ru, pikabu.ru, naked-science.ru
-		' ответ',		//* dzen.ru
-		'▼',
-	];
-
+	var skipCssClasses = ['unfolded'];
+	var clickableTagNames = ['a', 'button'];
 	var clickedElements = [];
 
 	function openAllVisibleExpanders() {
 		var linksTotalCount = 0;
 
-		function getClickCallback(e,i) { return (function() {
-			if (e) {
+		function getClickCallback(e, i) { return (function() {
+			if (window.stopOpeningExpanders) {
+				console.log(
+					i
+				+	' / '
+				+	linksTotalCount
+				+	' skipped'
+				);
+			} else if (e) {
 				console.log(
 					i
 				+	' / '
@@ -69,7 +93,7 @@ Enter the following line to stop it:
 					.replace(/\s+/g, ' ')
 				);
 
-				e.click();
+				(getClickableChild(e) || e).click();
 			}
 
 			if (
@@ -82,56 +106,80 @@ Enter the following line to stop it:
 			}
 		}); }
 
-		for (var className of targetCssClasses) {
+		function getClickableChild(e, a) {
+			for (var eachTagName of clickableTagNames) {
+				if (e.tagName.toLowerCase() === eachTagName) return e;
+				if (a = e.getElementsByTagName(eachTagName)[0]) return a;
+			}
+		}
+
+		function checkLinkElement(eachLinkElement) {
+			for (var eachSkipName of skipCssClasses)
+			if (
+				eachSkipName.test
+				? eachSkipName.test(eachLinkElement.className)
+				: eachLinkElement.classList.contains(eachSkipName
+			) return;
+
+			var style, testElement = eachLinkElement;
+
+			while (testElement)
+			if (
+				testElement.hidden
+			||	clickedElements.includes(testElement)
+			||	(
+					(style = testElement.style)
+				&&	(
+						style.opacity === 0
+					||	style.display === 'none'
+					||	style.visibility === 'hidden'
+					)
+				)
+			) {
+				return;
+			} else {
+				testElement = testElement.parentNode;
+			}
+
+			if (linkTextContent = eachLinkElement.textContent) {
+				var linkTextLowerCase = linkTextContent.toLowerCase();
+
+				for (var eachLinkText of targetTextParts)
+				if (
+					typeof eachLinkText === 'string'
+					? (
+						linkTextContent.includes(eachLinkText)
+					||	linkTextLowerCase.includes(eachLinkText)
+					)
+					: eachLinkText.test(linkTextContent)
+				) {
+					++linksOfClassCount;
+					++linksTotalCount;
+
+					clickedElements.push(eachLinkElement);
+
+					setTimeout(
+						getClickCallback(eachLinkElement, linksTotalCount)
+					,	linksTotalCount * 900 + Math.random() * 900
+					);
+
+					break;
+				}
+			}
+		}
+
+		for (var eachCssClass of targetCssClasses) {
 			var linksOfClassCount = 0;
 
-			forEachLinkElement:
-			for (var linkElement of document.getElementsByClassName(className)) {
-
-				var style, testElement = linkElement;
-
-				while (testElement)
-				if (
-					testElement.hidden
-				||	clickedElements.includes(testElement)
-				||	(
-						(style = testElement.style)
-					&&	(
-							style.opacity === 0
-						||	style.display === 'none'
-						||	style.visibility === 'hidden'
-						)
-					)
-				) {
-					continue forEachLinkElement;
-				} else {
-					testElement = testElement.parentNode;
+			if (eachCssClass.test) {
+				for (var eachTagName of clickableTagNames)
+				for (var eachLinkElement of document.getElementsByTagName(eachTagName))
+				if (eachCssClass.test(eachLinkElement.className)) {
+					checkLinkElement(eachLinkElement);
 				}
-
-				if (linkTextContent = linkElement.textContent) {
-					var linkTextLowerCase = linkTextContent.toLowerCase();
-
-					for (var linkText of targetTextParts)
-					if (
-						typeof linkText === 'string'
-						? (
-							linkTextContent.includes(linkText)
-						||	linkTextLowerCase.includes(linkText)
-						)
-						: linkText.test(linkTextContent)
-					) {
-						++linksOfClassCount;
-						++linksTotalCount;
-
-						clickedElements.push(linkElement);
-
-						setTimeout(
-							getClickCallback(linkElement, linksTotalCount),
-							linksTotalCount * 300 + Math.random() * 200
-						);
-
-						break;
-					}
+			} else {
+				for (var eachLinkElement of document.getElementsByClassName(eachCssClass)) {
+					checkLinkElement(eachLinkElement);
 				}
 			}
 
@@ -139,7 +187,7 @@ Enter the following line to stop it:
 				'Found '
 			+	linksOfClassCount
 			+	' targets of class "'
-			+	className
+			+	eachCssClass
 			+	'" '
 			);
 		}
