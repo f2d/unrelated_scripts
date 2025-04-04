@@ -118,7 +118,7 @@ Enter the following line to stop it:
 			if (
 				eachSkipName.test
 				? eachSkipName.test(eachLinkElement.className)
-				: eachLinkElement.classList.contains(eachSkipName
+				: eachLinkElement.classList.contains(eachSkipName)
 			) return;
 
 			var style, testElement = eachLinkElement;
