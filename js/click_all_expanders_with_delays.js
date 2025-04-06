@@ -23,6 +23,7 @@ Enter the following line to stop it:
 		'load more comment',	//* reddit
 		'[+]',			//* reddit
 		'loading...',		//* reddit
+		'note',			//* tvtropes.org
 		'показать',		//* pikabu.ru, ru.wiktionary.org
 		'раскрыть ветку',	//* pikabu.ru
 		'комментари',		//* pikabu.ru, dtf.ru, naked-science.ru
@@ -40,14 +41,15 @@ Enter the following line to stop it:
 	var targetCssClasses = [
 		'comment__more',
 		'comment__load-more',	//* dtf.ru
-		'button',		//* reddit
 		'expand',		//* reddit
+		'button',		//* reddit
 		'PostTextMore',		//* vk.com
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
 		'mw-collapsible-text',	//* wiktionary.org
 		'NavToggle',		//* wiktionary.org
 		'HQToggle',		//* wiktionary.org
+		'notelabel',		//* tvtropes.org
 		'comment-toggle-children_collapse',	//* pikabu.ru
 		'comment-hidden-group__toggle',		//* pikabu.ru
 		'community-info-block__read-more-label',//* pikabu.ru
@@ -68,25 +70,28 @@ Enter the following line to stop it:
 	];
 
 	var skipCssClasses = ['unfolded'];
+	var unskipTextParts = ['loading...'];
 	var clickableTagNames = ['a', 'button'];
-	var clickedElements = [];
+	var doneElements = [];
 
 	function openAllVisibleExpanders() {
-		var linksTotalCount = 0;
+		var pendingTotalCount = 0;
+		var pendingIndex = 0;
+		var pendingElements = [];
 
-		function getClickCallback(e, i) { return (function() {
+		function checkPendingElement(e) {
 			if (window.stopOpeningExpanders) {
 				console.log(
-					i
+					pendingIndex
 				+	' / '
-				+	linksTotalCount
+				+	pendingTotalCount
 				+	' skipped'
 				);
-			} else if (e) {
+			} else if (e = pendingElements[pendingIndex]) {
 				console.log(
-					i
+					pendingIndex
 				+	' / '
-				+	linksTotalCount
+				+	pendingTotalCount
 				+	' = '
 				+	e.textContent
 					.replace(/^\s+|\s+$/g, '')
@@ -96,21 +101,36 @@ Enter the following line to stop it:
 				(getClickableChild(e) || e).click();
 			}
 
-			if (
-				!window.stopOpeningExpanders
-			&&	i === linksTotalCount
-			) {
-				console.log('Retrying...');
+			if (!window.stopOpeningExpanders) {
+				if (pendingIndex < pendingTotalCount) {
+					++pendingIndex;
 
-				setTimeout(openAllVisibleExpanders, 1234);
+					setTimeout(checkPendingElement, 900 + Math.random() * 900);
+				} else {
+					console.log('Retrying...');
+
+					setTimeout(openAllVisibleExpanders, 1234);
+				}
 			}
-		}); }
+		}
 
 		function getClickableChild(e, a) {
 			for (var eachTagName of clickableTagNames) {
 				if (e.tagName.toLowerCase() === eachTagName) return e;
 				if (a = e.getElementsByTagName(eachTagName)[0]) return a;
 			}
+		}
+
+		function isTextMatch(matchRules, text, textLowerCase) {
+			for (var eachRule of matchRules)
+			if (
+				eachRule.test
+				? eachRule.test(text)
+				: (
+					text.includes(eachRule)
+				||	textLowerCase.includes(eachRule)
+				)
+			) return true;
 		}
 
 		function checkLinkElement(eachLinkElement) {
@@ -123,53 +143,41 @@ Enter the following line to stop it:
 
 			var style, testElement = eachLinkElement;
 
-			while (testElement)
-			if (
-				testElement.hidden
-			||	clickedElements.includes(testElement)
-			||	(
-					(style = testElement.style)
-				&&	(
-						style.opacity === 0
-					||	style.display === 'none'
-					||	style.visibility === 'hidden'
+			while (testElement) {
+				if (
+					testElement.hidden
+				||	doneElements.includes(testElement)
+				||	(
+						(style = testElement.style)
+					&&	(
+							style.opacity === 0
+						||	style.display === 'none'
+						||	style.visibility === 'hidden'
+						)
 					)
-				)
-			) {
-				return;
-			} else {
+				) return;
+
 				testElement = testElement.parentNode;
 			}
 
 			if (linkTextContent = eachLinkElement.textContent) {
 				var linkTextLowerCase = linkTextContent.toLowerCase();
 
-				for (var eachLinkText of targetTextParts)
-				if (
-					typeof eachLinkText === 'string'
-					? (
-						linkTextContent.includes(eachLinkText)
-					||	linkTextLowerCase.includes(eachLinkText)
-					)
-					: eachLinkText.test(linkTextContent)
-				) {
-					++linksOfClassCount;
-					++linksTotalCount;
+				if (isTextMatch(targetTextParts, linkTextContent, linkTextLowerCase)) {
+					++pendingClassCount;
+					++pendingTotalCount;
 
-					clickedElements.push(eachLinkElement);
+					pendingElements.push(eachLinkElement);
 
-					setTimeout(
-						getClickCallback(eachLinkElement, linksTotalCount)
-					,	linksTotalCount * 900 + Math.random() * 900
-					);
-
-					break;
+					if (!isTextMatch(unskipTextParts, linkTextContent, linkTextLowerCase)) {
+						doneElements.push(eachLinkElement);
+					}
 				}
 			}
 		}
 
 		for (var eachCssClass of targetCssClasses) {
-			var linksOfClassCount = 0;
+			var pendingClassCount = 0;
 
 			if (eachCssClass.test) {
 				for (var eachTagName of clickableTagNames)
@@ -183,9 +191,9 @@ Enter the following line to stop it:
 				}
 			}
 
-			if (linksOfClassCount > 0) console.log(
+			if (pendingClassCount > 0) console.log(
 				'Found '
-			+	linksOfClassCount
+			+	pendingClassCount
 			+	' targets of class "'
 			+	eachCssClass
 			+	'" '
@@ -194,12 +202,15 @@ Enter the following line to stop it:
 
 		console.log(
 			'Total visible targets: '
-		+	linksTotalCount
+		+	pendingTotalCount
 		);
 
-		if (!window.stopOpeningExpanders && !linksTotalCount) {
-			setTimeout(openAllVisibleExpanders, 12345);
-			clickedElements = [];
+		if (!window.stopOpeningExpanders) {
+			if (pendingTotalCount) {
+				setTimeout(checkPendingElement, 1234);
+			} else {
+				setTimeout(openAllVisibleExpanders, 12345);
+			}
 		}
 	}
 
