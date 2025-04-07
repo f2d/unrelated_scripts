@@ -17,10 +17,10 @@ Enter the following line to stop it:
 	var targetTextParts = [
 		/\d+\s+repl(y|ies)/i,	//* youtube.com/watch
 		'read more',		//* youtube.com/watch
-		'more replies',		//* youtube.com/watch
+		'more replies',		//* youtube.com/watch, fandom.com
 		'show more',		//* vk.com
 		'see more',		//* vk.com
-		'load more comment',	//* reddit
+		'load more comment',	//* reddit, fandom.com
 		'[+]',			//* reddit
 		'loading...',		//* reddit
 		'note',			//* tvtropes.org
@@ -66,11 +66,14 @@ Enter the following line to stop it:
 		'ml-px',
 		'morelink',
 		'sp-head',
+		'load-more-button',			//* fandom.com
+		/LoadMoreButton_load-more__\S/i,	//* fandom.com
+		/ReplyList_view-all-replies__\S/i,	//* fandom.com
 		/styles_lia-g-loader-btn__\S/i,
 	];
 
 	var skipCssClasses = ['unfolded'];
-	var unskipTextParts = ['loading...'];
+	var unskipTextParts = ['load more comments','loading...'];
 	var clickableTagNames = ['a', 'button'];
 	var doneElements = [];
 
