@@ -108,7 +108,7 @@ Enter the following line to stop it:
 				if (pendingIndex < pendingTotalCount) {
 					++pendingIndex;
 
-					setTimeout(checkPendingElement, 900 + Math.random() * 900);
+					setTimeout(checkPendingElement, (Math.ceil(pendingIndex / 50) + Math.random()) * 900);
 				} else {
 					console.log('Retrying...');
 
