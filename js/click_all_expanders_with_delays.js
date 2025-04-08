@@ -9,7 +9,7 @@ Target CSS classes and text content parts are written for specific sites.
 Change these lists as needed for other sites.
 
 Enter the following line to stop it:
-	window.stopOpeningExpanders = 0;
+	window.stopOpeningExpanders = 1;
 */
 
 (function () {
@@ -84,29 +84,20 @@ Enter the following line to stop it:
 
 		function checkPendingElement(e) {
 			if (window.stopOpeningExpanders) {
-				console.log(
-					pendingIndex
-				+	' / '
-				+	pendingTotalCount
-				+	' skipped'
-				);
-			} else if (e = pendingElements[pendingIndex]) {
-				console.log(
-					pendingIndex
-				+	' / '
-				+	pendingTotalCount
-				+	' = '
-				+	e.textContent
-					.replace(/^\s+|\s+$/g, '')
-					.replace(/\s+/g, ' ')
-				);
+				console.log('Stopped.');
+			} else {
+				if (e = pendingElements[pendingIndex++]) {
+					console.log(
+						pendingIndex
+					+	' / '
+					+	pendingTotalCount
+					+	' = '
+					+	e.textContent
+						.replace(/^\s+|\s+$/g, '')
+						.replace(/\s+/g, ' ')
+					);
 
-				(getClickableChild(e) || e).click();
-			}
-
-			if (!window.stopOpeningExpanders) {
-				if (pendingIndex < pendingTotalCount) {
-					++pendingIndex;
+					(getClickableChild(e) || e).click();
 
 					setTimeout(checkPendingElement, (Math.ceil(pendingIndex / 50) + Math.random()) * 900);
 				} else {
