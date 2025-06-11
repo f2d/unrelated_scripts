@@ -28,7 +28,7 @@ def print_help():
 	,	'		Otherwise just show expected values.'
 	,	''
 	,	'	r: Recursively go into subfolders.'
-	,	'	e: Delete empty folders.'
+	,	'	e: Delete empty folders. Repeat N times to keep N top levels.'
 	,	''
 	,	'	d: Set each folder mod-time to latest file inside.'
 	,	'	i: Set each folder mod-time to latest folder inside.'
@@ -54,6 +54,7 @@ def print_help():
 	,	'	{0} dirf'
 	,	'	{0} adry'
 	,	'	{0} abdir "*.txt"'
+	,	'	{0} reead'
 	]
 
 	print('\n'.join(help_text_lines).format(self_name))
@@ -221,7 +222,7 @@ def run_batch_retime(argv):
 
 		return file_content
 
-	def process_folder(path):
+	def process_folder(path, level=0):
 
 		def check_time_in(last_time, text, pat=None, read_mode=None):
 
@@ -370,9 +371,12 @@ def run_batch_retime(argv):
 				counts['dirs_checked'] += 1
 
 				if arg_recurse:
-					modtime_value = process_folder(path_name)
+					modtime_value = process_folder(path_name, level + 1)
 
-					if arg_delete_empty_folders:
+					if (
+						arg_delete_empty_folders
+					and	arg_delete_empty_folders <= level
+					):
 						if (
 							modtime_value
 						and	modtime_value < 0
@@ -482,9 +486,13 @@ def run_batch_retime(argv):
 						if included and last_file_time_of_included < modtime_value:
 							last_file_time_of_included = modtime_value
 
-		if arg_delete_empty_folders and	(
-			not names
-		or	len(names) == empty_folders_inside_to_delete
+		if (
+			arg_delete_empty_folders
+		and	arg_delete_empty_folders <= level
+		and	(
+				not names
+			or	len(names) == empty_folders_inside_to_delete
+			)
 		):
 			if arg_verbose_testing:
 				path = os.path.abspath(path)
@@ -584,7 +592,7 @@ def run_batch_retime(argv):
 	arg_verbose = arg_verbose_testing or not (arg_silent or arg_quiet)
 	arg_collect_error_messages = 'w' in flags
 
-	arg_delete_empty_folders = 'e' in flags
+	arg_delete_empty_folders = flags.count('e')
 	arg_dirs_modtime_by_dirs = 'i' in flags
 	arg_dirs_modtime_by_files = 'd' in flags
 	arg_files_modtime_by_content = 'f' in flags
