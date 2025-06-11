@@ -15,30 +15,25 @@ Enter the following line to stop it:
 (function () {
 
 	var targetTextParts = [
-		/\d+\s+repl(y|ies)/i,	//* youtube.com/watch
-		'read more',		//* youtube.com/watch
-		'more replies',		//* youtube.com/watch, fandom.com
-		'show more',		//* vk.com
-		'see more',		//* vk.com
-		'load more comment',	//* reddit, fandom.com
-		'[+]',			//* reddit
-		'loading...',		//* reddit
-		'note',			//* tvtropes.org
-		'показать',		//* pikabu.ru, ru.wiktionary.org
-		'раскрыть ветку',	//* pikabu.ru
-		'комментари',		//* pikabu.ru, dtf.ru, naked-science.ru
-		/Ещё\s+\d+\s+комментари/i,	//* dzen.ru
-		/Показать\s+\d+\s+ответ/i,	//* dzen.ru
-		'ещё',				//* dzen.ru
-		' ответ',			//* dzen.ru
-		'▼',
-		'[show replies]',
-		'more>>',
-		'spoiler',
+		/(\d+|load|read|see|show)\s+(more|repl(y|ies))/i,	//* youtube.com/watch, github.com, myanimelist.net, reddit, vk.com, etc
+		/more(\s+replies|[>]+)/i,				//* youtube.com/watch, fandom.com, novelupdates.com, etc
+		/^\s*(show)\s*$/i,					//* wikipedia.org
+		'[+]',		//* reddit
+		'loading...',	//* reddit
+		'note',		//* tvtropes.org
+		'▼',		//* wiktionary.org
+		'развернуть',	//* neolurk.org
+		'раскрыть',	//* pikabu.ru
+		'показать',	//* pikabu.ru, dzen.ru, ru.wiktionary.org
+		'комментари',	//* pikabu.ru, dzen.ru, dtf.ru, naked-science.ru
+		'ещё',		//* dzen.ru
+		'ответ',	//* dzen.ru
+		'spoiler',	//* novelupdates.com
 		'expand',
 	];
 
 	var targetCssClasses = [
+		'js-readmore',		//* myanimelist.net
 		'comment__more',
 		'comment__load-more',	//* dtf.ru
 		'expand',		//* reddit
@@ -46,6 +41,7 @@ Enter the following line to stop it:
 		'PostTextMore',		//* vk.com
 		'wall_post_more',	//* vk.com
 		'wall_reply_more',	//* vk.com
+		'vector-toc-list-item',	//* wikipedia.org
 		'mw-collapsible-text',	//* wiktionary.org
 		'NavToggle',		//* wiktionary.org
 		'HQToggle',		//* wiktionary.org
@@ -66,13 +62,17 @@ Enter the following line to stop it:
 		'ml-px',
 		'morelink',
 		'sp-head',
+		'comment-item-view-replies',	//* 9gag.com
+		'load-next__replies',		//* 9gag.com
 		'load-more-button',			//* fandom.com
 		/LoadMoreButton_load-more__\S/i,	//* fandom.com
 		/ReplyList_view-all-replies__\S/i,	//* fandom.com
 		/styles_lia-g-loader-btn__\S/i,
+		/prc-Button-ButtonBase-\S/i,		//* github.com
 	];
 
-	var skipCssClasses = ['unfolded'];
+	var skipCssClasses = ['unfolded','vector-toc-list-item-expanded'];
+	var skipTextParts = ['hide'];
 	var unskipTextParts = ['load more comments','loading...'];
 	var clickableTagNames = ['a', 'button'];
 	var doneElements = [];
@@ -85,26 +85,25 @@ Enter the following line to stop it:
 		function checkPendingElement(e) {
 			if (window.stopOpeningExpanders) {
 				console.log('Stopped.');
+			} else
+			if (e = pendingElements[pendingIndex++]) {
+				console.log(
+					pendingIndex
+				+	' / '
+				+	pendingTotalCount
+				+	' = '
+				+	e.textContent
+					.replace(/^\s+|\s+$/g, '')
+					.replace(/\s+/g, ' ')
+				);
+
+				(getClickableChild(e) || e).click();
+
+				setTimeout(checkPendingElement, (Math.ceil(pendingIndex / 50) + Math.random()) * 900);
 			} else {
-				if (e = pendingElements[pendingIndex++]) {
-					console.log(
-						pendingIndex
-					+	' / '
-					+	pendingTotalCount
-					+	' = '
-					+	e.textContent
-						.replace(/^\s+|\s+$/g, '')
-						.replace(/\s+/g, ' ')
-					);
+				console.log('Retrying...');
 
-					(getClickableChild(e) || e).click();
-
-					setTimeout(checkPendingElement, (Math.ceil(pendingIndex / 50) + Math.random()) * 900);
-				} else {
-					console.log('Retrying...');
-
-					setTimeout(openAllVisibleExpanders, 1234);
-				}
+				setTimeout(openAllVisibleExpanders, 1234);
 			}
 		}
 
@@ -158,11 +157,14 @@ Enter the following line to stop it:
 				var linkTextLowerCase = linkTextContent.toLowerCase();
 
 				if (isTextMatch(targetTextParts, linkTextContent, linkTextLowerCase)) {
-					++pendingClassCount;
-					++pendingTotalCount;
 
-					pendingElements.push(eachLinkElement);
+					if (!isTextMatch(skipTextParts, linkTextContent, linkTextLowerCase)) {
+						++pendingClassCount;
+						++pendingTotalCount;
 
+						pendingElements.push(eachLinkElement);
+					}
+					
 					if (!isTextMatch(unskipTextParts, linkTextContent, linkTextLowerCase)) {
 						doneElements.push(eachLinkElement);
 					}
