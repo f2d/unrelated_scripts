@@ -1353,12 +1353,20 @@ def run_batch_archiving(argv):
 	if len(flag_parts_left) > 0:
 
 		common_flag_part, name = split_text_in_two(common_part_with_name, def_name_separator)
+		common_flag_part = expand_flag_shortcuts(common_flag_part)
 		combos = [
-			expand_flag_shortcuts(combo_flag_part + common_flag_part)
+			expand_flag_shortcuts(combo_flag_part) + common_flag_part
 			for combo_flag_part in flag_parts_left
 		]
 
-		flags = ''.join(sorted(set(''.join(combos))))
+# Deduplicate archive type flags here to check only their presence, each combo will count them later.
+# Keep meta flags (file grouping by name/ext, archive naming, etc) as is in common part to count before combos:
+
+		flags = ''.join([
+			x
+			for x in sorted(set(expand_flag_shortcuts(''.join(flag_parts_left))))
+			if not x in common_flag_part
+		]) + common_flag_part
 	else:
 		flags, name = split_text_in_two(common_part_with_name, def_name_separator)
 		flags = expand_flag_shortcuts(flags)
@@ -1391,6 +1399,9 @@ def run_batch_archiving(argv):
 		for x in group_by_num_any_sep_flags
 		if x in flags
 	])
+
+	if foreach_ext:
+		print_with_colored_prefix('file ext group level:', foreach_ext)
 
 	if foreach_dir_or_file or foreach_ID_flags or foreach_ext:
 
