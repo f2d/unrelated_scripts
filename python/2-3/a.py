@@ -14,6 +14,7 @@
 
 # TODO: keep archives by subject AND result file sum/list, instead of only subject, to avoid lost files if different program choose differently.
 # Or abort the queue before deleting new/old archive, when some subject gives different archived result by different program.
+# At least, compare file lists inside archives before deleting source files.
 
 # - Help screen shown on demand or without arguments --------------------------
 
@@ -113,6 +114,7 @@ def print_help():
 		+ (esplit_flag * 2) + '", "'
 		+ (esplit_flag * 4) + '", etc) = use "'
 		+ esplit_glue_method + '" for glue data, faster, sometimes smaller.'
+# Less chance of "The system cannot allocate the required amount of memory" fatal error? No.
 	,	'			Every 3-4 of 4 ("'
 		+ (esplit_flag * 3) + '", '
 		+ (esplit_flag * 4) + '", x7, x8, etc) = use PPMD for text files data, slower, "{mega}" and "{giga}" flags set mem size.'
@@ -682,7 +684,10 @@ def get_7z_method_args(flags):
 # Example: 0=eSplitter 1=PPMD:x9:mem1g:o32 2=LZMA2:x9:d128m:mt1 3=LZMA:x9:d1m:lc8:lp0:pb0 b0s0:1 b0s1:2 b0s2:3
 
 		main_compression_method = (
-			'ZSTD:x{}:mt4'.format(pick_zstd_level_from_flags(flags)) if zstd_flag in flags else
+			'ZSTD:x{level}:mt{threads}'.format(
+				level=pick_zstd_level_from_flags(flags)
+			,	threads=pick_zstd_threads_from_flags(flags)
+			) if zstd_flag in flags else
 			'Copy' if uncompressed_flag in flags else
 			'LZMA{version}:x9:mt{threads}:d{dict}:fb{word}'.format(
 				version=pick_lzma_version_from_flags(flags)
@@ -710,7 +715,9 @@ def get_7z_method_args(flags):
 		,	'-mb0s0:1'
 		,	'-mb0s1:2'
 		,	'-mb0s2:3'
-		,	'-mmt=on'
+		# ,	'-mmt=on'
+		# ,	'-mmtf=on'
+		# ,	'-mmemuse=p60'
 		]
 	else:
 		return [
@@ -755,6 +762,13 @@ def pick_zstd_solid_block_size_from_flags(flags):
 		'1g'   if giga_size_flag in flags else
 		'256m' if mega_size_flag in flags else
 		'99m'
+	)
+
+def pick_zstd_threads_from_flags(flags):	# <- only for eSplitter, possibly x3 (for each stream)
+	return (
+		2 if giga_size_flag in flags else
+		4 if mega_size_flag in flags else
+		8
 	)
 
 def pick_zstd_level_from_flags(flags):
@@ -1531,7 +1545,7 @@ def run_batch_archiving(argv):
 
 		return 11
 
-	if is_delete_enabled or del_warn:
+	if (is_delete_enabled or del_warn) and (is_only_check or not is_no_waiting):
 		print('')
 		cprint('----	----	Warning: subject files will be deleted after archiving.', 'yellow')
 		print('Only WinRAR or 7-Zip v17+ can delete them.')
