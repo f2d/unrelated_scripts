@@ -278,7 +278,10 @@ def run_backup_batch_archiving(argv):
 
 	old_files_to_move = set()
 	old_files_by_src = {}
-	new_archives_count = 0
+	todo_count = 0
+	todo_old_files = []
+	todo_new_archives = []
+	number_to_keep = arg_number_to_keep if arg_number_to_keep > 1 else 1
 
 # Delete oldest extra archives in old keep folder, per source, over specified keep limit:
 
@@ -288,16 +291,21 @@ def run_backup_batch_archiving(argv):
 			arg_old_path
 		) + '/' + name)
 
-	def cleanup_old_files(number_to_keep):
-		for each_src_name, each_file_set in old_files_by_src.items():
+	def cleanup_old_files(src_name=None, file_set=None):
+		if not src_name:
+			for src_name, file_set in old_files_by_src.items():
+				cleanup_old_files(src_name, file_set)
+		else:
+			if not file_set:
+				file_set = old_files_by_src[src_name]
 
-			if len(each_file_set) > number_to_keep:
+			if len(file_set) > number_to_keep:
 
 				for each_name in (
-					sorted(each_file_set)[ : -number_to_keep]
+					sorted(file_set)[ : -number_to_keep]
 					if number_to_keep > 0
 					else
-					each_file_set
+					sorted(file_set)
 				):
 					old_file_path = get_file_path_by_name(each_name)
 
@@ -345,7 +353,7 @@ def run_backup_batch_archiving(argv):
 		print_with_colored_prefix('Old archives:', get_obj_pretty_print(old_files_by_src), 'cyan')
 		print_with_colored_prefix('Old archives to move if updated:', get_obj_pretty_print(old_files_to_move), 'cyan')
 
-	cleanup_old_files(arg_number_to_keep if arg_number_to_keep > 1 else 1)
+	# cleanup_old_files()
 
 	for each_src_path in src_dirs:
 
@@ -385,43 +393,54 @@ def run_backup_batch_archiving(argv):
 
 				continue
 
-# Move previous latest archive to old keep folder:
+			todo_count += 1
+			cleanup_old_files(each_name)
 
 			if old_file_path and (
 				old_file_name in old_files_to_move
 			or	old_file_path in old_files_to_move
 			):
-				if arg_test:
-					print_with_colored_prefix('Move old file:', old_file_path)
+				todo_old_files.append([todo_count, old_file_name, old_file_path])
 
-				elif os.path.isfile(old_file_path):
-					print_with_colored_prefix('Moving old file:', old_file_path)
-
-					old_dest_path = normalize_slashes(arg_old_path + '/' + old_file_name)
-
-					if os.path.exists(old_dest_path):
-						try_count = 1
-						path_parts = old_dest_path.rsplit('.', 1)
-
-						while os.path.exists(old_dest_path):
-							try_count += 1
-							old_dest_path = '({}).'.format(try_count).join(path_parts)
-
-					os.rename(old_file_path, old_dest_path)
-
-# Create new archive for this source:
-
-			new_archives_count += 1
 			cmd_args = [arg_cmd_arch + cmd_glue + each_name, src_path, arg_new_path]
+			todo_new_archives.append([todo_count, each_name, cmd_args])
 
-			print_with_colored_prefix('Source to archive {}:'.format(new_archives_count), each_name)
+# Move previous latest archive to old keep folder:
 
-			if not arg_test:
-				run_batch_archiving(cmd_args)
+	for each_values in todo_old_files:
+		index, old_file_name, old_file_path = each_values
+
+		if arg_test:
+			print_with_colored_prefix('Move old file {}:'.format(index), old_file_path)
+
+		elif os.path.isfile(old_file_path):
+			print_with_colored_prefix('Moving old file {}:'.format(index), old_file_path)
+
+			old_dest_path = normalize_slashes(arg_old_path + '/' + old_file_name)
+
+			if os.path.exists(old_dest_path):
+				try_count = 1
+				path_parts = old_dest_path.rsplit('.', 1)
+
+				while os.path.exists(old_dest_path):
+					try_count += 1
+					old_dest_path = '({}).'.format(try_count).join(path_parts)
+
+			os.rename(old_file_path, old_dest_path)
+
+# Create new archive for each source:
+
+	for each_values in todo_new_archives:
+		index, each_name, cmd_args = each_values
+
+		print_with_colored_prefix('Source to archive {}:'.format(index), each_name)
+
+		if not arg_test:
+			run_batch_archiving(cmd_args)
 
 # - Result summary ------------------------------------------------------------
 
-	if not new_archives_count:
+	if not todo_count:
 		print('')
 		cprint('Nothing to archive.', 'red')
 
