@@ -7,15 +7,18 @@
 //* It works best from web root folder and with all paths autoredirected to it on a separate (sub)domain name dedicated to it.
 //* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url".
 
+//* TODO:
+//* Passthrough for raw long request to avoid timeouts.
+
 require($_SERVER['SCRIPT_FILENAME'].'_config.php');
 
 define('NL', "\n");
 define('IS_LOCALHOST', $_ENV['LOCAL_CLIENT'] ?? ($_SERVER['SERVER_ADDR'] === $_SERVER['REMOTE_ADDR']));
 
-if (!(
-	IS_LOCALHOST
-||	in_array($_SERVER['HTTP_HOST'], $allowed_hostnames)
-)) {
+if (IS_LOCALHOST) {
+	error_reporting(E_ALL);
+} else
+if (!in_array($_SERVER['HTTP_HOST'], $allowed_hostnames)) {
 	die(date('>Y'));
 }
 
@@ -171,7 +174,7 @@ $target_server =
 $target_protocol =
 $target_protocol_folder = '';
 
-$try_protocol_prefixes = array('', 'raw/');
+$try_protocol_prefixes = array('', 'raw/', 'stream/');
 
 foreach ($try_protocol_prefixes as $must_get_raw_content => $raw_prefix)
 foreach ($proxified_protocols as $target_protocol => $target_server_substitute) {
@@ -190,8 +193,7 @@ foreach ($proxified_protocols as $target_protocol => $target_server_substitute) 
 		$target_url = get_path_after_prefix($target_url, $target_protocol_folder);
 
 		header("Location: $self_root/$target_protocol_folder/$target_url");
-
-		die();
+		exit;
 	}
 
 	$target_root_prefix = "$self_root/$target_protocol_folder/";
@@ -421,6 +423,27 @@ if (
 
 	curl_setopt($curl_handle, CURLOPT_ENCODING, '');
 
+//* Stream request without waiting to finish:
+// https://stackoverflow.com/a/46806512
+
+	if (IS_LOCALHOST) {
+		header('X-Raw-Source-Content: '.text_to_one_line($must_get_raw_content));
+	}
+
+	if ($must_get_raw_content > 1) {
+
+		function flush_curl($curl, $data) {
+			echo $data;
+			ob_flush();
+			flush();
+			return strlen($data);
+		}
+
+		curl_setopt($curl_handle, CURLOPT_WRITEFUNCTION, 'flush_curl');
+		curl_exec($curl_handle);
+		exit;
+	}
+
 //* Run request:
 
 	if ($data_dir && ($lock = fopen($lock_file, 'a'))) {
@@ -431,7 +454,9 @@ if (
 	$response_error = curl_errno($curl_handle);
 	$response_info = curl_getinfo($curl_handle);
 
-	curl_close($curl_handle);
+	if (PHP_MAJOR_VERSION < 8) {
+		curl_close($curl_handle);	//* <- deprecated since PHP 8.5, no effect since 8.0
+	}
 
 	if ($data_dir && $lock) {
 		flock($lock, LOCK_UN);
