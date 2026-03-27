@@ -8,8 +8,11 @@
 //* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url".
 
 //* TODO:
-//* Passthrough for raw long request to avoid timeouts.
+//* [v] Passthrough for raw long request to avoid timeouts.
+//* [v] Passthrough source headers (content-type, etc).
+//* [ ] Passthrough source HTTP status (404 not found, 304 not modified, etc).
 
+ob_start();
 require($_SERVER['SCRIPT_FILENAME'].'_config.php');
 
 define('NL', "\n");
@@ -311,6 +314,38 @@ function text_to_one_line($text) {
 	return trim(str_replace("\r", '\\r', str_replace("\n", '\\n', $text)));
 }
 
+$src_status_prefix = 'X-Source-Status: ';
+$src_header_prefix = 'X-Source-Header-';
+
+function extend_header_from_source($header_line) {
+	global $src_status_prefix, $src_header_prefix;
+
+	header(
+		is_prefix($header_line, 'HTTP/')
+	||	false === strpos($header_line, ': ')
+		? $src_status_prefix.$header_line
+		: (
+			is_prefix($header_line, $src_header_prefix)
+			? $header_line
+			: $src_header_prefix.$header_line
+		)
+	);
+}
+
+function extend_headers_from_source() {
+	global $response_headers_text, $response_headers, $response_info;
+
+	foreach (preg_split('~\v+~u', $response_headers_text, 0, PREG_SPLIT_NO_EMPTY) as $header_line) {
+		extend_header_from_source($header_line);
+	}
+
+	if (IS_LOCALHOST) {
+		header('X-All-Source-Headers: '.text_to_one_line($response_headers_text));
+		header('X-JSON-Low-Key-Headers: '.text_to_one_line(json_encode($response_headers)));
+		header('X-JSON-Curl-Info: '.text_to_one_line(json_encode($response_info)));
+	}
+}
+
 function mkdir_if_none($file_path) {
 	if (
 		strlen($dir_name = dirname($file_path))
@@ -423,72 +458,79 @@ if (
 
 	curl_setopt($curl_handle, CURLOPT_ENCODING, '');
 
+	if (IS_LOCALHOST) {
+		header('X-Raw-Source-Content: '.$must_get_raw_content);
+	}
+
 //* Stream request without waiting to finish:
 // https://stackoverflow.com/a/46806512
 
-	if (IS_LOCALHOST) {
-		header('X-Raw-Source-Content: '.text_to_one_line($must_get_raw_content));
-	}
-
 	if ($must_get_raw_content > 1) {
 
-		function flush_curl($curl, $data) {
+		$src_headers_to_reuse = array(
+			'Content-Disposition'
+		// ,	'Content-Length'
+		,	'Content-Type'
+		,	'Etag'
+		,	'Last-Modified'
+		);
+
+		function flush_curl_content($curl_handle, $data) {
+			global $src_headers_to_reuse, $response_headers, $response_info, $response_error;
+
+			if (!headers_sent()) {
+				$response_error = curl_errno($curl_handle);
+				$response_info = curl_getinfo($curl_handle);
+
+				foreach ($src_headers_to_reuse as $header_name) if (
+					($header_value = get_value_or_empty($response_headers, strtolower($header_name)))
+				&&	($header_value !== -1)
+				) {
+					header("$header_name: $header_value");
+				}
+
+				extend_headers_from_source();
+			}
+
 			echo $data;
 			ob_flush();
 			flush();
+
 			return strlen($data);
 		}
 
-		curl_setopt($curl_handle, CURLOPT_WRITEFUNCTION, 'flush_curl');
+		curl_setopt($curl_handle, CURLOPT_WRITEFUNCTION, 'flush_curl_content');
 		curl_exec($curl_handle);
+
 		exit;
+	} else {
+
+//* Run request, wait to finish:
+
+		if ($data_dir && ($lock = fopen($lock_file, 'a'))) {
+			flock($lock, LOCK_EX);
+		}
+
+		$response_content = curl_exec($curl_handle);
+		$response_error = curl_errno($curl_handle);
+		$response_info = curl_getinfo($curl_handle);
+
+		if ($data_dir && $lock) {
+			flock($lock, LOCK_UN);
+			fclose($lock);
+			unset($lock);
+		}
+
+		$t1 = microtime();
 	}
-
-//* Run request:
-
-	if ($data_dir && ($lock = fopen($lock_file, 'a'))) {
-		flock($lock, LOCK_EX);
-	}
-
-	$response_content = curl_exec($curl_handle);
-	$response_error = curl_errno($curl_handle);
-	$response_info = curl_getinfo($curl_handle);
 
 	if (PHP_MAJOR_VERSION < 8) {
 		curl_close($curl_handle);	//* <- deprecated since PHP 8.5, no effect since 8.0
 	}
 
-	if ($data_dir && $lock) {
-		flock($lock, LOCK_UN);
-		fclose($lock);
-		unset($lock);
-	}
-
-	$t1 = microtime();
-
 //* Process response, received from request:
 
-	$src_status_prefix = 'X-Source-Status: ';
-	$src_header_prefix = 'X-Source-Header-';
-
-	foreach (preg_split('~\v+~u', $response_headers_text, 0, PREG_SPLIT_NO_EMPTY) as $header_line) {
-		header(
-			is_prefix($header_line, 'HTTP/')
-		||	false === strpos($header_line, ': ')
-			? $src_status_prefix.$header_line
-			: (
-				is_prefix($header_line, $src_header_prefix)
-				? $header_line
-				: $src_header_prefix.$header_line
-			)
-		);
-	}
-
-	if (IS_LOCALHOST) {
-		header('X-All-Source-Headers: '.text_to_one_line($response_headers_text));
-		header('X-JSON-Low-Key-Headers: '.text_to_one_line(json_encode($response_headers)));
-		header('X-JSON-Curl-Info: '.text_to_one_line(json_encode($response_info)));
-	}
+	extend_headers_from_source();
 
 	$http_code = intval(
 		get_value_or_empty($response_info, 'http_code')
