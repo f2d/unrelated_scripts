@@ -5,10 +5,12 @@
 //* It may be simpler to set up for some read-only use cases than a SOCKS proxy, etc.
 //* It may work on a shared hosting with PHP and no way to setup custom executables, which was the reason to create this script.
 //* It works best from web root folder and with all paths autoredirected to it on a separate (sub)domain name dedicated to it.
-//* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url" or "raw/target/site/url".
+//* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url" or "?raw/target/site/url".
 
-ob_start();
 require($_SERVER['SCRIPT_FILENAME'].'_config.php');
+
+define('AUTOREPLACE_BY_CALLBACK', true);
+define('AUTOREPLACE_LINE_BY_LINE', true);
 
 define('NL', "\n");
 define('IS_LOCALHOST', $_ENV['LOCAL_CLIENT'] ?? ($_SERVER['SERVER_ADDR'] === $_SERVER['REMOTE_ADDR']));
@@ -541,27 +543,29 @@ if (
 		,	'Last-Modified'
 		);
 
-		function flush_curl_content($curl_handle, $data) {
-			global $src_headers_to_reuse, $response_headers, $response_info, $response_error;
+		function send_headers_to_client() {
+			global $curl_handle, $src_headers_to_reuse, $response_headers, $response_info, $response_error;
 
-			if (!headers_sent()) {
-				$response_error = curl_errno($curl_handle);
-				$response_info = curl_getinfo($curl_handle);
+			$response_error = curl_errno($curl_handle);
+			$response_info = curl_getinfo($curl_handle);
 
-				extend_headers_from_source();
-				exit_if_not_modified();
-				reuse_http_status_from_source();
+			extend_headers_from_source();
+			exit_if_not_modified();
+			reuse_http_status_from_source();
 
-				foreach ($src_headers_to_reuse as $header_name) if (
-					($header_value = get_value_or_empty($response_headers, strtolower($header_name)))
-				&&	($header_value !== -1)
-				) {
-					header("$header_name: $header_value");
-				}
+			foreach ($src_headers_to_reuse as $header_name) if (
+				($header_value = get_value_or_empty($response_headers, strtolower($header_name)))
+			&&	($header_value !== -1)
+			) {
+				header("$header_name: $header_value");
 			}
+		}
+
+		function flush_curl_content($curl_handle, $data) {
+
+			if (!headers_sent()) send_headers_to_client();
 
 			echo $data;
-			ob_flush();
 			flush();
 
 			return strlen($data);
@@ -569,6 +573,8 @@ if (
 
 		curl_setopt($curl_handle, CURLOPT_WRITEFUNCTION, 'flush_curl_content');
 		curl_exec($curl_handle);
+
+		if (!headers_sent()) send_headers_to_client();
 
 		exit;
 	}
@@ -673,13 +679,12 @@ if (
 			,	$target_domain_last_part
 			,	$request_protocol
 			// ,	$request_path
-			) =
-			get_domain_and_last_part_from_url($target_server);
+			) = get_domain_and_last_part_from_url($target_server);
 
 			$target_folder = get_path_dir_from_url($target_path);
 			// $target_path = "/$target_path/";
 
-			if (1) {
+			if (AUTOREPLACE_BY_CALLBACK) {
 
 //* Use callback replacement:
 //* (?J) modifier for duplicate names for subpatterns: https://www.php.net/manual/en/reference.pcre.pattern.modifiers.php#121546
@@ -734,8 +739,7 @@ if (
 								,	$url_domain_last_part
 								,	$url_protocol
 								,	$url_path
-								) =
-								get_domain_and_last_part_from_url($url_without_query);
+								) = get_domain_and_last_part_from_url($url_without_query);
 
 								if ($url_domain_last_part === $target_domain_last_part) {
 									$url_path = ltrim($url_path, '/');
@@ -806,7 +810,7 @@ if (
 
 //* Autoreplace line by line, may be faster or eat less memory, may be not:
 
-			if (1) {
+			if (AUTOREPLACE_LINE_BY_LINE) {
 				$replaced_content = implode(NL, array_map('get_replaced_content', explode(NL, $response_content)));
 			} else {
 
