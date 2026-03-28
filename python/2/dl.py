@@ -1327,6 +1327,16 @@ def timestamp():
 def log_stamp():
 	return time.strftime('['+format_print+']	')
 
+def log_path_with_stamp(log_path):
+	if '%' in log_path:
+		try:
+			return time.strftime(log_path)
+
+		except Exception:
+			pass
+
+	return log_path
+
 def timestamp_now(str_format=format_epoch):
 	return time.strftime(str_format.replace(format_epoch, str(int(time.time()))))
 
@@ -1376,6 +1386,9 @@ def write_file(path, conts, mode='a+b'):
 
 				f.write('<Unwritable>')
 	f.close()
+
+def write_log(path, conts, mode='a+b'):
+	write_file(log_path_with_stamp(path), conts, mode)
 
 def write_exception_traceback(text=''):
 	if not log_traceback:
@@ -1894,7 +1907,7 @@ def pass_url(app, url):
 		write_exception_traceback()
 
 		cprint('Unexpected error. See logs.\n', 'red')
-		write_file(log_no_response, [log_stamp(), e, empty_line_separator])
+		write_log(log_no_response, [log_stamp(), e, empty_line_separator])
 
 	return 1
 
@@ -1918,7 +1931,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 		for s in url_to_skip:
 			if meet(hostname if is_type_str(s) and s.find('/') < 0 else url, s):
 
-				write_file(log_skipped, [log_stamp(), utf, line_separator])
+				write_log(log_skipped, [log_stamp(), utf, line_separator])
 				hostname = 0
 
 				break
@@ -1942,13 +1955,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 	else:
 		urls_done.add(url)				# <- add to skip list
 
-		try:
-			log_path = time.strftime(log_all_urls) if '%' in log_all_urls else log_all_urls
-
-		except Exception:
-			log_path = log_all_urls
-
-		write_file(log_path, [log_stamp(), get_path_without_local_prefix(dest_root), tab_separator, url, line_separator])
+		write_log(log_all_urls, [log_stamp(), get_path_without_local_prefix(dest_root), tab_separator, url, line_separator])
 
 	finished = 1
 	udl = url
@@ -1982,13 +1989,13 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 		if headers:
 			try_print(colored('Response headers:', 'red'), headers)
 
-		write_file(log_no_file, [log_stamp(), '%d' % e.code, tab_separator]+udn)
+		write_log(log_no_file, [log_stamp(), '%d' % e.code, tab_separator]+udn)
 
 		if (
 			e.code > 300
 		and	e.code < 400
 		):
-			write_file(log_no_file, [e, empty_line_separator])
+			write_log(log_no_file, [e, empty_line_separator])
 
 		udl_trim = re.sub(pat_trim, '', udl)
 
@@ -2009,7 +2016,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 		write_exception_traceback()
 
 		cprint('Unexpected error. See logs.\n', 'red')
-		write_file(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
+		write_log(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
 
 		if udl.find('http://') != 0:
 			cprint('Retrying with plain http:\n', 'yellow')
@@ -2028,7 +2035,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			write_exception_traceback()
 
 			cprint('Unexpected error. See logs.\n', 'red')
-			write_file(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
+			write_log(log_no_response, [log_stamp()]+udn+[e, empty_line_separator])
 		else:
 			filesize = len(content)
 
@@ -2053,7 +2060,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			except (IOError, ValueError) as e:
 				write_exception_traceback()
 
-				write_file(log_no_file, [log_stamp()]+udn+[e, empty_line_separator])
+				write_log(log_no_file, [log_stamp()]+udn+[e, empty_line_separator])
 
 			if decoded_content is not None:
 				decoded_size = len(decoded_content)
@@ -2081,7 +2088,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 				try_print(colored('Request URL:', 'yellow'), urldest)
 
 				if is_url_blocked(urldest, content):
-					write_file(log_blocked, [log_stamp(), 'blocked	']+udn)
+					write_log(log_blocked, [log_stamp(), 'blocked	']+udn)
 
 					cprint('Blocked page, retrying with proxy:\n', 'yellow')
 					finished += process_url(dest_root, get_proxified_url(udl))
@@ -2100,7 +2107,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			if urldest and urldest != url:
 				urls_to_log.append('Dest URL: ' + urldest)
 
-			write_file(
+			write_log(
 				log_completed
 			,	line_separator.join([
 					'{time}{urls}'
@@ -2352,7 +2359,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			if why_not_save:
 				try_print(colored('Not saved, reason:', 'red'), why_not_save)
 
-				write_file(log_not_saved, [log_stamp()]+udn+[why_not_save, empty_line_separator])
+				write_log(log_not_saved, [log_stamp()]+udn+[why_not_save, empty_line_separator])
 			else:
 				try:
 					saved = save_uniq_copy(f, content)
@@ -2368,7 +2375,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 						except Exception as e:
 							cprint('Tried to <Unprintable>', 'red')
 
-						write_file(log_not_saved, [log_stamp()]+udn+[
+						write_log(log_not_saved, [log_stamp()]+udn+[
 							'Tried path: ', f, line_separator
 						,	'Saved path: ', saved, empty_line_separator
 						])
@@ -2383,7 +2390,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 
 					try_print(colored('failed with error:', 'red'), e)
 
-					write_file(log_not_saved, [log_stamp()]+udn+[e, empty_line_separator])
+					write_log(log_not_saved, [log_stamp()]+udn+[e, empty_line_separator])
 
 			if saved and extracted_file is None:
 				cprint('Cutting extraneous data:', 'yellow')
@@ -2612,7 +2619,7 @@ while 1:
 	count_urls_done_this_run += count_urls_done_this_round
 
 	if changes and new_meta:
-		write_file(log_last_pos, new_meta.encode(default_encoding), 'w')
+		write_log(log_last_pos, new_meta.encode(default_encoding), 'w')
 
 	if interval:
 		cprint('%s Sleeping for %d sec. Press Ctrl+C to break.' % (timestamp(), interval), 'cyan')
