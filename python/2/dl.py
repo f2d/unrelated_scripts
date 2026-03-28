@@ -185,7 +185,6 @@ for argv in sys.argv[1 : ]:
 	elif L == 'w': wait            = int(arg[1 : ]) if len(arg) > 1 else 1
 	elif L == 'i': interval        = int(arg[1 : ]) if len(arg) > 1 else 60
 	elif L == 't': timeout_request = int(arg[1 : ]) if len(arg) > 1 else 99
-#	elif L == 'l': timeout_slow_dl = int(arg[1 : ]) if len(arg) > 1 else 99
 	elif L == 'r': recurse         = int(arg[1 : ]) if len(arg) > 1 else 999
 	elif L == 'm': meta_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
 	elif L == 'g': read_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '.'
@@ -399,7 +398,7 @@ pat_ln2d = [
 
 # -----------------------------------------------------------------------------
 
-pat2replace_before_checking = [			# <- strings before this can have any of "/path/?query&params#fragment" parts
+pat2replace_before_checking = [	# <- before this, strings can have or not have any of "protocol://domain:port/path/?query&params#fragment" parts
 	[get_rei(r'&(?:nbsp|#8203);'	), ' ']
 ,	[get_rei(r'&lt;'		), '<']
 ,	[get_rei(r'&gt;'		), '>']
@@ -454,14 +453,25 @@ pat2replace_before_checking = [			# <- strings before this can have any of "/pat
 ]
 
 pat2replace_before_dl = [			# <- strings after this are sent to web servers
-	[get_rei(r'^(?P<Path>[^#]+)#.*$'					), r'\g<Path>']	# <- remove #anchor
+	[get_rei(r'^(?P<Path>[^#]+)#.*$'			), r'\g<Path>']	# <- remove #anchor
 # ,	[get_rei(r'^https(?P<NoProtocol>:/+(?:[^:/?#]+\.)?(?:googleusercontent|h(?:abra)?stor(?:age)?|vk|youtu(?:be)?|danbooru)\.)'), r'http\g<NoProtocol>']	# <- remove https
-,	[get_rei(r'(?P<NoDL>dropbox\.com/s/[^?#]+)\?.*$'			), r'\g<NoDL>?dl=1']
-,	[get_rei(r'img\.5cm\.ru/view/i5'					), r'i5.5cm.ru/i']
+,	[get_rei(r'(?P<NoDL>dropbox\.com/s/[^?#]+)\?.*$'	), r'\g<NoDL>?dl=1']
+,	[get_rei(r'img\.5cm\.ru/view/i5'			), r'i5.5cm.ru/i']
 ,	[get_rei(r'^(?P<Protocol>\w+):/+(?:www\.)?dobrochan\.(?:ru|org|com)(?:$|/+)'			), r'\g<Protocol>://dobrochan.com/']
 ,	[get_rei(r'^(?P<Protocol>\w+):/+(?:www\.)?2-?ch\.(?:cm|ec|hk|pm|re|ru|so|tf|wf|yt|life)(?:$|/+)'), r'\g<Protocol>://2ch.hk/']	# <- 2ch.life needs CloudFlare cookies
 # ,	[get_rei(r'(?P<Site>vocaroo\.com)/i/s'), r'\g<Site>/media_command.php?command=download_flac&media=s']	# <- FLAC not available anymore
 ,	[get_rei(r'^(?:\w+:/+(?:[^:/?#]+\.)?(?:vocaroo\.com|voca\.ro)/+)(?P<File>[^/?&#]+)$'), r'https://media.vocaroo.com/mp3/\g<File>']
+]
+
+pat2proxify_before_dl = [
+	get_rei(r'''^
+		\w+:/+(?:[^:/?#]+\.)?(
+			discord(app)\.\w+
+		|	catbox\.moe
+		|	(twimg|twitter|x|youtube|ytimg)\.com
+		)[:/]
+	''')
+# ,	[get_rei(r'^\w+:/+(?:[^:/?#]+\.)?(catbox\.moe)[:/]'), default_web_proxy]
 ]
 
 default_red2_name_prefix = [[0, r'\1 - ']]	# <- prepend only first captured sub-group - "(...)"
@@ -1545,11 +1555,8 @@ def get_prereplaced_url(url, hostname='', protocol='http://'):
 
 	return url
 
-def get_proxified_url(url, prfx=False):
+def get_proxified_url(url, prfx=None):
 	if prfx:
-		# prfx = default_web_proxy
-		# prfx = prfx.rstrip('/')+'/'
-
 		return (
 			prfx+'http/'+url if url.find('://') < 0 else
 			re.sub(pat_badp, prfx+(
@@ -1569,6 +1576,9 @@ def get_proxified_url(url, prfx=False):
 				continue
 
 	return url
+
+def is_unproxified_url(url):
+	return not re.search(web_proxy_replacement_remove['from'], url)
 
 def get_unproxified_url(url):
 
@@ -1959,9 +1969,17 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 
 	finished = 1
 	udl = url
+
 	for p in pat2replace_before_dl:
-		if len(p) > 1:
+		if is_type_arr(p) and len(p) > 1:
 			udl = re.sub(p[0], p[1], udl)		# <- fix urls to DL
+
+	for p in pat2proxify_before_dl:
+		pat = p[0] if (is_type_arr(p) and len(p) > 0) else p
+
+		if is_type_reg(pat) and pat.search(udl):
+			udl = get_proxified_url(udl, prfx=(p[1] if (is_type_arr(p) and len(p) > 1) else None))
+
 	udn = [utf, line_separator]+([udl, line_separator] if udl != url else [])
 
 	try:
@@ -2007,7 +2025,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			e.code != 404
 		and	e.code > 400
 		and	e.code < 500
-		and	udl.find(default_web_proxy) != 0
+		and	is_unproxified_url(udl)
 		):
 			cprint('Retrying with proxy:\n', 'yellow')
 			finished += process_url(dest_root, get_proxified_url(udl))
@@ -2022,7 +2040,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			cprint('Retrying with plain http:\n', 'yellow')
 			finished += process_url(dest_root, re.sub(pat_badp, 'http://', udl), unprfx=udl)
 
-		elif udl.find(default_web_proxy) != 0:
+		elif is_unproxified_url(udl):
 			cprint('Retrying with proxy:\n', 'yellow')
 			finished += process_url(dest_root, get_proxified_url(unprfx or udl))
 	else:
@@ -2145,10 +2163,10 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 
 					try:
 						if d and dest.find(d) < 0:
-							if udl.find(default_web_proxy) == 0:
-								dest = d
-							else:
+							if is_unproxified_url(udl):
 								dest += ' - '+d
+							else:
+								dest = d
 
 					except Exception:
 						write_exception_traceback()

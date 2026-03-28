@@ -17,7 +17,6 @@ def get_rei(pattern, flags=None):
 		)
 	)
 
-
 def get_log_path(name):
 	return log_path_pattern.format(name)
 
@@ -30,10 +29,8 @@ user_agent_chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 wait = interval = recurse = 0
 timeout_request = 60
 
-# TODO: timeout_slow_dl = 0
-
 twitter_front_end = 'https://nitter.net/'
-default_web_proxy = 'http://u/raw/'
+default_web_proxy = 'http://u/stream/'
 default_encoding = 'utf_8'
 read_encoding = default_encoding+'|utf_16_le|utf_16_be|cp1251'
 
