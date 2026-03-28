@@ -5,12 +5,7 @@
 //* It may be simpler to set up for some read-only use cases than a SOCKS proxy, etc.
 //* It may work on a shared hosting with PHP and no way to setup custom executables, which was the reason to create this script.
 //* It works best from web root folder and with all paths autoredirected to it on a separate (sub)domain name dedicated to it.
-//* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url".
-
-//* TODO:
-//* [v] Passthrough for raw long request to avoid timeouts.
-//* [v] Passthrough source headers (content-type, etc).
-//* [ ] Passthrough source HTTP status (404 not found, 304 not modified, etc).
+//* As a usable fallback, query argument syntax should work, i.e. "path/to/index.php?target://site/url" or "raw/target/site/url".
 
 ob_start();
 require($_SERVER['SCRIPT_FILENAME'].'_config.php');
@@ -64,19 +59,20 @@ if (
 define('DATE_FORMAT', 'Y-m-d H:i:s');
 define('GMDATE_FORMAT', 'D, d M Y H:i:s \G\M\T');	//* <- 'r' format gives "+0000" instead of "GMT"
 
-define('PAT_ETAG_ENCODING', '~[_-]+(?P<Encoding>br|gzip|deflate)(?P<Quote>"|&quot;)?$~i');
+define('PAT_ETAG_ENCODING', '~(?P<Suffix>(?:[_-]+(?P<Encoding>br|gzip|deflate))+)(?P<Quote>"|&quot;)?$~i');
 define('PAT_ETAG_WEAK', '~^(?P<Weak>W/)(?P<Quote>"|&quot;)?~i');
 define('PAT_ETAG_SPLIT', '~,\s*~');
+define('PAT_QUOTE', '\g{Quote}');
 
 function get_each_etag_forms($etag) {
 
-	$etag_without_encoding = preg_replace(PAT_ETAG_ENCODING, '$2', $etag);
+	$etag_without_encoding = preg_replace(PAT_ETAG_ENCODING, PAT_QUOTE, $etag);
 
 	return array(
 		$etag
 	,	$etag_without_encoding
-	,	preg_replace(PAT_ETAG_WEAK, '$2', $etag)
-	,	preg_replace(PAT_ETAG_WEAK, '$2', $etag_without_encoding)
+	,	preg_replace(PAT_ETAG_WEAK, PAT_QUOTE, $etag)
+	,	preg_replace(PAT_ETAG_WEAK, PAT_QUOTE, $etag_without_encoding)
 	);
 }
 
@@ -346,6 +342,76 @@ function extend_headers_from_source() {
 	}
 }
 
+function exit_if_not_modified() {
+	global $response_headers, $response_info;
+	global $http_code, $file_etag, $file_time, $file_date, $old_date, $old_etag, $old_etag_forms;
+
+	$http_code = intval(
+		get_value_or_empty($response_info, 'http_code')
+	?:	get_value_or_empty($response_headers, 'http')
+	);
+
+	$file_etag = (
+		get_value_or_empty($response_info, 'etag')
+	?:	get_value_or_empty($response_headers, 'etag')
+	);
+
+	$file_time = (
+		get_value_or_empty($response_info, 'filetime')
+	?:	get_value_or_empty($response_info, 'file_time')
+	?:	get_value_or_empty($response_info, 'last_modified')
+	?:	get_value_or_empty($response_headers, 'last-modified')
+	);
+
+	$file_date = (
+		$file_time > 0
+		? gmdate(GMDATE_FORMAT, $file_time)
+		: ''
+	);
+
+	$is_unchanged_date = (
+		$file_date && $old_date
+	&&	$file_date === $old_date
+	);
+
+	$is_unchanged_etag = (
+		$file_etag && $old_etag
+	&&	(
+			$file_etag === $old_etag
+		||	array_diff(get_all_etag_forms($file_etag), $old_etag_forms)
+		)
+	);
+
+	if (
+		$http_code === 304
+	||	(
+			(
+				$old_date
+			&&	$old_etag
+			) ? (
+				$is_unchanged_date
+			&&	$is_unchanged_etag
+			) : (
+				($old_date && $is_unchanged_date)
+			||	($old_etag && $is_unchanged_etag)
+			)
+		)
+	) {
+		header('HTTP/1.0 304 Not Modified');
+		exit;
+	}
+}
+
+function reuse_http_status_from_source() {
+	global $http_code;
+
+	if ($http_code == 200) header('HTTP/1.1 200 OK'); else
+	if ($http_code == 404) header('HTTP/1.1 404 Not Found'); else
+	// if ($http_code == 403) header('HTTP/1.1 403 Forbidden'); else
+	// if ($http_code == 405) header('HTTP/1.1 405 Not Allowed'); else
+	header('HTTP/1.1 200 OK, who cares about '.$http_code);
+}
+
 function mkdir_if_none($file_path) {
 	if (
 		strlen($dir_name = dirname($file_path))
@@ -482,14 +548,16 @@ if (
 				$response_error = curl_errno($curl_handle);
 				$response_info = curl_getinfo($curl_handle);
 
+				extend_headers_from_source();
+				exit_if_not_modified();
+				reuse_http_status_from_source();
+
 				foreach ($src_headers_to_reuse as $header_name) if (
 					($header_value = get_value_or_empty($response_headers, strtolower($header_name)))
 				&&	($header_value !== -1)
 				) {
 					header("$header_name: $header_value");
 				}
-
-				extend_headers_from_source();
 			}
 
 			echo $data;
@@ -503,126 +571,67 @@ if (
 		curl_exec($curl_handle);
 
 		exit;
-	} else {
+	}
 
 //* Run request, wait to finish:
 
-		if ($data_dir && ($lock = fopen($lock_file, 'a'))) {
-			flock($lock, LOCK_EX);
-		}
-
-		$response_content = curl_exec($curl_handle);
-		$response_error = curl_errno($curl_handle);
-		$response_info = curl_getinfo($curl_handle);
-
-		if ($data_dir && $lock) {
-			flock($lock, LOCK_UN);
-			fclose($lock);
-			unset($lock);
-		}
-
-		$t1 = microtime();
+	if ($data_dir && ($lock = fopen($lock_file, 'a'))) {
+		flock($lock, LOCK_EX);
 	}
+
+	$response_content = curl_exec($curl_handle);
+	$response_error = curl_errno($curl_handle);
+	$response_info = curl_getinfo($curl_handle);
 
 	if (PHP_MAJOR_VERSION < 8) {
 		curl_close($curl_handle);	//* <- deprecated since PHP 8.5, no effect since 8.0
 	}
 
+	$t1 = microtime();
+
+	if ($data_dir && $lock) {
+		flock($lock, LOCK_UN);
+		fclose($lock);
+		unset($lock);
+	}
+
 //* Process response, received from request:
 
 	extend_headers_from_source();
-
-	$http_code = intval(
-		get_value_or_empty($response_info, 'http_code')
-	?:	get_value_or_empty($response_headers, 'http')
-	);
-
-	$file_etag = (
-		get_value_or_empty($response_info, 'etag')
-	?:	get_value_or_empty($response_headers, 'etag')
-	);
-
-	$file_time = (
-		get_value_or_empty($response_info, 'filetime')
-	?:	get_value_or_empty($response_info, 'file_time')
-	?:	get_value_or_empty($response_info, 'last_modified')
-	?:	get_value_or_empty($response_headers, 'last-modified')
-	);
-
-	$file_date = (
-		$file_time > 0
-		? gmdate(GMDATE_FORMAT, $file_time)
-		: ''
-	);
-
-	$is_unchanged_date = (
-		$file_date && $old_date
-	&&	$file_date === $old_date
-	);
-
-	$is_unchanged_etag = (
-		$file_etag && $old_etag
-	&&	(
-			$file_etag === $old_etag
-		||	array_diff(get_all_etag_forms($file_etag), $old_etag_forms)
-		)
-	);
-
-	if (
-		$http_code === 304
-	||	(
-			(
-				$old_date
-			&&	$old_etag
-			) ? (
-				$is_unchanged_date
-			&&	$is_unchanged_etag
-			) : (
-				($old_date && $is_unchanged_date)
-			||	($old_etag && $is_unchanged_etag)
-			)
-		)
-	) {
-		header('HTTP/1.0 304 Not Modified');
-		exit;
-	}
+	exit_if_not_modified();
 
 //* Process response content to return back to client:
 
-	$save_name = (
-		get_value_or_empty($response_info, 'content_disposition')
-	?:	get_value_or_empty($response_headers, 'content-disposition')
-	);
-
-	$file_type = (
-		get_value_or_empty($response_info, 'content_type')
-	?:	get_value_or_empty($response_headers, 'content-type')
-	);
-
-	$file_size = (
-		get_value_or_empty($response_info, 'filesize')
-	?:	get_value_or_empty($response_info, 'file_size')
-	?:	get_value_or_empty($response_info, 'size_download')
-	?:	get_value_or_empty($response_info, 'content_length')
-	?:	get_value_or_empty($response_headers, 'content-length')
-	);
-
 	if ($response_content) {
-		if ($http_code == 200) header('HTTP/1.1 200 OK'); else
-		if ($http_code == 404) header('HTTP/1.1 404 Not Found'); else
-		// if ($http_code == 403) header('HTTP/1.1 403 Forbidden'); else
-		// if ($http_code == 405) header('HTTP/1.1 405 Not Allowed'); else
-		header('HTTP/1.1 200 OK, who cares about '.$http_code);
+		reuse_http_status_from_source();
 
+		$file_type = (
+			get_value_or_empty($response_info, 'content_type')
+		?:	get_value_or_empty($response_headers, 'content-type')
+		);
+
+		if ($file_type && $file_type !== -1) header('Content-Type: '.$file_type);
 		if ($file_time && $file_time !== -1) header('Last-Modified: '.$file_date);
 		if ($file_etag && $file_etag !== -1) header('Etag: '.$file_etag);
-		if ($file_type && $file_type !== -1) header('Content-Type: '.$file_type);
 
 //* If original "Content-Length" refers to encoded response, it will truncate decoded content, so don't use it, use actual length later:
 
-		// if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);
+	/*	$file_size = (
+			get_value_or_empty($response_info, 'filesize')
+		?:	get_value_or_empty($response_info, 'file_size')
+		?:	get_value_or_empty($response_info, 'size_download')
+		?:	get_value_or_empty($response_info, 'content_length')
+		?:	get_value_or_empty($response_headers, 'content-length')
+		);
+
+		if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);*/
 
 //* The file is intended for download, not view:
+
+		$save_name = (
+			get_value_or_empty($response_info, 'content_disposition')
+		?:	get_value_or_empty($response_headers, 'content-disposition')
+		);
 
 		if ($save_name && $save_name !== -1) header('Content-Disposition: '.$save_name);
 		else
