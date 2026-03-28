@@ -61,21 +61,35 @@ if (
 define('DATE_FORMAT', 'Y-m-d H:i:s');
 define('GMDATE_FORMAT', 'D, d M Y H:i:s \G\M\T');	//* <- 'r' format gives "+0000" instead of "GMT"
 
-define('PAT_ETAG_ENCODING', '~(?P<Suffix>(?:[_-]+(?P<Encoding>br|gzip|deflate))+)(?P<Quote>"|&quot;)?$~i');
+define('PAT_ETAG_ENCODING', '~[_-]+(?P<Encoding>br|gzip|deflate|zstd)+(?P<Quote>"|&quot;)?$~i');
 define('PAT_ETAG_WEAK', '~^(?P<Weak>W/)(?P<Quote>"|&quot;)?~i');
 define('PAT_ETAG_SPLIT', '~,\s*~');
-define('PAT_QUOTE', '\g{Quote}');
+
+//* https://bugs.php.net/bug.php?id=81469
+//* No named groups in preg_replace, use preg_replace_callback:
+
+function return_quote($match) { return $match['Quote']; }
+function replace_with_quote($pat, $text) { return preg_replace_callback($pat, 'return_quote', $text); }
 
 function get_each_etag_forms($etag) {
 
-	$etag_without_encoding = preg_replace(PAT_ETAG_ENCODING, PAT_QUOTE, $etag);
+	$etag_forms = array($etag);
+	
+	if (preg_match(PAT_ETAG_WEAK, $etag)) {
+		array_push($etag_forms, replace_with_quote(PAT_ETAG_WEAK, $etag));
+	}
 
-	return array(
-		$etag
-	,	$etag_without_encoding
-	,	preg_replace(PAT_ETAG_WEAK, PAT_QUOTE, $etag)
-	,	preg_replace(PAT_ETAG_WEAK, PAT_QUOTE, $etag_without_encoding)
-	);
+	while (preg_match(PAT_ETAG_ENCODING, $etag)) {	
+		$etag = replace_with_quote(PAT_ETAG_ENCODING, $etag);
+
+		array_push($etag_forms, $etag);
+		
+		if (preg_match(PAT_ETAG_WEAK, $etag)) {
+			array_push($etag_forms, replace_with_quote(PAT_ETAG_WEAK, $etag));
+		}
+	}
+
+	return $etag_forms;
 }
 
 function get_all_etag_forms($etag) {
@@ -331,16 +345,17 @@ function extend_header_from_source($header_line) {
 }
 
 function extend_headers_from_source() {
-	global $response_headers_text, $response_headers, $response_info;
+	global $response_headers_text, $response_headers, $response_info, $send_headers;
 
 	foreach (preg_split('~\v+~u', $response_headers_text, 0, PREG_SPLIT_NO_EMPTY) as $header_line) {
 		extend_header_from_source($header_line);
 	}
 
 	if (IS_LOCALHOST) {
-		header('X-All-Source-Headers: '.text_to_one_line($response_headers_text));
-		header('X-JSON-Low-Key-Headers: '.text_to_one_line(json_encode($response_headers)));
-		header('X-JSON-Curl-Info: '.text_to_one_line(json_encode($response_info)));
+		header('X-Proxy-Request-Headers: '.text_to_one_line(json_encode($send_headers)));
+		header('X-Response-Headers: '.text_to_one_line($response_headers_text));
+		header('X-Response-JSON-Low-Key-Headers: '.text_to_one_line(json_encode($response_headers)));
+		header('X-Response-JSON-Curl-Info: '.text_to_one_line(json_encode($response_info)));
 	}
 }
 
@@ -399,7 +414,7 @@ function exit_if_not_modified() {
 			)
 		)
 	) {
-		header('HTTP/1.0 304 Not Modified');
+		header('HTTP/1.1 304 Not Modified');
 		exit;
 	}
 }
@@ -411,7 +426,7 @@ function reuse_http_status_from_source() {
 	if ($http_code == 404) header('HTTP/1.1 404 Not Found'); else
 	// if ($http_code == 403) header('HTTP/1.1 403 Forbidden'); else
 	// if ($http_code == 405) header('HTTP/1.1 405 Not Allowed'); else
-	header('HTTP/1.1 200 OK, who cares about '.$http_code);
+	header('HTTP/1.1 200 OK, original status '.$http_code);
 }
 
 function mkdir_if_none($file_path) {
