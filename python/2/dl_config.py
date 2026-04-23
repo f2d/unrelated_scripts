@@ -26,8 +26,10 @@ def get_log_path(name):
 user_agent_firefox = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0'
 user_agent_chrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.136 Safari/537.36'
 
-wait = interval = recurse = 0
-timeout_request = 60
+request_recurse = 0
+request_timeout = 60
+request_wait = 0
+reread_interval = 0
 
 twitter_front_end = 'https://nitter.net/'
 default_web_proxy = 'http://u/stream/'

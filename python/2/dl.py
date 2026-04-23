@@ -181,15 +181,15 @@ for argv in sys.argv[1 : ]:
 
 	L = arg[0].lower()
 
-	if   L == '-': flags              += arg[1 : ]  if len(arg) > 1 else ''
-	elif L == 'w': wait            = int(arg[1 : ]) if len(arg) > 1 else 1
-	elif L == 'i': interval        = int(arg[1 : ]) if len(arg) > 1 else 60
-	elif L == 't': timeout_request = int(arg[1 : ]) if len(arg) > 1 else 99
-	elif L == 'r': recurse         = int(arg[1 : ]) if len(arg) > 1 else 999
-	elif L == 'm': meta_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
-	elif L == 'g': read_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '.'
-	elif L == 'd': dest_root           = arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
-	elif L == 'e': read_encoding       = arg[1 : ].replace('-' , '_') if len(arg) > 1 else default_encoding
+	if   L == '-': flags		+= arg[1 : ]  if len(arg) > 1 else ''
+	elif L == 'i': reread_interval	= int(arg[1 : ]) if len(arg) > 1 else 60
+	elif L == 'w': request_wait	= int(arg[1 : ]) if len(arg) > 1 else 1
+	elif L == 't': request_timeout	= int(arg[1 : ]) if len(arg) > 1 else 99
+	elif L == 'r': request_recurse	= int(arg[1 : ]) if len(arg) > 1 else 999
+	elif L == 'm': meta_root	= arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
+	elif L == 'g': read_root	= arg[1 : ].replace('\\', '/') if len(arg) > 1 else '.'
+	elif L == 'd': dest_root	= arg[1 : ].replace('\\', '/') if len(arg) > 1 else '..'
+	elif L == 'e': read_encoding	= arg[1 : ].replace('-' , '_') if len(arg) > 1 else default_encoding
 
 for i in 'achmpsuy':
 	if i in flags:
@@ -1637,8 +1637,8 @@ def read_path(path, dest_root, lvl=0):
 	if not (os.path.exists(path) and os.path.isdir(path)):
 		return urls
 
-	if recurse:
-		can_go_deeper = (path == path.rstrip('/.')) and (recurse > lvl)
+	if request_recurse:
+		can_go_deeper = (path == path.rstrip('/.')) and (request_recurse > lvl)
 		if TEST:
 			try_print(path, colored('->', 'yellow'), lvl)
 		else:
@@ -1792,7 +1792,7 @@ def get_response(req):
 	if headers:
 		req = Request(req, data, headers)
 
-	return urlopen(req, data, timeout_request, context=false_ctx)
+	return urlopen(req, data, request_timeout, context=false_ctx)
 
 def get_by_caseless_key(dic, k):
 	k = k.lower()
@@ -2536,9 +2536,9 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 					pass_url(dest_app_default, url2)
 
 					break
-	if wait:
-		cprint('%s Waiting for %d sec. after each download attempt.\n' % (timestamp(), wait), 'cyan')
-		time.sleep(wait)
+	if request_wait:
+		cprint('%s Waiting for %d sec. after each download attempt.\n' % (timestamp(), request_wait), 'cyan')
+		time.sleep(request_wait)
 
 	return finished
 
@@ -2639,11 +2639,11 @@ while 1:
 	if changes and new_meta:
 		write_log(log_last_pos, new_meta.encode(default_encoding), 'w')
 
-	if interval:
-		cprint('%s Sleeping for %d sec. Press Ctrl+C to break.' % (timestamp(), interval), 'cyan')
+	if reread_interval:
+		cprint('%s Sleeping for %d sec. Press Ctrl+C to break.' % (timestamp(), reread_interval), 'cyan')
 
 		try:
-			time.sleep(interval)
+			time.sleep(reread_interval)
 
 		except KeyboardInterrupt:
 			sys.exit(0)
