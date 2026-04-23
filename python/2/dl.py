@@ -700,7 +700,7 @@ pat2recursive_dl = [				# <- additional sub-steps to grab
 	,	'grab': get_rei(r'<a\b[^<]*?\s+href="?([^">\s]+)[">\s][^<]*?\s+download=')
 	}
 
-# ibb / imgbb:
+# ibb, imgbb:
 
 # HTML sample from https://ibb.co/M8cc1my:
 # <img src="https://i.ibb.co/YDccdx4/scr00044.jpg" alt="scr00044" width="2560" height="1440" data-load="full">
@@ -2091,7 +2091,7 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 
 			if decoded_content is not None:
 				decoded_size = len(decoded_content)
-				compression_ratio = 100.0 * filesize / decoded_size
+				compression_ratio = (100.0 * filesize / decoded_size) if decoded_size > 0 else 0
 
 				try_print(
 					colored('Decompressed:', 'yellow')
@@ -2638,7 +2638,7 @@ while 1:
 
 				count_urls_done_this_round += finished
 
-				cprint('(done in this round: %d / %d)\n' % (count_urls_done_this_round, count_urls_to_do), 'green')
+				cprint('(done in this round: %d of %d)\n' % (count_urls_done_this_round, count_urls_to_do), 'green')
 
 			if TEST and count_urls_done_this_round > 1:
 				break
