@@ -97,6 +97,11 @@ try:
 except ImportError:
 	gzip = None
 
+try:
+	from compression import zstd
+except ImportError:
+	zstd = None
+
 # TODO: fix this script for python 3, then remove this crutch:
 # https://stackoverflow.com/a/4383597
 sys.path.insert(1, 'd:/programs/!_dev/Python/scripts/2-3')
@@ -216,6 +221,7 @@ accept_enc = ', '.join(filter(
 ,	[
 		'br' if brotli else None
 	,	'gzip' if gzip else None
+	,	'zstd' if zstd else None
 	,	'deflate' if zlib else None
 	]
 ))
@@ -2065,6 +2071,9 @@ def process_url(dest_root, url, utf='', unprfx='', prfx=''):
 			try:
 				if brotli is not None and encoding_type == 'br':
 					decoded_content = brotli.decompress(content)
+
+				elif zstd is not None and encoding_type == 'zstd':
+					decoded_content = zstd.decompress(content)
 
 				elif zlib is not None and encoding_type == 'deflate':
 					decoded_content = zlib.decompress(content)
