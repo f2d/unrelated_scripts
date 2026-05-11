@@ -74,16 +74,16 @@ function replace_with_quote($pat, $text) { return preg_replace_callback($pat, 'r
 function get_each_etag_forms($etag) {
 
 	$etag_forms = array($etag);
-	
+
 	if (preg_match(PAT_ETAG_WEAK, $etag)) {
 		array_push($etag_forms, replace_with_quote(PAT_ETAG_WEAK, $etag));
 	}
 
-	while (preg_match(PAT_ETAG_ENCODING, $etag)) {	
+	while (preg_match(PAT_ETAG_ENCODING, $etag)) {
 		$etag = replace_with_quote(PAT_ETAG_ENCODING, $etag);
 
 		array_push($etag_forms, $etag);
-		
+
 		if (preg_match(PAT_ETAG_WEAK, $etag)) {
 			array_push($etag_forms, replace_with_quote(PAT_ETAG_WEAK, $etag));
 		}
@@ -419,6 +419,22 @@ function exit_if_not_modified() {
 	}
 }
 
+function reuse_file_size_from_source() {
+	global $response_headers, $response_info;
+
+	$file_size = (
+		get_value_or_empty($response_info, 'filesize')
+	?:	get_value_or_empty($response_info, 'file_size')
+	?:	get_value_or_empty($response_info, 'size_download')
+	?:	get_value_or_empty($response_info, 'content_length')
+	?:	get_value_or_empty($response_headers, 'content-length')
+	);
+
+//* If original "Content-Length" refers to encoded response, it will truncate decoded content, so don't use it as is, use actual length later:
+
+	if ($file_size && $file_size !== -1) header($src_size_header.'X-Source-Content-Length: '.$file_size);
+}
+
 function reuse_http_status_from_source() {
 	global $http_code;
 
@@ -566,7 +582,9 @@ if (
 
 			extend_headers_from_source();
 			exit_if_not_modified();
+
 			reuse_http_status_from_source();
+			reuse_file_size_from_source();
 
 			foreach ($src_headers_to_reuse as $header_name) if (
 				($header_value = get_value_or_empty($response_headers, strtolower($header_name)))
@@ -625,6 +643,7 @@ if (
 
 	if ($response_content) {
 		reuse_http_status_from_source();
+		reuse_file_size_from_source();
 
 		$file_type = (
 			get_value_or_empty($response_info, 'content_type')
@@ -634,18 +653,6 @@ if (
 		if ($file_type && $file_type !== -1) header('Content-Type: '.$file_type);
 		if ($file_time && $file_time !== -1) header('Last-Modified: '.$file_date);
 		if ($file_etag && $file_etag !== -1) header('Etag: '.$file_etag);
-
-//* If original "Content-Length" refers to encoded response, it will truncate decoded content, so don't use it, use actual length later:
-
-	/*	$file_size = (
-			get_value_or_empty($response_info, 'filesize')
-		?:	get_value_or_empty($response_info, 'file_size')
-		?:	get_value_or_empty($response_info, 'size_download')
-		?:	get_value_or_empty($response_info, 'content_length')
-		?:	get_value_or_empty($response_headers, 'content-length')
-		);
-
-		if ($file_size && $file_size !== -1) header('Content-Length: '.$file_size);*/
 
 //* The file is intended for download, not view:
 
